@@ -1,0 +1,969 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>APIC — Advanced Image Processing Center</title>
+<meta name="description" content="APIC-Web — edit, convert and compress images right in your browser. An Akhouri Systems product." />
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,450;0,9..144,600;0,9..144,700;1,9..144,450&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<!-- Google Identity Services -->
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+
+<!-- Firebase (free Spark plan — Auth + Firestore, no credit card needed) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+<!-- EmailJS (free tier — client-side email sending, no backend/server needed) -->
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+
+<style>
+  :root{
+    --gold:#c9a34a;
+    --gold-soft:#e2c069;
+    --ember:#b0532e;
+    --ink:#0b0b0a;
+    --ink-2:#141412;
+    --ink-3:#1d1c19;
+    --hair-dark: rgba(230,222,200,0.12);
+    --paper:#f3efe4;
+    --paper-2:#eae4d3;
+    --paper-3:#ddd5bd;
+    --hair-light: rgba(20,18,12,0.12);
+    --text:#f1ece0;
+    --text-muted:#8f8a7c;
+    --bg:var(--ink);
+    --bg-2:var(--ink-2);
+    --bg-3:var(--ink-3);
+    --fg:var(--text);
+    --fg-muted:var(--text-muted);
+    --hairline:var(--hair-dark);
+    --shadow: 0 30px 80px -30px rgba(0,0,0,0.7);
+    --radius:2px;
+    --serif:'Fraunces', Georgia, serif;
+    --sans:'Inter', -apple-system, sans-serif;
+    --mono:'IBM Plex Mono', 'Courier New', monospace;
+  }
+  html[data-theme="light"]{
+    --bg:var(--paper);
+    --bg-2:var(--paper-2);
+    --bg-3:var(--paper-3);
+    --fg:#1a1810;
+    --fg-muted:#726d5e;
+    --hairline:var(--hair-light);
+    --shadow: 0 30px 80px -30px rgba(30,25,10,0.25);
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--fg);
+    font-family:var(--sans);
+    -webkit-font-smoothing:antialiased;
+    transition:background .4s ease, color .4s ease;
+    overflow-x:hidden;
+  }
+  ::selection{background:var(--gold); color:#0b0b0a;}
+  a{color:inherit;}
+  img{max-width:100%; display:block;}
+
+  .wrap{max-width:1180px; margin:0 auto; padding:0 28px;}
+
+  /* ---------- top bar ---------- */
+  header.top{
+    position:sticky; top:0; z-index:50;
+    background:color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--hairline);
+  }
+  .top-inner{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:16px 28px;
+    max-width:1180px; margin:0 auto;
+  }
+  .brand{display:flex; align-items:center; gap:10px; text-decoration:none;}
+  .brand-mark{
+    width:30px; height:30px; border:1.5px solid var(--gold);
+    border-radius:50%; display:flex; align-items:center; justify-content:center;
+    font-family:var(--mono); font-size:11px; color:var(--gold); letter-spacing:0.5px;
+  }
+  .brand-word{font-family:var(--serif); font-size:20px; font-weight:600; letter-spacing:0.5px;}
+  .brand-word small{display:block; font-family:var(--mono); font-size:9px; letter-spacing:2px; color:var(--fg-muted); font-weight:400; text-transform:uppercase; margin-top:1px;}
+
+  nav.top-links{display:flex; align-items:center; gap:28px;}
+  nav.top-links a{
+    font-family:var(--sans); font-size:13.5px; text-decoration:none; color:var(--fg-muted);
+    letter-spacing:0.2px; transition:color .2s;
+  }
+  nav.top-links a:hover{color:var(--fg);}
+
+  .top-actions{display:flex; align-items:center; gap:12px;}
+
+  .theme-toggle{
+    width:38px; height:38px; border-radius:50%; border:1px solid var(--hairline);
+    background:transparent; color:var(--fg); cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    transition:border-color .2s, transform .2s;
+  }
+  .theme-toggle:hover{border-color:var(--gold); transform:rotate(20deg);}
+  .theme-toggle svg{width:16px; height:16px;}
+
+  .btn{
+    font-family:var(--sans); font-size:13.5px; font-weight:600;
+    padding:10px 18px; border-radius:1px; cursor:pointer;
+    border:1px solid transparent; letter-spacing:0.2px;
+    display:inline-flex; align-items:center; gap:8px;
+    text-decoration:none; transition:all .2s ease;
+    white-space:nowrap;
+  }
+  .btn-gold{background:var(--gold); color:#100c02; border-color:var(--gold);}
+  .btn-gold:hover{background:var(--gold-soft); border-color:var(--gold-soft);}
+  .btn-ghost{background:transparent; color:var(--fg); border-color:var(--hairline);}
+  .btn-ghost:hover{border-color:var(--fg);}
+  .btn-sm{padding:8px 14px; font-size:12.5px;}
+
+  /* ---------- hero ---------- */
+  .hero{
+    padding:88px 0 40px;
+    position:relative;
+  }
+  .hero-grid{
+    display:grid; grid-template-columns:1.05fr 0.95fr; gap:64px; align-items:center;
+  }
+  .eyebrow{
+    font-family:var(--mono); font-size:11px; letter-spacing:3px; text-transform:uppercase;
+    color:var(--gold); display:flex; align-items:center; gap:10px; margin-bottom:22px;
+  }
+  .eyebrow::before{content:""; width:26px; height:1px; background:var(--gold);}
+  h1.hero-title{
+    font-family:var(--serif); font-weight:600; font-size:clamp(38px, 5.4vw, 66px);
+    line-height:1.02; letter-spacing:-0.5px; margin:0 0 22px;
+  }
+  h1.hero-title em{font-style:italic; font-weight:450; color:var(--gold);}
+  .hero-sub{
+    font-size:16.5px; line-height:1.65; color:var(--fg-muted); max-width:480px; margin:0 0 34px;
+  }
+  .hero-ctas{display:flex; gap:14px; flex-wrap:wrap; margin-bottom:38px;}
+  .hero-meta{
+    display:flex; gap:32px; font-family:var(--mono); font-size:11.5px; color:var(--fg-muted);
+    border-top:1px solid var(--hairline); padding-top:20px;
+  }
+  .hero-meta b{color:var(--fg); font-weight:600; display:block; font-size:16px; font-family:var(--sans);}
+
+  /* ---------- the bench (signature element) ---------- */
+  .bench{
+    position:relative;
+    background:var(--bg-2);
+    border:1px solid var(--hairline);
+    box-shadow:var(--shadow);
+  }
+  .bench-strip{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:10px 16px; border-bottom:1px dashed var(--hairline);
+    font-family:var(--mono); font-size:10px; letter-spacing:1.5px; color:var(--fg-muted);
+    text-transform:uppercase;
+  }
+  .bench-strip .dots{display:flex; gap:6px;}
+  .bench-strip .dots span{width:6px; height:6px; border-radius:50%; background:var(--hairline);}
+
+  .bench-body{padding:22px;}
+  .drop{
+    border:1.5px dashed var(--hairline);
+    min-height:230px;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:12px; text-align:center; padding:20px; cursor:pointer;
+    transition:border-color .2s, background .2s; position:relative; overflow:hidden;
+  }
+  .drop.drag{border-color:var(--gold); background:color-mix(in srgb, var(--gold) 8%, transparent);}
+  .drop svg{width:30px; height:30px; color:var(--gold);}
+  .drop p{margin:0; font-size:13.5px; color:var(--fg-muted);}
+  .drop p b{color:var(--fg); font-weight:600;}
+  .drop input{display:none;}
+  .drop canvas{max-width:100%; max-height:230px; display:none;}
+
+  .bench-tools{
+    display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-top:16px;
+  }
+  .tool-btn{
+    font-family:var(--mono); font-size:10.5px; letter-spacing:1px; text-transform:uppercase;
+    padding:10px 8px; text-align:center; border:1px solid var(--hairline); background:transparent;
+    color:var(--fg-muted); cursor:pointer; transition:all .15s;
+  }
+  .tool-btn:hover{border-color:var(--gold); color:var(--fg);}
+  .tool-btn.active{border-color:var(--gold); color:var(--gold); background:color-mix(in srgb, var(--gold) 10%, transparent);}
+  .tool-btn:disabled{opacity:0.35; cursor:not-allowed;}
+
+  .bench-panel{margin-top:14px; display:none;}
+  .bench-panel.show{display:block;}
+  .row{display:flex; align-items:center; gap:10px; margin-bottom:10px;}
+  .row label{font-family:var(--mono); font-size:10.5px; color:var(--fg-muted); width:90px; flex-shrink:0; text-transform:uppercase; letter-spacing:1px;}
+  .row select, .row input[type=range]{flex:1;}
+  select{
+    background:var(--bg); color:var(--fg); border:1px solid var(--hairline); padding:7px 10px;
+    font-family:var(--sans); font-size:13px;
+  }
+  input[type=range]{accent-color:var(--gold);}
+  .row .val{font-family:var(--mono); font-size:11px; color:var(--gold); width:42px; text-align:right;}
+
+  .bench-footer{display:flex; justify-content:space-between; align-items:center; margin-top:18px; gap:10px; flex-wrap:wrap;}
+  .filesize{font-family:var(--mono); font-size:10.5px; color:var(--fg-muted);}
+  .gate-note{
+    font-family:var(--mono); font-size:10.5px; color:var(--ember); display:none; align-items:center; gap:6px;
+  }
+  .gate-note.show{display:flex;}
+
+  /* ---------- sections ---------- */
+  section{padding:100px 0;}
+  .section-head{max-width:640px; margin:0 0 56px;}
+  .section-head .eyebrow{margin-bottom:16px;}
+  .section-head h2{
+    font-family:var(--serif); font-size:clamp(28px,3.4vw,42px); font-weight:600; margin:0 0 14px; letter-spacing:-0.3px;
+  }
+  .section-head p{color:var(--fg-muted); font-size:15.5px; line-height:1.6; margin:0;}
+
+  .features{
+    border-top:1px solid var(--hairline);
+  }
+  .frame-grid{
+    display:grid; grid-template-columns:repeat(4,1fr); gap:0;
+    border:1px solid var(--hairline);
+  }
+  .frame{
+    padding:34px 26px; border-right:1px solid var(--hairline);
+    position:relative; transition:background .2s;
+  }
+  .frame:last-child{border-right:none;}
+  .frame:hover{background:var(--bg-2);}
+  .frame-num{font-family:var(--mono); font-size:10.5px; color:var(--gold); letter-spacing:1.5px;}
+  .frame h3{font-family:var(--serif); font-size:20px; font-weight:600; margin:16px 0 10px;}
+  .frame p{font-size:13.5px; color:var(--fg-muted); line-height:1.6; margin:0;}
+
+  /* ---------- counter ---------- */
+  .counter-section{border-top:1px solid var(--hairline); border-bottom:1px solid var(--hairline);}
+  .counter-inner{
+    display:flex; align-items:center; justify-content:space-between; gap:40px; flex-wrap:wrap;
+  }
+  .counter-num{
+    font-family:var(--serif); font-size:clamp(48px,7vw,96px); font-weight:600; line-height:1; letter-spacing:-1px;
+    display:flex; align-items:baseline; gap:14px;
+  }
+  .counter-num small{font-family:var(--mono); font-size:13px; color:var(--fg-muted); letter-spacing:1.5px; text-transform:uppercase; font-weight:400;}
+  .counter-live{
+    display:flex; align-items:center; gap:8px; font-family:var(--mono); font-size:11px; color:var(--fg-muted); letter-spacing:1px; text-transform:uppercase;
+  }
+  .pulse{width:7px; height:7px; border-radius:50%; background:var(--gold); box-shadow:0 0 0 0 rgba(201,163,74,0.6); animation:pulse 2s infinite;}
+  @keyframes pulse{
+    0%{box-shadow:0 0 0 0 rgba(201,163,74,0.55);}
+    70%{box-shadow:0 0 0 10px rgba(201,163,74,0);}
+    100%{box-shadow:0 0 0 0 rgba(201,163,74,0);}
+  }
+
+  /* ---------- download ---------- */
+  .download-section{
+    text-align:center; border-bottom:1px solid var(--hairline);
+  }
+  .download-card{
+    max-width:640px; margin:0 auto; padding:56px 40px;
+    border:1px solid var(--hairline); background:var(--bg-2);
+    position:relative;
+  }
+  .download-card::before{
+    content:""; position:absolute; inset:8px; border:1px solid var(--hairline); pointer-events:none;
+  }
+  .download-card h2{font-family:var(--serif); font-size:30px; font-weight:600; margin:0 0 12px;}
+  .download-card p{color:var(--fg-muted); font-size:14.5px; margin:0 0 26px; line-height:1.6;}
+  .download-note{margin-top:18px; font-family:var(--mono); font-size:10.5px; color:var(--fg-muted); letter-spacing:0.5px;}
+
+  /* ---------- footer ---------- */
+  footer{padding:48px 0 32px;}
+  .footer-inner{
+    display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;
+    padding-top:28px; border-top:1px solid var(--hairline);
+  }
+  .footer-brand{display:flex; align-items:center; gap:10px;}
+  .footer-copy{font-family:var(--mono); font-size:11px; color:var(--fg-muted); letter-spacing:0.4px; text-align:right; line-height:1.7;}
+  .footer-copy b{color:var(--gold); font-weight:600;}
+
+  /* ---------- modal (google signin) ---------- */
+  .modal-bg{
+    position:fixed; inset:0; background:rgba(5,4,2,0.7); backdrop-filter:blur(4px);
+    display:none; align-items:center; justify-content:center; z-index:200; padding:20px;
+  }
+  .modal-bg.show{display:flex;}
+  .modal{
+    background:var(--bg); border:1px solid var(--hairline); max-width:380px; width:100%;
+    padding:34px 30px; text-align:center; box-shadow:var(--shadow);
+  }
+  .modal .brand-mark{margin:0 auto 18px;}
+  .modal h3{font-family:var(--serif); font-size:24px; margin:0 0 8px;}
+  .modal p{color:var(--fg-muted); font-size:13.5px; line-height:1.6; margin:0 0 24px;}
+  .g-btn-slot{display:flex; justify-content:center; margin-bottom:14px;}
+  .modal-close{
+    position:absolute; top:16px; right:20px; background:none; border:none; color:var(--fg-muted);
+    font-size:20px; cursor:pointer;
+  }
+  .modal{position:relative;}
+  .user-pill{
+    display:none; align-items:center; gap:8px; padding:6px 12px 6px 6px;
+    border:1px solid var(--hairline); border-radius:20px; cursor:pointer;
+  }
+  .user-pill.show{display:flex;}
+  .user-pill img{width:24px; height:24px; border-radius:50%;}
+  .user-pill span{font-size:12.5px; font-weight:600;}
+
+  @media (max-width:900px){
+    .hero-grid{grid-template-columns:1fr;}
+    .frame-grid{grid-template-columns:1fr 1fr;}
+    .frame{border-bottom:1px solid var(--hairline);}
+    nav.top-links{display:none;}
+    .bench-tools{grid-template-columns:repeat(2,1fr);}
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="top-inner">
+    <a href="#" class="brand">
+      <span class="brand-mark">AS</span>
+      <span class="brand-word">APIC<small>Akhouri Systems</small></span>
+    </a>
+    <nav class="top-links">
+      <a href="#bench">Studio</a>
+      <a href="#features">Features</a>
+      <a href="#counter">Community</a>
+      <a href="#download">Desktop App</a>
+    </nav>
+    <div class="top-actions">
+      <button class="theme-toggle" id="themeToggle" title="Toggle theme" aria-label="Toggle theme">
+        <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+      </button>
+      <div class="user-pill" id="userPill">
+        <img id="userAvatar" src="" alt="">
+        <span id="userName"></span>
+      </div>
+      <button class="btn btn-gold btn-sm" id="signInBtn">Sign in</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <!-- HERO -->
+  <section class="hero">
+    <div class="wrap hero-grid">
+      <div>
+        <div class="eyebrow">Advanced Image Processing Center</div>
+        <h1 class="hero-title">Every image,<br><em>reconsidered.</em></h1>
+        <p class="hero-sub">APIC-Web brings the desktop studio into your browser — edit, convert and compress your images on the spot. No install. Drag a file into the bench on the right to see it work.</p>
+        <div class="hero-ctas">
+          <button class="btn btn-gold" id="heroSignIn">Sign in to start editing</button>
+          <a href="#download" class="btn btn-ghost">Get the desktop app →</a>
+        </div>
+        <div class="hero-meta">
+          <div><b id="heroCounter">—</b>Members on APIC</div>
+          <div><b>4</b>Tools in the studio</div>
+          <div><b>0 KB</b>Uploaded to a server</div>
+        </div>
+      </div>
+
+      <div class="bench" id="bench">
+        <div class="bench-strip">
+          <span>APIC / Studio Bench</span>
+          <span class="dots"><span></span><span></span><span></span></span>
+        </div>
+        <div class="bench-body">
+          <label class="drop" id="drop">
+            <input type="file" id="fileInput" accept="image/*">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M20 16v3a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-3"/></svg>
+            <p><b>Drop an image here</b><br>or click to browse — nothing leaves your browser</p>
+            <canvas id="canvas"></canvas>
+          </label>
+
+          <div class="bench-tools">
+            <button class="tool-btn" data-tool="edit" disabled>Edit</button>
+            <button class="tool-btn" data-tool="convert" disabled>Convert</button>
+            <button class="tool-btn" data-tool="compress" disabled>Compress</button>
+            <button class="tool-btn" data-tool="search" disabled>Search</button>
+          </div>
+
+          <div class="bench-panel" id="panel-edit">
+            <div class="row"><label>Filter</label>
+              <select id="editFilter">
+                <option value="none">None</option>
+                <option value="grayscale(1)">Grayscale</option>
+                <option value="sepia(0.8)">Sepia</option>
+                <option value="invert(1)">Invert</option>
+                <option value="contrast(1.4)">Contrast +</option>
+              </select>
+            </div>
+            <div class="row"><label>Brightness</label>
+              <input type="range" id="editBright" min="40" max="160" value="100">
+              <span class="val" id="editBrightVal">100%</span>
+            </div>
+            <div class="row"><label>Rotate</label>
+              <button class="btn btn-ghost btn-sm" id="rotateBtn">Rotate 90°</button>
+            </div>
+          </div>
+
+          <div class="bench-panel" id="panel-convert">
+            <div class="row"><label>Format</label>
+              <select id="convertFormat">
+                <option value="image/png">PNG</option>
+                <option value="image/jpeg">JPEG</option>
+                <option value="image/webp">WebP</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="bench-panel" id="panel-compress">
+            <div class="row"><label>Quality</label>
+              <input type="range" id="compressQ" min="10" max="95" value="70">
+              <span class="val" id="compressQVal">70%</span>
+            </div>
+          </div>
+
+          <div class="bench-panel" id="panel-search">
+            <p style="font-size:12.5px; color:var(--fg-muted); margin:0;">Visual search runs on the desktop app, where APIC can index your local library. Coming to the web studio next.</p>
+          </div>
+
+          <div class="bench-footer">
+            <span class="filesize" id="fileInfo">No image loaded</span>
+            <span class="gate-note" id="gateNote">🔒 sign in to export</span>
+            <button class="btn btn-gold btn-sm" id="exportBtn" style="display:none;">Export image</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+  <section class="features" id="features">
+    <div class="wrap">
+      <div class="section-head">
+        <div class="eyebrow">The Studio</div>
+        <h2>One bench, four instruments.</h2>
+        <p>The same pipeline that runs inside the desktop app, rebuilt for the browser — pick a tool up above and put an image through it.</p>
+      </div>
+    </div>
+    <div class="wrap">
+      <div class="frame-grid">
+        <div class="frame">
+          <span class="frame-num">I.</span>
+          <h3>Edit</h3>
+          <p>Filters, brightness and rotation applied live, right on the canvas you dropped the image into.</p>
+        </div>
+        <div class="frame">
+          <span class="frame-num">II.</span>
+          <h3>Convert</h3>
+          <p>Move between PNG, JPEG and WebP without a round trip to a server.</p>
+        </div>
+        <div class="frame">
+          <span class="frame-num">III.</span>
+          <h3>Compress</h3>
+          <p>Dial in a quality target and watch the export size fall in real time.</p>
+        </div>
+        <div class="frame">
+          <span class="frame-num">IV.</span>
+          <h3>Search</h3>
+          <p>Find images by what's in them — a desktop-only tool, for now.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- COUNTER -->
+  <section class="counter-section" id="counter">
+    <div class="wrap">
+      <div class="counter-inner">
+        <div>
+          <div class="eyebrow">Community</div>
+          <div class="counter-num"><span id="counterBig">—</span><small>signed in on APIC</small></div>
+        </div>
+        <div class="counter-live"><span class="pulse"></span>Updates automatically</div>
+      </div>
+      <div class="counter-inner" style="margin-top:26px; gap:40px;">
+        <div class="counter-num" style="font-size:clamp(22px,3vw,30px);"><span id="visitBig">—</span><small>page visits tracked</small></div>
+        <div class="counter-num" style="font-size:clamp(22px,3vw,30px);"><span id="todayBig">—</span><small>new members today</small></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ADMIN: only renders for the owner's signed-in email -->
+  <section id="adminPanel" class="download-section" style="display:none; border-top:1px solid var(--hairline);">
+    <div class="wrap">
+      <div class="download-card" style="text-align:left;">
+        <div class="eyebrow">Owner tools</div>
+        <h2 style="font-size:24px;">Send an update to everyone</h2>
+        <p>This sends one email, once, to every address APIC has on file — via your free EmailJS quota. Nothing sends automatically; you trigger it here whenever you ship something.</p>
+        <div class="row"><label style="width:110px;">Subject</label><input id="broadcastSubject" type="text" placeholder="APIC just got an update" style="flex:1; background:var(--bg); color:var(--fg); border:1px solid var(--hairline); padding:9px 12px; font-family:var(--sans); font-size:13.5px;"></div>
+        <div class="row" style="align-items:flex-start;"><label style="width:110px; margin-top:9px;">Message</label><textarea id="broadcastBody" rows="4" placeholder="What's new in this build..." style="flex:1; background:var(--bg); color:var(--fg); border:1px solid var(--hairline); padding:9px 12px; font-family:var(--sans); font-size:13.5px; resize:vertical;"></textarea></div>
+        <div style="display:flex; align-items:center; gap:14px; margin-top:10px;">
+          <button class="btn btn-gold btn-sm" id="broadcastBtn">Send to all members</button>
+          <span class="filesize" id="broadcastStatus"></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DOWNLOAD -->
+  <section class="download-section" id="download">
+    <div class="wrap">
+      <div class="download-card">
+        <h2>Prefer it on your desk?</h2>
+        <p>APIC for PC runs fully offline, with the same edit, convert, compress and search tools — no sign-in required to download.</p>
+        <a class="btn btn-gold" href="https://github.com/Akhouri-Anmol-Kumar/APIC/releases/download/APIC/APIC.zip">Download APIC for PC →</a>
+        <div class="download-note">.ZIP · WINDOWS · NO ACCOUNT NEEDED</div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <span class="brand-mark">AS</span>
+        <span class="brand-word" style="font-size:16px;">APIC</span>
+      </div>
+      <div class="footer-copy">
+        APIC is a product of <b>Akhouri Systems</b><br>
+        Developed by Akhouri Anmol Kumar · © 2026
+      </div>
+    </div>
+  </div>
+</footer>
+
+<!-- SIGN IN MODAL -->
+<div class="modal-bg" id="modalBg">
+  <div class="modal">
+    <button class="modal-close" id="modalClose">×</button>
+    <span class="brand-mark" style="margin:0 auto 16px; display:flex;">AS</span>
+    <h3>Sign in to APIC</h3>
+    <p>One tap with Google. We only ever ask for your name, email and photo — nothing else.</p>
+    <div class="g-btn-slot" id="gBtnSlot"></div>
+    <div id="fallbackSignIn" style="display:none;">
+      <button class="btn btn-ghost" id="demoSignIn" style="width:100%; justify-content:center;">Continue with Google</button>
+      <p style="font-size:11px; margin-top:14px;">Google Sign-In isn't configured on this preview — see the setup notes below the page for the two lines needed to turn this on for real.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------------- theme ---------------- */
+  var root = document.documentElement;
+  var themeBtn = document.getElementById('themeToggle');
+  var themeIcon = document.getElementById('themeIcon');
+  var currentTheme = 'dark';
+  function applyTheme(t){
+    currentTheme = t;
+    root.setAttribute('data-theme', t === 'light' ? 'light' : 'dark');
+    themeIcon.innerHTML = t === 'light'
+      ? '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>'
+      : '<circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>';
+  }
+  applyTheme('dark');
+  themeBtn.addEventListener('click', function(){
+    applyTheme(currentTheme === 'dark' ? 'light' : 'dark');
+  });
+
+  /* =================================================================
+     CONFIG — fill these in and every tracking + email feature below
+     goes live. Until then the page runs in demo mode automatically.
+     See the "SETUP" comment block at the very bottom of this file for
+     step-by-step instructions for each of the four services below.
+  ================================================================= */
+  var GOOGLE_CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com";
+  var FIREBASE_CONFIG = {
+    apiKey: "YOUR_FIREBASE_API_KEY",
+    authDomain: "YOUR_PROJECT.firebaseapp.com",
+    projectId: "YOUR_PROJECT_ID",
+  };
+  var EMAILJS_PUBLIC_KEY   = "YOUR_EMAILJS_PUBLIC_KEY";
+  var EMAILJS_SERVICE_ID   = "YOUR_EMAILJS_SERVICE_ID";
+  var EMAILJS_WELCOME_TMPL = "YOUR_WELCOME_TEMPLATE_ID";
+  var EMAILJS_UPDATE_TMPL  = "YOUR_UPDATE_TEMPLATE_ID";
+  var ADMIN_EMAIL = "you@example.com"; // only this signed-in account sees the broadcast panel
+
+  var FIREBASE_READY = window.firebase && FIREBASE_CONFIG.apiKey.indexOf('YOUR_FIREBASE') === -1;
+  var EMAILJS_READY  = window.emailjs && EMAILJS_PUBLIC_KEY.indexOf('YOUR_EMAILJS') === -1;
+  var db = null, auth = null;
+  if(FIREBASE_READY){
+    firebase.initializeApp(FIREBASE_CONFIG);
+    db = firebase.firestore();
+    auth = firebase.auth();
+  }
+  if(EMAILJS_READY){ emailjs.init({publicKey: EMAILJS_PUBLIC_KEY}); }
+
+  /* ---------------- auth ---------------- */
+  var user = null;
+
+  var modalBg = document.getElementById('modalBg');
+  function openModal(){ modalBg.classList.add('show'); initGoogleButton(); }
+  function closeModal(){ modalBg.classList.remove('show'); }
+  document.getElementById('signInBtn').addEventListener('click', function(){
+    if(user){ signOut(); } else { openModal(); }
+  });
+  document.getElementById('heroSignIn').addEventListener('click', openModal);
+  document.getElementById('modalClose').addEventListener('click', closeModal);
+  modalBg.addEventListener('click', function(e){ if(e.target === modalBg) closeModal(); });
+
+  function decodeJwt(token){
+    try{
+      var base = token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
+      return JSON.parse(decodeURIComponent(escape(atob(base))));
+    }catch(e){ return null; }
+  }
+
+  function onSignedIn(profile){
+    user = profile;
+    document.getElementById('signInBtn').style.display = 'none';
+    var pill = document.getElementById('userPill');
+    pill.classList.add('show');
+    document.getElementById('userAvatar').src = profile.picture || '';
+    document.getElementById('userName').textContent = (profile.name || profile.email || 'Signed in').split(' ')[0];
+    closeModal();
+    updateGate();
+    document.getElementById('adminPanel').style.display = (profile.email === ADMIN_EMAIL) ? 'block' : 'none';
+    trackUser(profile); // writes/updates Firestore + fires the welcome email on a real first sign-in
+  }
+
+  function signOut(){
+    user = null;
+    document.getElementById('signInBtn').style.display = 'inline-flex';
+    document.getElementById('signInBtn').textContent = 'Sign in';
+    document.getElementById('userPill').classList.remove('show');
+    document.getElementById('adminPanel').style.display = 'none';
+    updateGate();
+  }
+
+  function initGoogleButton(){
+    var slot = document.getElementById('gBtnSlot');
+    var fallback = document.getElementById('fallbackSignIn');
+    slot.innerHTML = '';
+    if(window.google && google.accounts && GOOGLE_CLIENT_ID.indexOf('YOUR_GOOGLE_CLIENT_ID') === -1){
+      google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: function(resp){
+          var profile = decodeJwt(resp.credential);
+          if(profile){ onSignedIn({name:profile.name, email:profile.email, picture:profile.picture}); }
+        }
+      });
+      google.accounts.id.renderButton(slot, {theme: currentTheme === 'light' ? 'outline' : 'filled_black', size:'large', shape:'pill'});
+      fallback.style.display = 'none';
+    } else {
+      fallback.style.display = 'block';
+    }
+  }
+  document.getElementById('demoSignIn').addEventListener('click', function(){
+    // Demo-only stand-in so the studio is explorable before a real Client ID is wired up.
+    onSignedIn({name:'Guest Editor', email:'guest@apic.local', picture:'https://api.dicebear.com/7.x/shapes/svg?seed=apic'});
+  });
+
+  /* ---------------- Firestore user tracking (free Spark plan) ----------------
+     users/{email}        -> name, photo, firstSignIn, lastSignIn, signInCount
+     stats/counters       -> totalUsers, totalVisits, todayKey, todayCount
+  =============================================================================== */
+  function trackUser(profile){
+    if(!FIREBASE_READY){ demoTrackUser(profile); return; }
+    var ref = db.collection('users').doc(profile.email);
+    db.runTransaction(function(tx){
+      return tx.get(ref).then(function(doc){
+        var now = firebase.firestore.FieldValue.serverTimestamp();
+        if(!doc.exists){
+          tx.set(ref, {
+            name: profile.name || '', email: profile.email, photo: profile.picture || '',
+            firstSignIn: now, lastSignIn: now, signInCount: 1
+          });
+          var statsRef = db.collection('stats').doc('counters');
+          tx.set(statsRef, {
+            totalUsers: firebase.firestore.FieldValue.increment(1)
+          }, {merge:true});
+          return true; // brand-new user
+        } else {
+          tx.update(ref, { lastSignIn: now, signInCount: firebase.firestore.FieldValue.increment(1) });
+          return false;
+        }
+      });
+    }).then(function(isNew){
+      if(isNew){ sendWelcomeEmail(profile); }
+      loadCounters();
+    });
+  }
+  function demoTrackUser(profile){
+    demoUsers.push(profile);
+    demoStats.totalUsers += 1;
+    if(!demoWelcomed.has(profile.email)){ demoWelcomed.add(profile.email); sendWelcomeEmail(profile); }
+    paintCounters();
+  }
+
+  /* ---------------- page-visit tracking ---------------- */
+  function trackVisit(){
+    var todayKey = new Date().toISOString().slice(0,10);
+    if(!FIREBASE_READY){ demoStats.totalVisits += 1; paintCounters(); return; }
+    var statsRef = db.collection('stats').doc('counters');
+    db.runTransaction(function(tx){
+      return tx.get(statsRef).then(function(doc){
+        var data = doc.exists ? doc.data() : {};
+        var patch = { totalVisits: firebase.firestore.FieldValue.increment(1) };
+        if(data.todayKey === todayKey){
+          patch.todayCount = firebase.firestore.FieldValue.increment(0); // unchanged here; newSignups bumps this
+        } else {
+          patch.todayKey = todayKey;
+          patch.todayCount = 0;
+        }
+        tx.set(statsRef, patch, {merge:true});
+      });
+    });
+  }
+
+  /* ---------------- live counters on screen ---------------- */
+  var demoUsers = [], demoStats = {totalUsers:128, totalVisits:940}, demoWelcomed = new Set();
+  function paintCounters(){
+    document.getElementById('counterBig').textContent = demoStats.totalUsers.toLocaleString();
+    document.getElementById('heroCounter').textContent = demoStats.totalUsers.toLocaleString();
+    document.getElementById('visitBig').textContent = demoStats.totalVisits.toLocaleString();
+    document.getElementById('todayBig').textContent = (demoStats.todayCount || demoUsers.length).toLocaleString();
+  }
+  function loadCounters(){
+    if(!FIREBASE_READY){ paintCounters(); return; }
+    db.collection('stats').doc('counters').onSnapshot(function(doc){
+      var d = doc.data() || {};
+      document.getElementById('counterBig').textContent = (d.totalUsers || 0).toLocaleString();
+      document.getElementById('heroCounter').textContent = (d.totalUsers || 0).toLocaleString();
+      document.getElementById('visitBig').textContent = (d.totalVisits || 0).toLocaleString();
+      document.getElementById('todayBig').textContent = (d.todayCount || 0).toLocaleString();
+    });
+  }
+  loadCounters();
+  trackVisit();
+
+  /* ---------------- EmailJS: automated emails, no backend ---------------- */
+  function sendWelcomeEmail(profile){
+    if(!EMAILJS_READY){ console.log('[demo] would send welcome email to', profile.email); return; }
+    emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_WELCOME_TMPL, {
+      to_email: profile.email,
+      to_name: (profile.name || '').split(' ')[0] || 'there',
+      subject: 'Thanks bro for trying APIC 🙌'
+    }).catch(function(err){ console.error('welcome email failed', err); });
+  }
+
+  document.getElementById('broadcastBtn') && document.getElementById('broadcastBtn').addEventListener('click', function(){
+    var subject = document.getElementById('broadcastSubject').value.trim() || 'APIC update';
+    var body = document.getElementById('broadcastBody').value.trim();
+    var statusEl = document.getElementById('broadcastStatus');
+    if(!body){ statusEl.textContent = 'Write a message first.'; return; }
+    if(!EMAILJS_READY){ statusEl.textContent = 'EmailJS isn\'t configured yet — see setup notes at the bottom of this file.'; return; }
+    if(!FIREBASE_READY){ statusEl.textContent = 'Firestore isn\'t configured yet — no user list to send to.'; return; }
+    statusEl.textContent = 'Loading member list…';
+    db.collection('users').get().then(function(snap){
+      var emails = [];
+      snap.forEach(function(d){ emails.push(d.data()); });
+      var i = 0;
+      function sendNext(){
+        if(i >= emails.length){ statusEl.textContent = 'Done — sent to ' + emails.length + ' members.'; return; }
+        var u = emails[i];
+        statusEl.textContent = 'Sending ' + (i+1) + ' / ' + emails.length + '…';
+        emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_UPDATE_TMPL, {
+          to_email: u.email, to_name: (u.name || '').split(' ')[0] || 'there',
+          subject: subject, message: body
+        }).catch(function(err){ console.error('broadcast failed for', u.email, err); })
+          .finally(function(){ i++; setTimeout(sendNext, 350); }); // gentle pacing for free-tier rate limits
+      }
+      sendNext();
+    });
+  });
+
+  /* ---------------- the bench ---------------- */
+  var dropEl = document.getElementById('drop');
+  var fileInput = document.getElementById('fileInput');
+  var canvas = document.getElementById('canvas');
+  var ctx = canvas.getContext('2d');
+  var fileInfo = document.getElementById('fileInfo');
+  var gateNote = document.getElementById('gateNote');
+  var exportBtn = document.getElementById('exportBtn');
+  var toolBtns = document.querySelectorAll('.tool-btn');
+  var panels = {edit:document.getElementById('panel-edit'), convert:document.getElementById('panel-convert'), compress:document.getElementById('panel-compress'), search:document.getElementById('panel-search')};
+  var activeTool = null;
+  var originalImg = null;
+  var rotation = 0;
+
+  function updateGate(){
+    var loaded = !!originalImg;
+    toolBtns.forEach(function(b){ b.disabled = !loaded || !user; });
+    gateNote.classList.toggle('show', loaded && !user);
+    exportBtn.style.display = (loaded && user) ? 'inline-flex' : 'none';
+  }
+
+  ['dragenter','dragover'].forEach(function(ev){
+    dropEl.addEventListener(ev, function(e){ e.preventDefault(); dropEl.classList.add('drag'); });
+  });
+  ['dragleave','drop'].forEach(function(ev){
+    dropEl.addEventListener(ev, function(e){ e.preventDefault(); dropEl.classList.remove('drag'); });
+  });
+  dropEl.addEventListener('drop', function(e){
+    var f = e.dataTransfer.files[0];
+    if(f) loadImage(f);
+  });
+  fileInput.addEventListener('change', function(e){
+    if(e.target.files[0]) loadImage(e.target.files[0]);
+  });
+
+  function loadImage(file){
+    if(!file.type.startsWith('image/')) return;
+    var img = new Image();
+    img.onload = function(){
+      originalImg = img;
+      rotation = 0;
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      canvas.style.display = 'block';
+      dropEl.querySelector('svg').style.display = 'none';
+      dropEl.querySelector('p').style.display = 'none';
+      render();
+      fileInfo.textContent = file.name + ' · ' + Math.round(file.size/1024) + ' KB · ' + img.naturalWidth + '×' + img.naturalHeight;
+      updateGate();
+      if(!activeTool){ selectTool('edit'); }
+    };
+    img.src = URL.createObjectURL(file);
+  }
+
+  function render(){
+    if(!originalImg) return;
+    var w = originalImg.naturalWidth, h = originalImg.naturalHeight;
+    var rotated = (rotation % 180 !== 0);
+    canvas.width = rotated ? h : w;
+    canvas.height = rotated ? w : h;
+    ctx.save();
+    ctx.filter = document.getElementById('editFilter').value !== 'none' ? document.getElementById('editFilter').value : 'none';
+    ctx.filter += ' brightness(' + (document.getElementById('editBright').value/100) + ')';
+    ctx.translate(canvas.width/2, canvas.height/2);
+    ctx.rotate(rotation * Math.PI/180);
+    ctx.drawImage(originalImg, -w/2, -h/2, w, h);
+    ctx.restore();
+  }
+
+  toolBtns.forEach(function(b){
+    b.addEventListener('click', function(){ selectTool(b.dataset.tool); });
+  });
+  function selectTool(name){
+    activeTool = name;
+    toolBtns.forEach(function(b){ b.classList.toggle('active', b.dataset.tool === name); });
+    Object.keys(panels).forEach(function(k){ panels[k].classList.toggle('show', k === name); });
+  }
+
+  document.getElementById('editFilter').addEventListener('change', render);
+  document.getElementById('editBright').addEventListener('input', function(){
+    document.getElementById('editBrightVal').textContent = this.value + '%';
+    render();
+  });
+  document.getElementById('rotateBtn').addEventListener('click', function(){
+    rotation = (rotation + 90) % 360;
+    render();
+  });
+  document.getElementById('compressQ').addEventListener('input', function(){
+    document.getElementById('compressQVal').textContent = this.value + '%';
+  });
+
+  exportBtn.addEventListener('click', function(){
+    if(!originalImg) return;
+    var format = 'image/png';
+    var quality = 0.92;
+    if(activeTool === 'convert'){ format = document.getElementById('convertFormat').value; }
+    if(activeTool === 'compress'){ format = 'image/jpeg'; quality = document.getElementById('compressQ').value/100; }
+    var url = canvas.toDataURL(format, quality);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'apic-export.' + format.split('/')[1].replace('jpeg','jpg');
+    a.click();
+  });
+
+  updateGate();
+})();
+</script>
+
+<!--
+================================================================================
+ SETUP — turn on real user tracking + free automated email (~20 minutes)
+================================================================================
+Right now the page runs in DEMO MODE: sign-in, counters and emails all work
+on-screen but nothing is saved anywhere. Fill in the six config values near
+the top of the <script> tag (search for "CONFIG —") and it goes live, no
+other code changes needed.
+
+1) GOOGLE SIGN-IN (who's allowed to sign in)
+   - console.cloud.google.com → create a project → "APIs & Services" →
+     "Credentials" → "Create OAuth client ID" → type "Web application".
+   - Add your site's URL under "Authorized JavaScript origins".
+   - Copy the Client ID into GOOGLE_CLIENT_ID.
+
+2) FIREBASE — Auth + Firestore (free "Spark" plan, no credit card)
+   This is what actually COUNTS your users and remembers them between visits.
+   - console.firebase.google.com → "Add project" (reuse the Google Cloud
+     project from step 1 if you like — keeps things simple).
+   - Build → Authentication → enable "Google" as a sign-in provider.
+   - Build → Firestore Database → "Create database" → start in production
+     mode → pick a region close to your users.
+   - Project settings → "Your apps" → add a Web app → copy the config
+     object's apiKey / authDomain / projectId into FIREBASE_CONFIG.
+   - Firestore → Rules tab, use something like:
+       rules_version = '2';
+       service cloud.firestore {
+         match /databases/{database}/documents {
+           match /users/{id}   { allow read: if true; allow write: if request.auth != null; }
+           match /stats/{id}   { allow read: if true; allow write: if true; }
+         }
+       }
+     (Tighten this once real traffic shows up — this is a fair starting point.)
+   This alone gives you: total sign-ups, sign-ups today, total page visits,
+   and per-user first-seen / last-seen / how-many-times-signed-in — all free,
+   all visible live on the page, and all queryable yourself in the Firebase
+   console under Firestore Database → users / stats.
+
+3) EMAILJS — automated email, genuinely free, no backend/server required
+   - emailjs.com → sign up free (200 emails/month on the free tier).
+   - Email Services → connect your Gmail/Outlook/etc → note the Service ID.
+   - Email Templates → make TWO templates:
+       a) "Welcome"  — subject/body can reference {{to_name}}, e.g.
+          "Thanks bro for trying APIC 🙌" — this fires automatically the
+          FIRST time anyone signs in, no button required.
+       b) "Update"   — references {{to_name}}, {{subject}}, {{message}} —
+          this is the one the owner-only "Send an update to everyone" panel
+          uses when you click the button lower on this page.
+   - Account → General → copy your Public Key.
+   - Fill EMAILJS_PUBLIC_KEY, EMAILJS_SERVICE_ID, EMAILJS_WELCOME_TMPL,
+     EMAILJS_UPDATE_TMPL with the IDs from the steps above.
+
+4) ADMIN_EMAIL
+   - Set this to the Gmail you'll sign in with. Only that signed-in account
+     will ever see the "Send an update to everyone" panel — everyone else
+     never knows it exists.
+
+WHAT'S TRULY AUTOMATIC vs WHAT YOU TRIGGER
+   - Welcome email → 100% automatic, fires the moment someone's very first
+     Google sign-in completes. No action needed from you, ever.
+   - Update-to-everyone email → NOT automatic on a schedule — you open this
+     page signed in as ADMIN_EMAIL, write the message, click "Send to all
+     members". That's by design: nothing should ever go out under your name
+     without you personally clicking send. If you later want it fully
+     scheduled (e.g. "every time I push a new build"), that step needs a
+     real backend/webhook — ask and it can be built as the next layer on
+     top of this.
+
+COSTS AT SMALL SCALE: $0. Firebase Spark plan (Auth + Firestore) has no
+credit card requirement and free quotas far beyond a hobby project's needs
+(50k reads + 20k writes/day). EmailJS free tier covers 200 emails/month —
+plenty for welcome emails plus the odd update blast until APIC has a real
+audience, at which point both have inexpensive paid tiers to scale into.
+================================================================================
+-->
+
+</body>
+</html>
