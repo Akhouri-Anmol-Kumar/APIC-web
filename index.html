@@ -681,12 +681,20 @@
   }
   // Restore a previous session on page load, so refreshing the page
   // doesn't sign the person back out.
-  (function restoreSession(){
-    try{
-      var saved = localStorage.getItem('apic_user');
-      if(saved){ onSignedIn(JSON.parse(saved), true); }
-    }catch(e){}
-  })();
+  if(FIREBASE_READY){
+    firebase.auth().onAuthStateChanged(function(fbUser){
+      if(fbUser && !user){
+        onSignedIn({name:fbUser.displayName, email:fbUser.email, picture:fbUser.photoURL}, true);
+      }
+    });
+  } else {
+    (function restoreSession(){
+      try{
+        var saved = localStorage.getItem('apic_user');
+        if(saved){ onSignedIn(JSON.parse(saved), true); }
+      }catch(e){}
+    })();
+  }
   function initGoogleButton(){
     var slot = document.getElementById('gBtnSlot');
     var fallback = document.getElementById('fallbackSignIn');
@@ -695,8 +703,19 @@
       google.accounts.id.initialize({
         client_id: GOOGLE_CLIENT_ID,
         callback: function(resp){
-          var profile = decodeJwt(resp.credential);
-          if(profile){ onSignedIn({name:profile.name, email:profile.email, picture:profile.picture}); }
+          if(FIREBASE_READY){
+            var credential = firebase.auth.GoogleAuthProvider.credential(resp.credential);
+            firebase.auth().signInWithCredential(credential).then(function(result){
+              var u = result.user;
+              onSignedIn({name:u.displayName, email:u.email, picture:u.photoURL});
+            }).catch(function(err){
+              console.error('Firebase auth failed:', err);
+              alert('Sign-in failed: ' + err.message);
+            });
+          } else {
+            var profile = decodeJwt(resp.credential);
+            if(profile){ onSignedIn({name:profile.name, email:profile.email, picture:profile.picture}); }
+          }
         }
       });
       google.accounts.id.renderButton(slot, {theme: currentTheme === 'light' ? 'outline' : 'filled_black', size:'large', shape:'pill'});
@@ -724,7 +743,8 @@
           return false;
         }
       });
-    }).then(function(isNew){ if(isNew){ sendWelcomeEmail(profile); } loadCounters(); });
+    }).then(function(isNew){ if(isNew){ sendWelcomeEmail(profile); } loadCounters(); })
+      .catch(function(err){ console.error('trackUser failed:', err); });
   }
   function demoTrackUser(profile){
     demoUsers.push(profile); demoStats.totalUsers += 1;
