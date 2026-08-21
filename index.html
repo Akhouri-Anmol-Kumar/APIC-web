@@ -649,6 +649,7 @@
   function openModal(){ modalBg.classList.add('show'); initGoogleButton(); }
   function closeModal(){ modalBg.classList.remove('show'); }
   document.getElementById('signInBtn').addEventListener('click', function(){ if(user){ signOut(); } else { openModal(); } });
+  document.getElementById('userPill').addEventListener('click', signOut);
   document.getElementById('modalClose').addEventListener('click', closeModal);
   modalBg.addEventListener('click', function(e){ if(e.target === modalBg) closeModal(); });
 
@@ -656,7 +657,7 @@
     try{ var base = token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'); return JSON.parse(decodeURIComponent(escape(atob(base)))); }
     catch(e){ return null; }
   }
-  function onSignedIn(profile){
+  function onSignedIn(profile, isRestore){
     user = profile;
     document.getElementById('signInBtn').style.display = 'none';
     var pill = document.getElementById('userPill');
@@ -666,7 +667,8 @@
     closeModal();
     updateGate();
     document.getElementById('adminPanel').style.display = (profile.email === ADMIN_EMAIL) ? 'block' : 'none';
-    trackUser(profile);
+    try{ localStorage.setItem('apic_user', JSON.stringify(profile)); }catch(e){}
+    if(!isRestore){ trackUser(profile); }
   }
   function signOut(){
     user = null;
@@ -674,8 +676,17 @@
     document.getElementById('signInBtn').textContent = 'Sign in';
     document.getElementById('userPill').classList.remove('show');
     document.getElementById('adminPanel').style.display = 'none';
+    try{ localStorage.removeItem('apic_user'); }catch(e){}
     updateGate();
   }
+  // Restore a previous session on page load, so refreshing the page
+  // doesn't sign the person back out.
+  (function restoreSession(){
+    try{
+      var saved = localStorage.getItem('apic_user');
+      if(saved){ onSignedIn(JSON.parse(saved), true); }
+    }catch(e){}
+  })();
   function initGoogleButton(){
     var slot = document.getElementById('gBtnSlot');
     var fallback = document.getElementById('fallbackSignIn');
