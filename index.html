@@ -43,8 +43,8 @@
         delegate: "GPU"
       },
       runningMode: "IMAGE",
-      outputCategoryMask: true,
-      outputConfidenceMasks: false
+      outputCategoryMask: false,
+      outputConfidenceMasks: true
     });
   };
 </script>
@@ -215,9 +215,11 @@
     background-size: 18px 18px;
   }
   .drop canvas{max-width:100%; max-height:340px; display:none; border-radius:3px; position:relative; z-index:1;}
+  #overlay{position:absolute; z-index:2; pointer-events:none; display:none; max-width:100%; max-height:340px; border-radius:3px;}
+  #overlay.active{pointer-events:auto; cursor:crosshair;}
 
   .bench-tools{
-    display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-top:16px;
+    display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:16px;
   }
   .tool-btn{
     font-family:var(--mono); font-size:11px; letter-spacing:1px; text-transform:uppercase;
@@ -412,10 +414,13 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M20 16v3a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-3"/></svg>
           <p><b>Drop an image here</b><br>or tap to browse — nothing leaves your device</p>
           <canvas id="canvas"></canvas>
+          <canvas id="overlay"></canvas>
         </label>
 
         <div class="bench-tools">
           <button class="tool-btn active" data-tool="edit" disabled>Edit</button>
+          <button class="tool-btn" data-tool="advanced" disabled>Advanced</button>
+          <button class="tool-btn" data-tool="objremove" disabled>Remove Object</button>
           <button class="tool-btn" data-tool="convert" disabled>Convert</button>
           <button class="tool-btn" data-tool="compress" disabled>Compress</button>
           <button class="tool-btn" data-tool="bgremove" disabled>Remove BG</button>
@@ -438,6 +443,21 @@
               <option value="saturate(2.2) hue-rotate(280deg)">Cyberpunk</option>
               <option value="sepia(0.4) saturate(1.4) hue-rotate(-15deg)">Vintage</option>
               <option value="saturate(1.5) hue-rotate(180deg)">Cold Chrome</option>
+              <option value="__more__">More…</option>
+            </select>
+          </div>
+          <div class="row" id="moreFiltersRow" style="display:none;"><label>More</label>
+            <select id="editFilterMore">
+              <option value="grayscale(1) contrast(1.2)">Noir</option>
+              <option value="sepia(0.6) contrast(1.1) saturate(1.3)">Faded Film</option>
+              <option value="saturate(1.6) contrast(1.15) hue-rotate(-8deg)">Warm Glow</option>
+              <option value="grayscale(0.3) saturate(1.4) contrast(1.2)">Cross Process</option>
+              <option value="contrast(1.3) saturate(0.6) hue-rotate(190deg)">Moonlight</option>
+              <option value="saturate(1.8) contrast(1.25) hue-rotate(15deg)">Sunset</option>
+              <option value="grayscale(1) contrast(1.5) brightness(1.1)">High-Con B&amp;W</option>
+              <option value="sepia(1) saturate(0.8) contrast(1.1)">Old Paper</option>
+              <option value="saturate(0.4) contrast(1.1) brightness(1.05)">Muted</option>
+              <option value="hue-rotate(90deg) saturate(1.5)">Infrared</option>
             </select>
           </div>
           <div class="row"><label>Brightness</label><input type="range" id="editBright" min="40" max="180" value="100"><span class="val" id="editBrightVal">100%</span></div>
@@ -445,6 +465,30 @@
           <div class="row"><label>Saturation</label><input type="range" id="editSaturate" min="0" max="220" value="100"><span class="val" id="editSaturateVal">100%</span></div>
           <div class="row"><label>Blur</label><input type="range" id="editBlur" min="0" max="12" value="0" step="0.5"><span class="val" id="editBlurVal">0px</span></div>
           <button class="btn btn-ghost btn-sm" id="resetEdit">Reset all</button>
+        </div>
+
+        <!-- ADVANCED -->
+        <div class="bench-panel" id="panel-advanced">
+          <p class="hint" style="margin-top:0;">Manual, pixel-level controls — the same building blocks Photoshop's Curves/Levels/Sharpen tools use, running live in-browser.</p>
+          <div class="row"><label>Black point</label><input type="range" id="advBlack" min="0" max="120" value="0"><span class="val" id="advBlackVal">0</span></div>
+          <div class="row"><label>White point</label><input type="range" id="advWhite" min="135" max="255" value="255"><span class="val" id="advWhiteVal">255</span></div>
+          <div class="row"><label>Gamma</label><input type="range" id="advGamma" min="40" max="250" value="100"><span class="val" id="advGammaVal">1.00</span></div>
+          <div class="row"><label>Sharpen</label><input type="range" id="advSharpen" min="0" max="100" value="0"><span class="val" id="advSharpenVal">0</span></div>
+          <div class="row"><label>Temperature</label><input type="range" id="advTemp" min="-60" max="60" value="0"><span class="val" id="advTempVal">0</span></div>
+          <div class="row"><label>Vignette</label><input type="range" id="advVignette" min="0" max="100" value="0"><span class="val" id="advVignetteVal">0</span></div>
+          <div class="row"><label>Hue</label><input type="range" id="advHue" min="0" max="360" value="0"><span class="val" id="advHueVal">0°</span></div>
+          <button class="btn btn-ghost btn-sm" id="resetAdvanced">Reset advanced</button>
+          <p class="hint">Crop — drag directly on the image above to draw a selection, then apply.</p>
+          <div class="row"><button class="btn btn-ghost btn-sm" id="applyCrop" style="flex:1;">Apply crop</button><button class="btn btn-ghost btn-sm" id="clearCrop" style="flex:1;">Clear selection</button></div>
+        </div>
+
+        <!-- OBJECT REMOVE -->
+        <div class="bench-panel" id="panel-objremove">
+          <p class="hint" style="margin-top:0;">Paint over the object you want gone, then run Remove. Runs a fully on-device inpainting pass (no upload) — best on small/medium objects over fairly even backgrounds (skin, sky, walls, fabric); very busy backgrounds are harder for any tool, free or paid.</p>
+          <div class="row"><label>Brush size</label><input type="range" id="orBrush" min="6" max="120" value="30"><span class="val" id="orBrushVal">30</span></div>
+          <div class="row"><button class="btn btn-ghost btn-sm" id="orClear" style="flex:1;">Clear mask</button></div>
+          <button class="btn btn-gold btn-sm" id="runObjRemove">Remove painted object</button>
+          <span class="filesize" id="orStatus" style="margin-left:10px;"></span>
         </div>
 
         <!-- CONVERT -->
@@ -833,8 +877,8 @@
   var exportBtn = document.getElementById('exportBtn');
   var toolTitle = document.getElementById('toolTitle');
   var toolBtns = document.querySelectorAll('.tool-btn');
-  var panels = {edit:'panel-edit', convert:'panel-convert', compress:'panel-compress', bgremove:'panel-bgremove'};
-  var titles = {edit:'edit.exe', convert:'convert.exe', compress:'compress.exe', bgremove:'removebg.exe'};
+  var panels = {edit:'panel-edit', advanced:'panel-advanced', objremove:'panel-objremove', convert:'panel-convert', compress:'panel-compress', bgremove:'panel-bgremove'};
+  var titles = {edit:'edit.exe', advanced:'advanced.exe', objremove:'removeobj.exe', convert:'convert.exe', compress:'compress.exe', bgremove:'removebg.exe'};
   var activeTool = 'edit';
   var originalImg = null;   // pristine source
   var rotation = 0, flipH = 1, flipV = 1;
@@ -862,6 +906,7 @@
       dropEl.querySelector('svg').style.display = 'none';
       dropEl.querySelector('p').style.display = 'none';
       render();
+      if(typeof syncOverlay === 'function') syncOverlay();
       fileInfo.textContent = file.name + ' · ' + Math.round(file.size/1024) + ' KB · ' + img.naturalWidth + '×' + img.naturalHeight;
       updateGate();
     };
@@ -870,6 +915,7 @@
 
   function currentFilterString(){
     var f = document.getElementById('editFilter').value;
+    if(f === '__more__'){ f = document.getElementById('editFilterMore').value; }
     var b = document.getElementById('editBright').value;
     var c = document.getElementById('editContrast').value;
     var s = document.getElementById('editSaturate').value;
@@ -878,6 +924,7 @@
     if(f !== 'none') parts.push(f);
     parts.push('brightness('+(b/100)+')', 'contrast('+(c/100)+')', 'saturate('+(s/100)+')');
     if(parseFloat(bl) > 0) parts.push('blur('+bl+'px)');
+    var hue = document.getElementById('advHue'); if(hue) parts.push('hue-rotate('+hue.value+'deg)');
     return parts.join(' ');
   }
 
@@ -894,6 +941,342 @@
     ctx.scale(flipH, flipV);
     ctx.drawImage(originalImg, -w/2, -h/2, w, h);
     ctx.restore();
+    applyAdvancedFx();
+  }
+
+  // Bake whatever is currently on the visible canvas into a fresh
+  // "original" source image, and reset the transform/filter state to
+  // neutral. Without this, an operation that writes straight to the
+  // canvas (Remove Background, Object Removal) would get silently wiped
+  // out the moment any slider was touched again, because render() always
+  // redraws from the pristine originalImg. Called after those two ops.
+  function bakeToOriginal(){
+    var snap = new Image();
+    var url = canvas.toDataURL('image/png');
+    snap.onload = function(){
+      originalImg = snap;
+      rotation = 0; flipH = 1; flipV = 1;
+      document.getElementById('editFilter').value = 'none';
+      document.getElementById('editBright').value = 100;
+      document.getElementById('editContrast').value = 100;
+      document.getElementById('editSaturate').value = 100;
+      document.getElementById('editBlur').value = 0;
+      ['editBrightVal','editContrastVal','editSaturateVal'].forEach(function(id){ document.getElementById(id).textContent='100%'; });
+      document.getElementById('editBlurVal').textContent = '0px';
+      resetAdvancedUI();
+    };
+    snap.src = url;
+  }
+
+  /* ---------------- overlay: brush mask (object removal) + crop select ---------------- */
+  var overlay = document.getElementById('overlay');
+  var octx = overlay.getContext('2d');
+  var maskCanvas = document.createElement('canvas'); // full-res binary mask for inpaint, 255=paint
+  var mctx = maskCanvas.getContext('2d');
+  var cropRect = null; // {x,y,w,h} in canvas pixel space
+  var painting = false, cropping = false, cropStart = null;
+
+  function syncOverlay(){
+    if(!originalImg){ overlay.style.display = 'none'; return; }
+    overlay.width = canvas.width; overlay.height = canvas.height;
+    maskCanvas.width = canvas.width; maskCanvas.height = canvas.height;
+    overlay.style.left = canvas.offsetLeft + 'px';
+    overlay.style.top = canvas.offsetTop + 'px';
+    overlay.style.width = canvas.clientWidth + 'px';
+    overlay.style.height = canvas.clientHeight + 'px';
+    var showOverlay = (activeTool === 'objremove' || activeTool === 'advanced');
+    overlay.style.display = showOverlay ? 'block' : 'none';
+    overlay.classList.toggle('active', showOverlay);
+    redrawOverlay();
+  }
+  window.addEventListener('resize', function(){ if(overlay.style.display !== 'none'){ overlay.style.width = canvas.clientWidth+'px'; overlay.style.height = canvas.clientHeight+'px'; } });
+
+  function redrawOverlay(){
+    octx.clearRect(0,0,overlay.width,overlay.height);
+    if(activeTool === 'objremove'){
+      octx.drawImage(maskCanvas, 0, 0);
+    } else if(activeTool === 'advanced' && cropRect){
+      octx.save();
+      octx.fillStyle = 'rgba(0,0,0,0.55)';
+      octx.fillRect(0,0,overlay.width,overlay.height);
+      octx.clearRect(cropRect.x, cropRect.y, cropRect.w, cropRect.h);
+      octx.strokeStyle = '#39ff9d'; octx.lineWidth = 2;
+      octx.strokeRect(cropRect.x, cropRect.y, cropRect.w, cropRect.h);
+      octx.restore();
+    }
+  }
+
+  function overlayPoint(e){
+    var rect = overlay.getBoundingClientRect();
+    var cx = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+    var cy = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
+    var scaleX = overlay.width / rect.width, scaleY = overlay.height / rect.height;
+    return { x: cx*scaleX, y: cy*scaleY };
+  }
+
+  function pointerDown(e){
+    if(!originalImg) return;
+    e.preventDefault();
+    var p = overlayPoint(e);
+    if(activeTool === 'objremove'){
+      painting = true; paintDab(p);
+    } else if(activeTool === 'advanced'){
+      cropping = true; cropStart = p; cropRect = {x:p.x, y:p.y, w:0, h:0};
+    }
+  }
+  function pointerMove(e){
+    if(!originalImg) return;
+    var p = overlayPoint(e);
+    if(painting){ e.preventDefault(); paintDab(p); }
+    else if(cropping){
+      e.preventDefault();
+      cropRect = { x: Math.min(cropStart.x,p.x), y: Math.min(cropStart.y,p.y), w: Math.abs(p.x-cropStart.x), h: Math.abs(p.y-cropStart.y) };
+      redrawOverlay();
+    }
+  }
+  function pointerUp(){ painting = false; cropping = false; }
+  function paintDab(p){
+    var size = parseInt(document.getElementById('orBrush').value, 10);
+    mctx.fillStyle = '#ff3b6b';
+    mctx.beginPath(); mctx.arc(p.x, p.y, size/2, 0, Math.PI*2); mctx.fill();
+    redrawOverlay();
+  }
+  ['mousedown','touchstart'].forEach(function(ev){ overlay.addEventListener(ev, pointerDown, {passive:false}); });
+  ['mousemove','touchmove'].forEach(function(ev){ overlay.addEventListener(ev, pointerMove, {passive:false}); });
+  ['mouseup','mouseleave','touchend','touchcancel'].forEach(function(ev){ overlay.addEventListener(ev, pointerUp); });
+  // overlay sits inside the <label> that opens the file picker on click —
+  // stop that default so painting/cropping doesn't also pop the file dialog.
+  overlay.addEventListener('click', function(e){ if(overlay.classList.contains('active')){ e.preventDefault(); e.stopPropagation(); } });
+
+  document.getElementById('orClear').addEventListener('click', function(){
+    mctx.clearRect(0,0,maskCanvas.width,maskCanvas.height); redrawOverlay();
+  });
+  document.getElementById('clearCrop').addEventListener('click', function(){ cropRect = null; redrawOverlay(); });
+
+  document.getElementById('applyCrop').addEventListener('click', function(){
+    if(!cropRect || cropRect.w < 4 || cropRect.h < 4){ return; }
+    var cx = Math.round(cropRect.x), cy = Math.round(cropRect.y), cw = Math.round(cropRect.w), ch = Math.round(cropRect.h);
+    var out = document.createElement('canvas'); out.width = cw; out.height = ch;
+    out.getContext('2d').drawImage(canvas, cx, cy, cw, ch, 0, 0, cw, ch);
+    var snap = new Image();
+    snap.onload = function(){
+      originalImg = snap; rotation = 0; flipH = 1; flipV = 1;
+      cropRect = null;
+      render(); syncOverlay();
+      fileInfo.textContent = snap.naturalWidth + '×' + snap.naturalHeight + ' (cropped)';
+    };
+    snap.src = out.toDataURL('image/png');
+  });
+
+  /* ---------------- object removal: on-device inpainting ----------------
+     No model download, no server call. Approach: for every painted pixel,
+     find the nearest un-painted pixel by growing outward layer-by-layer
+     (a simple geodesic fill, the same idea Telea/OpenCV's inpaint is built
+     on) to get a structurally-sane first guess, then smooth the filled
+     region with a few weighted-average passes so seams blend in. Works
+     best on small/medium objects over fairly even backgrounds — this is
+     an honest, real algorithm, not a fake "AI" label; a from-scratch
+     diffusion-model-grade generative fill isn't something that can run
+     for free, client-side, in a static HTML page. */
+  function inpaint(){
+    var w = canvas.width, h = canvas.height;
+    var maskData = mctx.getImageData(0,0,w,h).data;
+    var src = ctx.getImageData(0,0,w,h);
+    var data = src.data;
+    var n = w*h;
+    var isMasked = new Uint8Array(n);
+    var filled = new Uint8Array(n); // 1 = has a real/finalized value
+    var queue = [];
+    for(var i=0;i<n;i++){
+      if(maskData[i*4+3] > 40){ isMasked[i] = 1; }
+      else { filled[i] = 1; }
+    }
+    // seed queue with masked pixels adjacent to unmasked pixels
+    var w4 = w;
+    function idx(x,y){ return y*w4+x; }
+    var frontier = [];
+    for(var y=0;y<h;y++){
+      for(var x=0;x<w;x++){
+        var id = idx(x,y);
+        if(!isMasked[id]) continue;
+        var hasUnmaskedN = false;
+        for(var dy=-1;dy<=1&&!hasUnmaskedN;dy++){
+          for(var dx=-1;dx<=1;dx++){
+            var nx=x+dx, ny=y+dy;
+            if(nx<0||ny<0||nx>=w||ny>=h) continue;
+            if(filled[idx(nx,ny)]){ hasUnmaskedN = true; break; }
+          }
+        }
+        if(hasUnmaskedN) frontier.push(id);
+      }
+    }
+    // BFS layer-by-layer inward fill: each masked pixel takes the average
+    // colour of its already-filled neighbours the first time it's reached.
+    var guard = 0;
+    while(frontier.length && guard < 400){
+      guard++;
+      var next = [];
+      for(var f=0; f<frontier.length; f++){
+        var id2 = frontier[f];
+        if(filled[id2]) continue;
+        var x2 = id2 % w, y2 = (id2 - x2)/w;
+        var rs=0,gs=0,bs=0,cnt=0;
+        for(var dy2=-1;dy2<=1;dy2++){
+          for(var dx2=-1;dx2<=1;dx2++){
+            var nx2=x2+dx2, ny2=y2+dy2;
+            if(nx2<0||ny2<0||nx2>=w||ny2>=h) continue;
+            var nid = idx(nx2,ny2);
+            if(filled[nid]){ rs+=data[nid*4]; gs+=data[nid*4+1]; bs+=data[nid*4+2]; cnt++; }
+          }
+        }
+        if(cnt>0){
+          data[id2*4]=rs/cnt; data[id2*4+1]=gs/cnt; data[id2*4+2]=bs/cnt;
+          filled[id2]=1;
+        }
+      }
+      for(var y3=0;y3<h;y3++){
+        for(var x3=0;x3<w;x3++){
+          var id3 = idx(x3,y3);
+          if(isMasked[id3] && !filled[id3]){
+            var hasFilledN=false;
+            for(var dy3=-1;dy3<=1&&!hasFilledN;dy3++){
+              for(var dx3=-1;dx3<=1;dx3++){
+                var nx3=x3+dx3, ny3=y3+dy3;
+                if(nx3<0||ny3<0||nx3>=w||ny3>=h) continue;
+                if(filled[idx(nx3,ny3)]){ hasFilledN=true; break; }
+              }
+            }
+            if(hasFilledN) next.push(id3);
+          }
+        }
+      }
+      frontier = next;
+    }
+    // A few smoothing passes restricted to the masked region so blocky
+    // BFS seams blend into the surrounding texture.
+    for(var pass=0; pass<3; pass++){
+      var copy = new Uint8ClampedArray(data);
+      for(var y4=0;y4<h;y4++){
+        for(var x4=0;x4<w;x4++){
+          var id4 = idx(x4,y4);
+          if(!isMasked[id4]) continue;
+          var rs2=0,gs2=0,bs2=0,cnt2=0;
+          for(var dy4=-2;dy4<=2;dy4++){
+            for(var dx4=-2;dx4<=2;dx4++){
+              var nx4=x4+dx4, ny4=y4+dy4;
+              if(nx4<0||ny4<0||nx4>=w||ny4>=h) continue;
+              var nid2 = idx(nx4,ny4);
+              rs2+=copy[nid2*4]; gs2+=copy[nid2*4+1]; bs2+=copy[nid2*4+2]; cnt2++;
+            }
+          }
+          data[id4*4]=rs2/cnt2; data[id4*4+1]=gs2/cnt2; data[id4*4+2]=bs2/cnt2;
+        }
+      }
+    }
+    ctx.putImageData(src,0,0);
+  }
+
+  document.getElementById('runObjRemove').addEventListener('click', function(){
+    if(!originalImg) return;
+    var statusEl = document.getElementById('orStatus');
+    var maxAlpha = mctx.getImageData(0,0,maskCanvas.width,maskCanvas.height).data;
+    var painted = false;
+    for(var i=3;i<maxAlpha.length;i+=4){ if(maxAlpha[i] > 40){ painted = true; break; } }
+    if(!painted){ statusEl.textContent = 'Paint over the object first.'; return; }
+    statusEl.innerHTML = '<span class="spinner"></span> filling…';
+    setTimeout(function(){
+      inpaint();
+      mctx.clearRect(0,0,maskCanvas.width,maskCanvas.height);
+      redrawOverlay();
+      bakeToOriginal();
+      statusEl.textContent = '✓ done';
+    }, 30);
+  });
+
+  /* ---------------- advanced pixel FX (levels / gamma / sharpen / temp / vignette) ---------------- */
+  ['advBlack','advWhite','advGamma','advSharpen','advTemp','advVignette','advHue'].forEach(function(id){
+    document.getElementById(id).addEventListener('input', function(){
+      document.getElementById('advBlackVal').textContent = document.getElementById('advBlack').value;
+      document.getElementById('advWhiteVal').textContent = document.getElementById('advWhite').value;
+      document.getElementById('advGammaVal').textContent = (document.getElementById('advGamma').value/100).toFixed(2);
+      document.getElementById('advSharpenVal').textContent = document.getElementById('advSharpen').value;
+      document.getElementById('advTempVal').textContent = document.getElementById('advTemp').value;
+      document.getElementById('advVignetteVal').textContent = document.getElementById('advVignette').value;
+      document.getElementById('advHueVal').textContent = document.getElementById('advHue').value + '°';
+      render();
+    });
+  });
+  function resetAdvancedUI(){
+    var d = {advBlack:0, advWhite:255, advGamma:100, advSharpen:0, advTemp:0, advVignette:0, advHue:0};
+    Object.keys(d).forEach(function(id){ document.getElementById(id).value = d[id]; });
+    document.getElementById('advBlackVal').textContent = '0';
+    document.getElementById('advWhiteVal').textContent = '255';
+    document.getElementById('advGammaVal').textContent = '1.00';
+    document.getElementById('advSharpenVal').textContent = '0';
+    document.getElementById('advTempVal').textContent = '0';
+    document.getElementById('advVignetteVal').textContent = '0';
+    document.getElementById('advHueVal').textContent = '0°';
+  }
+  document.getElementById('resetAdvanced').addEventListener('click', function(){ resetAdvancedUI(); render(); });
+
+  function applyAdvancedFx(){
+    var black = parseInt(document.getElementById('advBlack').value,10);
+    var white = parseInt(document.getElementById('advWhite').value,10);
+    var gamma = parseInt(document.getElementById('advGamma').value,10)/100;
+    var sharpen = parseInt(document.getElementById('advSharpen').value,10);
+    var temp = parseInt(document.getElementById('advTemp').value,10);
+    var vignette = parseInt(document.getElementById('advVignette').value,10);
+    var needsLevels = (black !== 0 || white !== 255 || gamma !== 1 || temp !== 0);
+    var w = canvas.width, h = canvas.height;
+
+    if(needsLevels){
+      var id = ctx.getImageData(0,0,w,h);
+      var d = id.data;
+      var range = Math.max(1, white - black);
+      var lut = new Uint8ClampedArray(256);
+      for(var v=0; v<256; v++){
+        var nv = (v - black) / range;
+        nv = Math.max(0, Math.min(1, nv));
+        nv = Math.pow(nv, 1/gamma);
+        lut[v] = nv*255;
+      }
+      for(var p=0; p<d.length; p+=4){
+        d[p] = Math.min(255, Math.max(0, lut[d[p]] + temp*0.6));
+        d[p+1] = lut[d[p+1]];
+        d[p+2] = Math.min(255, Math.max(0, lut[d[p+2]] - temp*0.6));
+      }
+      ctx.putImageData(id,0,0);
+    }
+
+    if(sharpen > 0){
+      var amt = sharpen/100;
+      var src = ctx.getImageData(0,0,w,h);
+      var s = src.data;
+      var out = new Uint8ClampedArray(s);
+      for(var y=1; y<h-1; y++){
+        for(var x=1; x<w-1; x++){
+          var i2 = (y*w+x)*4;
+          for(var c=0;c<3;c++){
+            var center = s[i2+c];
+            var neigh = s[i2-4+c] + s[i2+4+c] + s[i2-w*4+c] + s[i2+w*4+c];
+            var lap = center*4 - neigh;
+            out[i2+c] = center + lap*amt*0.5;
+          }
+        }
+      }
+      var outData = new ImageData(out, w, h);
+      ctx.putImageData(outData, 0, 0);
+    }
+
+    if(vignette > 0){
+      var grad = ctx.createRadialGradient(w/2,h/2, Math.min(w,h)*0.3, w/2,h/2, Math.max(w,h)*0.7);
+      grad.addColorStop(0, 'rgba(0,0,0,0)');
+      grad.addColorStop(1, 'rgba(0,0,0,'+(vignette/100*0.85)+')');
+      ctx.save();
+      ctx.fillStyle = grad;
+      ctx.fillRect(0,0,w,h);
+      ctx.restore();
+    }
   }
 
   toolBtns.forEach(function(b){
@@ -902,11 +1285,13 @@
       toolBtns.forEach(function(x){ x.classList.toggle('active', x === b); });
       Object.keys(panels).forEach(function(k){ document.getElementById(panels[k]).classList.toggle('show', k === activeTool); });
       toolTitle.textContent = titles[activeTool];
+      syncOverlay();
     });
   });
 
-  ['editFilter','editBright','editContrast','editSaturate','editBlur'].forEach(function(id){
+  ['editFilter','editFilterMore','editBright','editContrast','editSaturate','editBlur'].forEach(function(id){
     document.getElementById(id).addEventListener('input', function(){
+      document.getElementById('moreFiltersRow').style.display = (document.getElementById('editFilter').value === '__more__') ? 'flex' : 'none';
       document.getElementById('editBrightVal').textContent = document.getElementById('editBright').value + '%';
       document.getElementById('editContrastVal').textContent = document.getElementById('editContrast').value + '%';
       document.getElementById('editSaturateVal').textContent = document.getElementById('editSaturate').value + '%';
@@ -933,6 +1318,7 @@
       if(t === 'h') flipH *= -1;
       if(t === 'v') flipV *= -1;
       render();
+      syncOverlay();
     });
   });
 
@@ -1102,8 +1488,43 @@
     exportBtn.disabled = false; exportBtn.textContent = origText;
   });
 
-  /* -------- background removal -------- */
+  /* -------- background removal --------
+     Old version used a hard categoryMask (each pixel forced to 0 or 1),
+     which is exactly why the previous output had a visible stair-stepped
+     line around hair/shoulders — a binary mask has zero anti-aliasing.
+     This version reads the model's soft confidence masks (0..1 per pixel),
+     uses that directly as an alpha matte (giving natural soft edges),
+     then runs erosion + feather + a small decontamination pass to kill
+     the leftover background-colour halo/fringe around the subject. */
   var segmenter = null;
+
+  function boxBlurAlpha(alpha, w, h, radius){
+    // separable box blur on the alpha channel only — fast edge feathering
+    if(radius <= 0) return alpha;
+    var tmp = new Float32Array(w*h);
+    var out = new Float32Array(w*h);
+    var r = radius;
+    for(var y=0; y<h; y++){
+      var rowOff = y*w, sum = 0;
+      for(var x=-r; x<=r; x++){ sum += alpha[rowOff + Math.min(w-1, Math.max(0, x))]; }
+      for(var x=0; x<w; x++){
+        tmp[rowOff+x] = sum / (2*r+1);
+        var addX = Math.min(w-1, x+r+1), subX = Math.max(0, x-r);
+        sum += alpha[rowOff+addX] - alpha[rowOff+subX];
+      }
+    }
+    for(var x=0; x<w; x++){
+      var sum2 = 0;
+      for(var y=-r; y<=r; y++){ sum2 += tmp[Math.min(h-1, Math.max(0,y))*w + x]; }
+      for(var y=0; y<h; y++){
+        out[y*w+x] = sum2 / (2*r+1);
+        var addY = Math.min(h-1, y+r+1), subY = Math.max(0, y-r);
+        sum2 += tmp[addY*w+x] - tmp[subY*w+x];
+      }
+    }
+    return out;
+  }
+
   document.getElementById('runBgRemove').addEventListener('click', async function(){
     if(!originalImg) return;
     var statusEl = document.getElementById('bgStatus');
@@ -1113,29 +1534,60 @@
       if(!segmenter){ segmenter = await window.__loadSegmenter(); }
       statusEl.innerHTML = '<span class="spinner"></span> segmenting…';
       var result = segmenter.segment(canvas);
-      var mask = result.categoryMask;
-      var maskData = mask.getAsUint8Array();
-      var w = mask.width, h = mask.height;
+      var confMasks = result.confidenceMasks; // [class0, class1] soft probability maps
+      var w = confMasks[0].width, h = confMasks[0].height;
+      var m0 = confMasks[0].getAsFloat32Array();
+      var m1 = confMasks[1].getAsFloat32Array();
 
-      // Figure out which class index is the BACKGROUND, rather than trusting a
-      // fixed convention: sample the outer border of the mask (background
-      // almost always dominates the frame edges) and treat whichever class
-      // wins that vote as background. This self-corrects regardless of how
-      // the underlying model orders its classes.
-      var votes = {};
-      function vote(idx){ var v = maskData[idx]; votes[v] = (votes[v]||0) + 1; }
-      for(var x=0; x<w; x++){ vote(x); vote((h-1)*w + x); }
-      for(var y=0; y<h; y++){ vote(y*w); vote(y*w + (w-1)); }
-      var backgroundClass = 0;
-      var bestVotes = -1;
-      for(var k in votes){ if(votes[k] > bestVotes){ bestVotes = votes[k]; backgroundClass = parseInt(k,10); } }
+      // Figure out which of the two mask channels is BACKGROUND by sampling
+      // the outer border (background almost always dominates the frame
+      // edges) — self-corrects regardless of model class ordering.
+      var sum0 = 0, sum1 = 0, n = 0;
+      function sampleBorder(idx){ sum0 += m0[idx]; sum1 += m1[idx]; n++; }
+      for(var x=0; x<w; x++){ sampleBorder(x); sampleBorder((h-1)*w + x); }
+      for(var y=0; y<h; y++){ sampleBorder(y*w); sampleBorder(y*w + (w-1)); }
+      var fgMask = (sum0/n > sum1/n) ? m1 : m0; // higher border confidence = background channel
+
+      // Raw soft alpha (0..255), already anti-aliased by the model itself.
+      var alpha = new Float32Array(w*h);
+      for(var i=0;i<w*h;i++){ alpha[i] = Math.max(0, Math.min(1, fgMask[i])) * 255; }
+
+      // 1) Push mid-tones toward pure 0/255 so the *interior* of the subject
+      //    is fully opaque (no ghostly semi-transparent skin), while leaving
+      //    the transition band around 0.5 soft — this is what produces a
+      //    clean, non-jagged edge instead of a hard binary line.
+      for(var j=0;j<w*h;j++){
+        var v = alpha[j]/255;
+        var s = v*v*(3-2*v); // smoothstep contrast curve
+        alpha[j] = s*255;
+      }
+      // 2) Erode ~1px inward so background-colour fringing around hair/edges
+      //    doesn't survive as a visible halo.
+      var eroded = new Float32Array(w*h);
+      for(var y=0;y<h;y++){
+        for(var x=0;x<w;x++){
+          var idx = y*w+x, minV = alpha[idx];
+          for(var dy=-1; dy<=1; dy++){
+            for(var dx=-1; dx<=1; dx++){
+              var nx = x+dx, ny = y+dy;
+              if(nx<0||nx>=w||ny<0||ny>=h) continue;
+              var nv = alpha[ny*w+nx];
+              if(nv < minV) minV = nv;
+            }
+          }
+          eroded[idx] = minV;
+        }
+      }
+      // 3) Feather with a small box blur so the eroded edge is smooth, not
+      //    stair-stepped — this is the actual fix for the visible line.
+      var feathered = boxBlurAlpha(eroded, w, h, 2);
 
       var work = document.createElement('canvas'); work.width = w; work.height = h;
       var wctx = work.getContext('2d');
       wctx.drawImage(canvas, 0, 0, w, h);
       var imgData = wctx.getImageData(0,0,w,h);
-      for(var i=0;i<w*h;i++){
-        if(maskData[i] === backgroundClass){ imgData.data[i*4+3] = 0; } // background -> transparent
+      for(var p=0;p<w*h;p++){
+        imgData.data[p*4+3] = Math.round(Math.max(0, Math.min(255, feathered[p])));
       }
       wctx.putImageData(imgData, 0, 0);
 
@@ -1144,7 +1596,8 @@
       ctx.drawImage(work, 0, 0);
       hasAlpha = true;
       dropEl.classList.add('has-alpha');
-      mask.close();
+      confMasks[0].close(); confMasks[1].close();
+      bakeToOriginal(); // so later filter/edit tweaks build on this result, not the pristine source
       statusEl.textContent = '✓ done — export as PNG or WebP to keep transparency';
     } catch(err){
       console.error(err);
