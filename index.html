@@ -1133,8 +1133,19 @@
     var maskSmall = mSctx.getImageData(0,0,ww,wh).data;
 
     var n = ww*wh;
-    var known = new Uint8Array(n);
-    for(var i=0;i<n;i++){ known[i] = (maskSmall[i*4+3] > 60) ? 0 : 1; }
+    var isPainted = new Uint8Array(n);   // pixels the user actually brushed — this IS the hole
+    var resolved = new Uint8Array(n);    // pixel has a final, correct value (no longer needs filling)
+    var validSrc = new Uint8Array(n);    // pixel is safe to COPY FROM (real opaque texture, never painted)
+    for(var i=0;i<n;i++){
+      isPainted[i] = maskSmall[i*4+3] > 60 ? 1 : 0;
+      resolved[i] = isPainted[i] ? 0 : 1;
+      // A pixel is only valid as source texture if it wasn't painted AND is
+      // actually opaque. After Remove Background, the checkerboard area is
+      // fully transparent but its leftover RGB bytes are garbage — treating
+      // those as valid source texture is exactly what pasted stray
+      // background colour (or a duplicated hand) into the fill area.
+      validSrc[i] = (!isPainted[i] && wd[i*4+3] > 200) ? 1 : 0;
+    }
 
     var block = 8; // fill in 8x8 texture blocks, not single pixels — keeps detail sharp
     var cols = Math.ceil(ww/block), rows = Math.ceil(wh/block);
@@ -1143,11 +1154,10 @@
     for(var by=0; by<rows; by++){
       for(var bx=0; bx<cols; bx++){
         var x0=bx*block, y0=by*block, x1=Math.min(ww,x0+block), y1=Math.min(wh,y0+block);
-        var kc=0, tot=0;
-        for(var yy=y0; yy<y1; yy++){ for(var xx=x0; xx<x1; xx++){ tot++; if(known[yy*ww+xx]) kc++; } }
-        var frac = tot? kc/tot : 0;
-        blockKnownFrac[by*cols+bx] = frac;
-        if(frac < 1) holeBlocks.push(by*cols+bx);
+        var kc=0, tot=0, paintedAny=false;
+        for(var yy=y0; yy<y1; yy++){ for(var xx=x0; xx<x1; xx++){ var pi=yy*ww+xx; tot++; if(resolved[pi]) kc++; if(isPainted[pi]) paintedAny=true; } }
+        blockKnownFrac[by*cols+bx] = tot? kc/tot : 0;
+        if(paintedAny) holeBlocks.push(by*cols+bx); // only blocks the user actually painted are the hole
       }
     }
 
@@ -1158,7 +1168,7 @@
     var guard = 0;
     while(holeBlocks.length && guard < 3000){
       guard++;
-      // process the block that currently has the MOST known neighbour
+      // process the block that currently has the MOST resolved neighbour
       // coverage first (boundary-inward order), same idea as exemplar-based
       // inpainting priority — highest-confidence pixels get filled first.
       holeBlocks.sort(function(a,b){ return blockKnownFrac[b]-blockKnownFrac[a]; });
@@ -1168,19 +1178,19 @@
       var bwid = tx1-tx0, bhei = ty1-ty0;
       if(blockKnownFrac[bi] < 0.05){ blockKnownFrac[bi] = 0.2; holeBlocks.push(bi); continue; } // wait for neighbours first
 
-      // search for the best-matching fully-known block nearby
+      // search for the best-matching fully-valid-texture block nearby
       var bestScore = Infinity, bestX = -1, bestY = -1;
       for(var cy=0; cy+bhei<=wh; cy+=stride){
         for(var cx=0; cx+bwid<=ww; cx+=stride){
-          // skip candidates that overlap any hole pixel
+          // skip candidates that overlap anything painted or transparent
           var ok = true;
-          for(var vy=cy; vy<cy+bhei && ok; vy+=2){ for(var vx=cx; vx<cx+bwid && ok; vx+=2){ if(!known[vy*ww+vx]) ok=false; } }
+          for(var vy=cy; vy<cy+bhei && ok; vy+=2){ for(var vx=cx; vx<cx+bwid && ok; vx+=2){ if(!validSrc[vy*ww+vx]){ ok=false; } } }
           if(!ok) continue;
           var score = 0, cmp=0;
           for(var py=0; py<bhei; py++){
             for(var px=0; px<bwid; px++){
               var tIdx = (ty0+py)*ww + (tx0+px);
-              if(!known[tIdx]) continue;
+              if(!validSrc[tIdx]) continue; // only compare against already-good texture in the target patch
               var cIdx = (cy+py)*ww + (cx+px);
               var ti4 = tIdx*4, ci4 = cIdx*4;
               var dr = wd[ti4]-wd[ci4], dg = wd[ti4+1]-wd[ci4+1], db = wd[ti4+2]-wd[ci4+2];
@@ -1196,27 +1206,49 @@
         for(var fy=0; fy<bhei; fy++){
           for(var fx=0; fx<bwid; fx++){
             var tId = (ty0+fy)*ww + (tx0+fx);
-            if(known[tId]) continue;
+            if(!isPainted[tId] || resolved[tId]) continue; // never touch a pixel the user didn't paint
             var sId = (bestY+fy)*ww + (bestX+fx);
             var td4=tId*4, sd4=sId*4;
-            wd[td4]=wd[sd4]; wd[td4+1]=wd[sd4+1]; wd[td4+2]=wd[sd4+2];
-            known[tId] = 1;
+            wd[td4]=wd[sd4]; wd[td4+1]=wd[sd4+1]; wd[td4+2]=wd[sd4+2]; wd[td4+3]=255;
+            resolved[tId] = 1; validSrc[tId] = 1; // freshly-filled texture can now seed later blocks too
           }
         }
       } else {
         // no clean candidate yet (early rounds) — try again after neighbours fill in
         blockKnownFrac[bi] = 0.3; holeBlocks.push(bi); continue;
       }
-      // refresh known-fraction for this block and its 8 neighbours so the
+      // refresh resolved-fraction for this block and its 8 neighbours so the
       // priority order adapts as filling progresses
       [bi, bi-1, bi+1, bi-cols, bi+cols, bi-cols-1, bi-cols+1, bi+cols-1, bi+cols+1].forEach(function(nb){
         if(nb<0 || nb>=cols*rows) return;
         var nbx=nb%cols, nby=(nb-nbx)/cols;
         var nx0=nbx*block, ny0=nby*block, nx1=Math.min(ww,nx0+block), ny1=Math.min(wh,ny0+block);
         var kc2=0, tot2=0;
-        for(var yy2=ny0; yy2<ny1; yy2++){ for(var xx2=nx0; xx2<nx1; xx2++){ tot2++; if(known[yy2*ww+xx2]) kc2++; } }
+        for(var yy2=ny0; yy2<ny1; yy2++){ for(var xx2=nx0; xx2<nx1; xx2++){ tot2++; if(resolved[yy2*ww+xx2]) kc2++; } }
         blockKnownFrac[nb] = tot2? kc2/tot2 : 1;
       });
+    }
+
+    // Safety net: if any painted pixel still isn't resolved (guard cap hit,
+    // or it was totally isolated with no valid nearby texture), fall back to
+    // a plain nearest-valid-neighbour average instead of leaving it as
+    // whatever raw pixel was there before — never ship a half-broken result.
+    for(var leftover=0; leftover<n; leftover++){
+      if(isPainted[leftover] && !resolved[leftover]){
+        var lx = leftover % ww, ly = (leftover-lx)/ww;
+        var rs=0,gs=0,bs=0,cnt=0;
+        for(var rad=1; rad<=40 && cnt===0; rad++){
+          for(var dy5=-rad; dy5<=rad; dy5++){
+            for(var dx5=-rad; dx5<=rad; dx5++){
+              var nx5=lx+dx5, ny5=ly+dy5;
+              if(nx5<0||ny5<0||nx5>=ww||ny5>=wh) continue;
+              var nid5 = ny5*ww+nx5;
+              if(validSrc[nid5]){ rs+=wd[nid5*4]; gs+=wd[nid5*4+1]; bs+=wd[nid5*4+2]; cnt++; }
+            }
+          }
+        }
+        if(cnt>0){ wd[leftover*4]=rs/cnt; wd[leftover*4+1]=gs/cnt; wd[leftover*4+2]=bs/cnt; wd[leftover*4+3]=255; }
+      }
     }
 
     sctx.putImageData(work, 0, 0);
