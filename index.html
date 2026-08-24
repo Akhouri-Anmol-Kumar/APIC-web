@@ -34,18 +34,29 @@
 
 <!-- MediaPipe Tasks Vision (free, runs fully on-device — powers Remove Background) -->
 <script type="module">
-  window.__loadSegmenter = async function(){
+  window.__loadSegmenter = async function(preferGPU){
     const { ImageSegmenter, FilesetResolver } = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs");
     const files = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
-    return await ImageSegmenter.createFromOptions(files, {
-      baseOptions: {
-        modelAssetPath: "https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.tflite",
-        delegate: "GPU"
-      },
-      runningMode: "IMAGE",
-      outputCategoryMask: false,
-      outputConfidenceMasks: true
-    });
+    var modelUrl = "https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.tflite";
+    try{
+      return await ImageSegmenter.createFromOptions(files, {
+        baseOptions: { modelAssetPath: modelUrl, delegate: preferGPU ? "GPU" : "CPU" },
+        runningMode: "IMAGE",
+        outputCategoryMask: true,
+        outputConfidenceMasks: true
+      });
+    } catch(e){
+      if(preferGPU){
+        // Some browsers/GPUs don't support the WebGL delegate for this model — retry on CPU.
+        return await ImageSegmenter.createFromOptions(files, {
+          baseOptions: { modelAssetPath: modelUrl, delegate: "CPU" },
+          runningMode: "IMAGE",
+          outputCategoryMask: true,
+          outputConfidenceMasks: true
+        });
+      }
+      throw e;
+    }
   };
 </script>
 
@@ -1068,112 +1079,167 @@
     snap.src = out.toDataURL('image/png');
   });
 
-  /* ---------------- object removal: on-device inpainting ----------------
-     No model download, no server call. Approach: for every painted pixel,
-     find the nearest un-painted pixel by growing outward layer-by-layer
-     (a simple geodesic fill, the same idea Telea/OpenCV's inpaint is built
-     on) to get a structurally-sane first guess, then smooth the filled
-     region with a few weighted-average passes so seams blend in. Works
-     best on small/medium objects over fairly even backgrounds — this is
-     an honest, real algorithm, not a fake "AI" label; a from-scratch
-     diffusion-model-grade generative fill isn't something that can run
-     for free, client-side, in a static HTML page. */
+  /* ---------------- object removal: exemplar-based patch fill ----------------
+     No model download, no server call. This is a block-based exemplar/
+     texture-synthesis fill (the same family of algorithm behind classic
+     "content-aware fill" before generative AI models existed): the hole is
+     processed boundary-inward in small blocks, and each block is replaced
+     by copying real pixels from the best-matching patch found elsewhere in
+     the surrounding image — not an average/blur — so edges and texture
+     stay sharp. A true diffusion-model generative fill (what Galaxy AI's
+     eraser uses) needs a large trained model and isn't something that runs
+     for free, client-side, in a static HTML page — this is the strongest
+     honest equivalent achievable that way, and it should look genuinely
+     sharp rather than smeared. */
   function inpaint(){
-    var w = canvas.width, h = canvas.height;
-    var maskData = mctx.getImageData(0,0,w,h).data;
-    var src = ctx.getImageData(0,0,w,h);
-    var data = src.data;
-    var n = w*h;
-    var isMasked = new Uint8Array(n);
-    var filled = new Uint8Array(n); // 1 = has a real/finalized value
-    var queue = [];
-    for(var i=0;i<n;i++){
-      if(maskData[i*4+3] > 40){ isMasked[i] = 1; }
-      else { filled[i] = 1; }
-    }
-    // seed queue with masked pixels adjacent to unmasked pixels
-    var w4 = w;
-    function idx(x,y){ return y*w4+x; }
-    var frontier = [];
-    for(var y=0;y<h;y++){
-      for(var x=0;x<w;x++){
-        var id = idx(x,y);
-        if(!isMasked[id]) continue;
-        var hasUnmaskedN = false;
-        for(var dy=-1;dy<=1&&!hasUnmaskedN;dy++){
-          for(var dx=-1;dx<=1;dx++){
-            var nx=x+dx, ny=y+dy;
-            if(nx<0||ny<0||nx>=w||ny>=h) continue;
-            if(filled[idx(nx,ny)]){ hasUnmaskedN = true; break; }
-          }
+    var W = canvas.width, H = canvas.height;
+    var fullMask = mctx.getImageData(0,0,W,H).data;
+
+    // 1) bounding box of the painted area, padded so we have real
+    //    surrounding texture to copy from
+    var minX=W, minY=H, maxX=0, maxY=0, any=false;
+    for(var y=0;y<H;y++){
+      for(var x=0;x<W;x++){
+        if(fullMask[(y*W+x)*4+3] > 40){
+          any = true;
+          if(x<minX)minX=x; if(x>maxX)maxX=x;
+          if(y<minY)minY=y; if(y>maxY)maxY=y;
         }
-        if(hasUnmaskedN) frontier.push(id);
       }
     }
-    // BFS layer-by-layer inward fill: each masked pixel takes the average
-    // colour of its already-filled neighbours the first time it's reached.
+    if(!any) return;
+    var bw = maxX-minX+1, bh = maxY-minY+1;
+    var padX = Math.max(60, Math.round(bw*1.3)), padY = Math.max(60, Math.round(bh*1.3));
+    var sx0 = Math.max(0, minX-padX), sy0 = Math.max(0, minY-padY);
+    var sx1 = Math.min(W, maxX+padX+1), sy1 = Math.min(H, maxY+padY+1);
+    var regionW = sx1-sx0, regionH = sy1-sy0;
+
+    // 2) cap the working resolution for speed, work on a crop, then
+    //    upscale + composite back so everything outside the hole stays
+    //    at full original resolution
+    var maxWork = 640;
+    var scale = Math.min(1, maxWork / Math.max(regionW, regionH));
+    var ww = Math.max(8, Math.round(regionW*scale)), wh = Math.max(8, Math.round(regionH*scale));
+
+    var srcCanvas = document.createElement('canvas'); srcCanvas.width = ww; srcCanvas.height = wh;
+    var sctx = srcCanvas.getContext('2d');
+    sctx.drawImage(canvas, sx0, sy0, regionW, regionH, 0, 0, ww, wh);
+    var work = sctx.getImageData(0,0,ww,wh);
+    var wd = work.data;
+
+    var mSmallCanvas = document.createElement('canvas'); mSmallCanvas.width = ww; mSmallCanvas.height = wh;
+    var mSctx = mSmallCanvas.getContext('2d');
+    mSctx.drawImage(maskCanvas, sx0, sy0, regionW, regionH, 0, 0, ww, wh);
+    var maskSmall = mSctx.getImageData(0,0,ww,wh).data;
+
+    var n = ww*wh;
+    var known = new Uint8Array(n);
+    for(var i=0;i<n;i++){ known[i] = (maskSmall[i*4+3] > 60) ? 0 : 1; }
+
+    var block = 8; // fill in 8x8 texture blocks, not single pixels — keeps detail sharp
+    var cols = Math.ceil(ww/block), rows = Math.ceil(wh/block);
+    var blockKnownFrac = new Float32Array(cols*rows);
+    var holeBlocks = [];
+    for(var by=0; by<rows; by++){
+      for(var bx=0; bx<cols; bx++){
+        var x0=bx*block, y0=by*block, x1=Math.min(ww,x0+block), y1=Math.min(wh,y0+block);
+        var kc=0, tot=0;
+        for(var yy=y0; yy<y1; yy++){ for(var xx=x0; xx<x1; xx++){ tot++; if(known[yy*ww+xx]) kc++; } }
+        var frac = tot? kc/tot : 0;
+        blockKnownFrac[by*cols+bx] = frac;
+        if(frac < 1) holeBlocks.push(by*cols+bx);
+      }
+    }
+
+    // adaptive candidate stride so total work stays bounded regardless of hole size
+    var targetCandidates = Math.max(150, Math.min(3000, Math.floor(45000000 / Math.max(1, holeBlocks.length*block*block))));
+    var stride = Math.max(2, Math.round(Math.sqrt((ww*wh) / targetCandidates)));
+
     var guard = 0;
-    while(frontier.length && guard < 400){
+    while(holeBlocks.length && guard < 3000){
       guard++;
-      var next = [];
-      for(var f=0; f<frontier.length; f++){
-        var id2 = frontier[f];
-        if(filled[id2]) continue;
-        var x2 = id2 % w, y2 = (id2 - x2)/w;
-        var rs=0,gs=0,bs=0,cnt=0;
-        for(var dy2=-1;dy2<=1;dy2++){
-          for(var dx2=-1;dx2<=1;dx2++){
-            var nx2=x2+dx2, ny2=y2+dy2;
-            if(nx2<0||ny2<0||nx2>=w||ny2>=h) continue;
-            var nid = idx(nx2,ny2);
-            if(filled[nid]){ rs+=data[nid*4]; gs+=data[nid*4+1]; bs+=data[nid*4+2]; cnt++; }
-          }
-        }
-        if(cnt>0){
-          data[id2*4]=rs/cnt; data[id2*4+1]=gs/cnt; data[id2*4+2]=bs/cnt;
-          filled[id2]=1;
-        }
-      }
-      for(var y3=0;y3<h;y3++){
-        for(var x3=0;x3<w;x3++){
-          var id3 = idx(x3,y3);
-          if(isMasked[id3] && !filled[id3]){
-            var hasFilledN=false;
-            for(var dy3=-1;dy3<=1&&!hasFilledN;dy3++){
-              for(var dx3=-1;dx3<=1;dx3++){
-                var nx3=x3+dx3, ny3=y3+dy3;
-                if(nx3<0||ny3<0||nx3>=w||ny3>=h) continue;
-                if(filled[idx(nx3,ny3)]){ hasFilledN=true; break; }
-              }
-            }
-            if(hasFilledN) next.push(id3);
-          }
-        }
-      }
-      frontier = next;
-    }
-    // A few smoothing passes restricted to the masked region so blocky
-    // BFS seams blend into the surrounding texture.
-    for(var pass=0; pass<3; pass++){
-      var copy = new Uint8ClampedArray(data);
-      for(var y4=0;y4<h;y4++){
-        for(var x4=0;x4<w;x4++){
-          var id4 = idx(x4,y4);
-          if(!isMasked[id4]) continue;
-          var rs2=0,gs2=0,bs2=0,cnt2=0;
-          for(var dy4=-2;dy4<=2;dy4++){
-            for(var dx4=-2;dx4<=2;dx4++){
-              var nx4=x4+dx4, ny4=y4+dy4;
-              if(nx4<0||ny4<0||nx4>=w||ny4>=h) continue;
-              var nid2 = idx(nx4,ny4);
-              rs2+=copy[nid2*4]; gs2+=copy[nid2*4+1]; bs2+=copy[nid2*4+2]; cnt2++;
+      // process the block that currently has the MOST known neighbour
+      // coverage first (boundary-inward order), same idea as exemplar-based
+      // inpainting priority — highest-confidence pixels get filled first.
+      holeBlocks.sort(function(a,b){ return blockKnownFrac[b]-blockKnownFrac[a]; });
+      var bi = holeBlocks.shift();
+      var bx2 = bi % cols, by2 = (bi - bx2)/cols;
+      var tx0 = bx2*block, ty0 = by2*block, tx1 = Math.min(ww,tx0+block), ty1 = Math.min(wh,ty0+block);
+      var bwid = tx1-tx0, bhei = ty1-ty0;
+      if(blockKnownFrac[bi] < 0.05){ blockKnownFrac[bi] = 0.2; holeBlocks.push(bi); continue; } // wait for neighbours first
+
+      // search for the best-matching fully-known block nearby
+      var bestScore = Infinity, bestX = -1, bestY = -1;
+      for(var cy=0; cy+bhei<=wh; cy+=stride){
+        for(var cx=0; cx+bwid<=ww; cx+=stride){
+          // skip candidates that overlap any hole pixel
+          var ok = true;
+          for(var vy=cy; vy<cy+bhei && ok; vy+=2){ for(var vx=cx; vx<cx+bwid && ok; vx+=2){ if(!known[vy*ww+vx]) ok=false; } }
+          if(!ok) continue;
+          var score = 0, cmp=0;
+          for(var py=0; py<bhei; py++){
+            for(var px=0; px<bwid; px++){
+              var tIdx = (ty0+py)*ww + (tx0+px);
+              if(!known[tIdx]) continue;
+              var cIdx = (cy+py)*ww + (cx+px);
+              var ti4 = tIdx*4, ci4 = cIdx*4;
+              var dr = wd[ti4]-wd[ci4], dg = wd[ti4+1]-wd[ci4+1], db = wd[ti4+2]-wd[ci4+2];
+              score += dr*dr+dg*dg+db*db; cmp++;
             }
           }
-          data[id4*4]=rs2/cnt2; data[id4*4+1]=gs2/cnt2; data[id4*4+2]=bs2/cnt2;
+          if(cmp < 4) continue;
+          score = score/cmp;
+          if(score < bestScore){ bestScore = score; bestX = cx; bestY = cy; }
         }
       }
+      if(bestX >= 0){
+        for(var fy=0; fy<bhei; fy++){
+          for(var fx=0; fx<bwid; fx++){
+            var tId = (ty0+fy)*ww + (tx0+fx);
+            if(known[tId]) continue;
+            var sId = (bestY+fy)*ww + (bestX+fx);
+            var td4=tId*4, sd4=sId*4;
+            wd[td4]=wd[sd4]; wd[td4+1]=wd[sd4+1]; wd[td4+2]=wd[sd4+2];
+            known[tId] = 1;
+          }
+        }
+      } else {
+        // no clean candidate yet (early rounds) — try again after neighbours fill in
+        blockKnownFrac[bi] = 0.3; holeBlocks.push(bi); continue;
+      }
+      // refresh known-fraction for this block and its 8 neighbours so the
+      // priority order adapts as filling progresses
+      [bi, bi-1, bi+1, bi-cols, bi+cols, bi-cols-1, bi-cols+1, bi+cols-1, bi+cols+1].forEach(function(nb){
+        if(nb<0 || nb>=cols*rows) return;
+        var nbx=nb%cols, nby=(nb-nbx)/cols;
+        var nx0=nbx*block, ny0=nby*block, nx1=Math.min(ww,nx0+block), ny1=Math.min(wh,ny0+block);
+        var kc2=0, tot2=0;
+        for(var yy2=ny0; yy2<ny1; yy2++){ for(var xx2=nx0; xx2<nx1; xx2++){ tot2++; if(known[yy2*ww+xx2]) kc2++; } }
+        blockKnownFrac[nb] = tot2? kc2/tot2 : 1;
+      });
     }
-    ctx.putImageData(src,0,0);
+
+    sctx.putImageData(work, 0, 0);
+
+    // 3) composite the filled crop back onto the full-resolution canvas,
+    //    only inside the (feathered) painted area — everything outside the
+    //    hole is untouched original-resolution pixels, so nothing else
+    //    loses sharpness.
+    var upCanvas = document.createElement('canvas'); upCanvas.width = regionW; upCanvas.height = regionH;
+    var uctx = upCanvas.getContext('2d');
+    uctx.imageSmoothingEnabled = true; uctx.imageSmoothingQuality = 'high';
+    uctx.drawImage(srcCanvas, 0, 0, regionW, regionH);
+
+    var featherCanvas = document.createElement('canvas'); featherCanvas.width = regionW; featherCanvas.height = regionH;
+    var fctx = featherCanvas.getContext('2d');
+    fctx.filter = 'blur(2px)';
+    fctx.drawImage(maskCanvas, sx0, sy0, regionW, regionH, 0, 0, regionW, regionH);
+    var featherData = fctx.getImageData(0,0,regionW,regionH);
+    var upData = uctx.getImageData(0,0,regionW,regionH);
+    for(var pi=0; pi<regionW*regionH; pi++){ upData.data[pi*4+3] = featherData.data[pi*4+3]; }
+    uctx.putImageData(upData, 0, 0);
+
+    ctx.drawImage(upCanvas, sx0, sy0);
   }
 
   document.getElementById('runObjRemove').addEventListener('click', function(){
@@ -1531,26 +1597,54 @@
     var btn = this; btn.disabled = true;
     statusEl.innerHTML = '<span class="spinner"></span> loading model…';
     try{
-      if(!segmenter){ segmenter = await window.__loadSegmenter(); }
+      if(!segmenter){
+        try{ segmenter = await window.__loadSegmenter(true); }
+        catch(loadErr){ console.error('GPU load failed, retrying on CPU:', loadErr); segmenter = await window.__loadSegmenter(false); }
+      }
       statusEl.innerHTML = '<span class="spinner"></span> segmenting…';
       var result = segmenter.segment(canvas);
-      var confMasks = result.confidenceMasks; // [class0, class1] soft probability maps
-      var w = confMasks[0].width, h = confMasks[0].height;
-      var m0 = confMasks[0].getAsFloat32Array();
-      var m1 = confMasks[1].getAsFloat32Array();
+      var w, h, alpha;
 
-      // Figure out which of the two mask channels is BACKGROUND by sampling
-      // the outer border (background almost always dominates the frame
-      // edges) — self-corrects regardless of model class ordering.
-      var sum0 = 0, sum1 = 0, n = 0;
-      function sampleBorder(idx){ sum0 += m0[idx]; sum1 += m1[idx]; n++; }
-      for(var x=0; x<w; x++){ sampleBorder(x); sampleBorder((h-1)*w + x); }
-      for(var y=0; y<h; y++){ sampleBorder(y*w); sampleBorder(y*w + (w-1)); }
-      var fgMask = (sum0/n > sum1/n) ? m1 : m0; // higher border confidence = background channel
-
-      // Raw soft alpha (0..255), already anti-aliased by the model itself.
-      var alpha = new Float32Array(w*h);
-      for(var i=0;i<w*h;i++){ alpha[i] = Math.max(0, Math.min(1, fgMask[i])) * 255; }
+      if(result.confidenceMasks && result.confidenceMasks.length){
+        var confMasks = result.confidenceMasks; // 1 or 2 soft probability channels
+        w = confMasks[0].width; h = confMasks[0].height;
+        var m0 = confMasks[0].getAsFloat32Array();
+        var fgMask;
+        if(confMasks.length >= 2){
+          var m1 = confMasks[1].getAsFloat32Array();
+          // Figure out which channel is BACKGROUND by sampling the outer
+          // border (background almost always dominates the frame edges) —
+          // self-corrects regardless of model class ordering.
+          var sum0=0,sum1=0,nB=0;
+          for(var x=0;x<w;x++){ sum0+=m0[x]; sum1+=m1[x]; sum0+=m0[(h-1)*w+x]; sum1+=m1[(h-1)*w+x]; nB+=2; }
+          for(var y=0;y<h;y++){ sum0+=m0[y*w]; sum1+=m1[y*w]; sum0+=m0[y*w+w-1]; sum1+=m1[y*w+w-1]; nB+=2; }
+          fgMask = (sum0/nB > sum1/nB) ? m1 : m0;
+        } else {
+          fgMask = m0; // single-channel model: index 0 already IS the person/foreground confidence
+        }
+        alpha = new Float32Array(w*h);
+        for(var i=0;i<w*h;i++){ alpha[i] = Math.max(0, Math.min(1, fgMask[i])) * 255; }
+        confMasks.forEach(function(m){ m.close(); });
+        if(result.categoryMask) result.categoryMask.close();
+      } else if(result.categoryMask){
+        // Fallback: hard mask only — still self-correct which class is
+        // background, then feed it through the same smoothstep/erode/
+        // feather pipeline below so the edge is still soft, not a hard line.
+        var mask = result.categoryMask;
+        var maskData = mask.getAsUint8Array();
+        w = mask.width; h = mask.height;
+        var votes = {};
+        function vote(idx){ var v = maskData[idx]; votes[v] = (votes[v]||0) + 1; }
+        for(var vx=0; vx<w; vx++){ vote(vx); vote((h-1)*w + vx); }
+        for(var vy=0; vy<h; vy++){ vote(vy*w); vote(vy*w + (w-1)); }
+        var backgroundClass = 0, bestVotes = -1;
+        for(var k in votes){ if(votes[k] > bestVotes){ bestVotes = votes[k]; backgroundClass = parseInt(k,10); } }
+        alpha = new Float32Array(w*h);
+        for(var mi=0; mi<w*h; mi++){ alpha[mi] = (maskData[mi] === backgroundClass) ? 0 : 255; }
+        mask.close();
+      } else {
+        throw new Error('Model returned no mask data.');
+      }
 
       // 1) Push mid-tones toward pure 0/255 so the *interior* of the subject
       //    is fully opaque (no ghostly semi-transparent skin), while leaving
@@ -1596,12 +1690,11 @@
       ctx.drawImage(work, 0, 0);
       hasAlpha = true;
       dropEl.classList.add('has-alpha');
-      confMasks[0].close(); confMasks[1].close();
       bakeToOriginal(); // so later filter/edit tweaks build on this result, not the pristine source
       statusEl.textContent = '✓ done — export as PNG or WebP to keep transparency';
     } catch(err){
-      console.error(err);
-      statusEl.textContent = 'Could not load the on-device model (check your connection) — try again.';
+      console.error('Remove BG failed:', err);
+      statusEl.textContent = 'Failed: ' + (err && err.message ? err.message : 'unknown error') + ' — open the browser console for details, or try again.';
     }
     btn.disabled = false;
   });
