@@ -1626,39 +1626,5 @@ btn.disabled = false;
 updateGate();
 })();
 </script>
-<!--
-================================================================================
-SETUP — turn on real user tracking + free automated email (~20 minutes)
-================================================================================
-Right now the page runs in DEMO MODE: sign-in, counters and emails all work
-on-screen but nothing is saved anywhere. Fill in the config values near the
-top of the <script> tag (search for "CONFIG —") and it goes live.
-1) GOOGLE SIGN-IN
-console.cloud.google.com -> new project -> APIs & Services -> Credentials
--> Create OAuth client ID -> Web application -> add your live URL under
-"Authorized JavaScript origins" -> copy the Client ID into GOOGLE_CLIENT_ID.
-2) FIREBASE (Auth + Firestore, free Spark plan, no card)
-console.firebase.google.com -> Add project -> Build > Authentication ->
-enable Google -> Build > Firestore Database > Create database -> Project
-settings > Your apps > Web app -> copy config into FIREBASE_CONFIG.
-Firestore Rules:
-match /users/{id} { allow read: if true; allow write: if request.auth != null; }
-match /stats/{id} { allow read: if true; allow write: if true; }
-3) EMAILJS (free tier, 200 emails/month, no backend)
-emailjs.com -> sign up -> Email Services -> connect Gmail -> Email
-Templates -> make "Welcome" ({{to_name}}) and "Update" ({{to_name}},
-{{subject}}, {{message}}) templates -> copy Public Key / Service ID /
-template IDs into the matching EMAILJS_* variables.
-4) ADMIN_EMAIL — set to the Gmail you'll sign in with; only that account
-sees the "Send an update to everyone" panel.
-Welcome email fires automatically on first sign-in. The update broadcast is
-manual by design — you write it and click send, nothing goes out under your
-name without you personally triggering it.
-BACKGROUND REMOVAL runs Google's MediaPipe selfie-segmenter fully on-device
-via WebAssembly — first use downloads a small model (a few MB, cached by the
-browser after that), no config needed, works out of the box.
-COSTS AT SMALL SCALE: $0 across all of the above.
-================================================================================
--->
 </body>
 </html>
