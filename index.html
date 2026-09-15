@@ -815,8 +815,13 @@
     document.getElementById('userName').textContent = (profile.name || profile.email || 'Signed in').split(' ')[0];
     closeModal();
     updateGate();
-    document.getElementById('adminPanel').style.display = isRealAdmin() ? 'block' : 'none';
-    if(isRealAdmin()) loadSignups();
+    // Admin panel (Signups + Broadcast) is switched off for now — turn it
+    // back on by changing 'none' below to: isRealAdmin() ? 'block' : 'none'
+    // once EmailJS is configured and the admin custom claim is granted
+    // (see setup notes at the bottom of this file).
+    document.getElementById('adminPanel').style.display = 'none';
+    // loadSignups() call disabled along with the admin panel above — re-add
+    // `if(isRealAdmin()) loadSignups();` here once you turn the panel back on.
     try{ localStorage.setItem('apic_user', JSON.stringify(profile)); }catch(e){}
     if(!isRestore){ trackUser(profile); }
   }
