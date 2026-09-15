@@ -785,6 +785,14 @@
     try{ var base = token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'); return JSON.parse(decodeURIComponent(escape(atob(base)))); }
     catch(e){ return null; }
   }
+  function isRealAdmin(){
+    // Only ever trust the SDK's own verified auth state for anything
+    // admin-gated — never the `profile` object a caller passed in, since
+    // that can be forged from the browser console (e.g. calling
+    // onSignedIn({email:ADMIN_EMAIL}) directly). Demo mode has no server-
+    // verified identity at all, so it can never grant admin.
+    return !!(FIREBASE_READY && firebase.auth().currentUser && firebase.auth().currentUser.email === ADMIN_EMAIL);
+  }
   function onSignedIn(profile, isRestore){
     user = profile;
     document.getElementById('signInBtn').style.display = 'none';
@@ -794,7 +802,7 @@
     document.getElementById('userName').textContent = (profile.name || profile.email || 'Signed in').split(' ')[0];
     closeModal();
     updateGate();
-    document.getElementById('adminPanel').style.display = (profile.email === ADMIN_EMAIL) ? 'block' : 'none';
+    document.getElementById('adminPanel').style.display = isRealAdmin() ? 'block' : 'none';
     try{ localStorage.setItem('apic_user', JSON.stringify(profile)); }catch(e){}
     if(!isRestore){ trackUser(profile); }
   }
@@ -914,9 +922,10 @@
   }
   var bBtn = document.getElementById('broadcastBtn');
   if(bBtn){ bBtn.addEventListener('click', function(){
+    var statusEl = document.getElementById('broadcastStatus');
+    if(!isRealAdmin()){ statusEl.textContent = 'Not authorized — sign in with the admin account.'; return; }
     var subject = document.getElementById('broadcastSubject').value.trim() || 'APIC update';
     var body = document.getElementById('broadcastBody').value.trim();
-    var statusEl = document.getElementById('broadcastStatus');
     if(!body){ statusEl.textContent = 'Write a message first.'; return; }
     if(!EMAILJS_READY){ statusEl.textContent = 'EmailJS not configured — see setup notes.'; return; }
     if(!FIREBASE_READY){ statusEl.textContent = 'Firestore not configured — no user list.'; return; }
@@ -1939,23 +1948,80 @@ top of the <script> tag (search for "CONFIG —") and it goes live.
    console.cloud.google.com -> new project -> APIs & Services -> Credentials
    -> Create OAuth client ID -> Web application -> add your live URL under
    "Authorized JavaScript origins" -> copy the Client ID into GOOGLE_CLIENT_ID.
+   Do NOT leave localhost or a wildcard in that list once you're live — only
+   your real domain. That list is the actual boundary controlling which
+   sites are allowed to trigger sign-in with this Client ID.
 
 2) FIREBASE (Auth + Firestore, free Spark plan, no card)
    console.firebase.google.com -> Add project -> Build > Authentication ->
    enable Google -> Build > Firestore Database > Create database -> Project
    settings > Your apps > Web app -> copy config into FIREBASE_CONFIG.
-   Firestore Rules:
-     match /users/{id} { allow read: if true; allow write: if request.auth != null; }
-     match /stats/{id} { allow read: if true; allow write: if true; }
+
+   Firestore Rules — use this, not "allow read/write: if true". The old
+   open rules let ANYONE (no login required) read every user's name/email
+   via the REST API, overwrite any other user's document, and vandalize the
+   public counters. These rules only let a signed-in user touch their own
+   document, keyed by their verified email from the auth token:
+
+     match /databases/{database}/documents {
+       match /users/{id} {
+         allow read, update: if request.auth != null && request.auth.token.email == id;
+         allow create: if request.auth != null && request.auth.token.email == id
+                        && request.resource.data.email == id;
+         allow delete: if false;
+       }
+       match /stats/{id} {
+         allow read: if true;   // public counters are meant to be visible
+         allow write: if request.auth != null
+                       && request.resource.data.diff(resource.data).affectedKeys()
+                            .hasOnly(['totalUsers','totalVisits','todayKey','todayCount']);
+         // this stops anonymous vandalism but a signed-in account can still
+         // spam increments — for a hard guarantee, move counter writes into
+         // a Cloud Function triggered on user-doc create instead of trusting
+         // the client to increment at all.
+       }
+     }
+
+   ADMIN BROADCAST — with the rules above, admin@you can no longer read
+   OTHER users' docs either (nobody can but the user themself), which is
+   what the "send an update to everyone" panel needs. There is no way to
+   grant that from client-side JS — ADMIN_EMAIL being correct is not proof
+   of anything to Firestore, it's just a string in a file anyone can read.
+   The only real fix is a Firebase **custom claim**, set once from a trusted
+   environment (never from this HTML file):
+
+     // save as grant-admin.js, run once with: node grant-admin.js
+     // npm i firebase-admin ; download a service-account key from
+     // Project settings > Service accounts > Generate new private key
+     const admin = require('firebase-admin');
+     admin.initializeApp({ credential: admin.credential.cert(require('./serviceAccountKey.json')) });
+     admin.auth().getUserByEmail('you@example.com').then(u =>
+       admin.auth().setCustomUserClaims(u.uid, { admin: true })
+     ).then(() => console.log('done — sign out and back in on the site'));
+
+   Then extend the users rule so the admin claim can read everyone:
+     allow read: if request.auth != null &&
+       (request.auth.token.email == id || request.auth.token.admin == true);
+
+   serviceAccountKey.json is a real credential — keep it off GitHub, out of
+   the deployed site, and delete it once you've run the script.
 
 3) EMAILJS (free tier, 200 emails/month, no backend)
    emailjs.com -> sign up -> Email Services -> connect Gmail -> Email
    Templates -> make "Welcome" ({{to_name}}) and "Update" ({{to_name}},
    {{subject}}, {{message}}) templates -> copy Public Key / Service ID /
    template IDs into the matching EMAILJS_* variables.
+   Heads up: an EmailJS *public* key is meant to be visible in client code —
+   that's how their free tier works — but it also means anyone who reads
+   this file's source can call emailjs.send() with it directly, not just
+   through this site's button. In the EmailJS dashboard, turn on their
+   "allowed origins/domains" restriction and keep an eye on your monthly
+   send count; that dashboard setting is the real rate limiter here, not
+   anything in this HTML.
 
-4) ADMIN_EMAIL — set to the Gmail you'll sign in with; only that account
-   sees the "Send an update to everyone" panel.
+4) ADMIN_EMAIL — set to the Gmail you'll sign in with. The admin panel only
+   *displays* based on this; it is not what protects the data (see the
+   custom-claim step above) — Firestore rules are.
 
 Welcome email fires automatically on first sign-in. The update broadcast is
 manual by design — you write it and click send, nothing goes out under your
@@ -1964,6 +2030,14 @@ name without you personally triggering it.
 BACKGROUND REMOVAL runs Google's MediaPipe selfie-segmenter fully on-device
 via WebAssembly — first use downloads a small model (a few MB, cached by the
 browser after that), no config needed, works out of the box.
+
+A NOTE ON "EXPORT GATED TO SIGNED-IN USERS" — this is a business-logic
+nudge, not a security boundary, and can't be made into one: the image the
+person is editing is already fully decoded in their own browser's memory the
+moment they load it, so anyone comfortable with devtools can always get the
+pixels out regardless of what this page's JS allows. Nothing sensitive is
+being protected there (it's the visitor's own file), so this is expected
+and fine to leave as-is — just don't rely on it as an actual restriction.
 
 COSTS AT SMALL SCALE: $0 across all of the above.
 ================================================================================
