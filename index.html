@@ -237,6 +237,13 @@
   .tb-dot:active{transform:translateY(0) scale(0.94); filter:brightness(0.92);}
   .tb-title{letter-spacing:1px; text-transform:uppercase;}
   .tb-title b{color:var(--green);}
+  .hist-btn{
+    width:22px; height:22px; border-radius:4px; border:1px solid var(--line); background:transparent;
+    color:var(--text-muted); cursor:pointer; font-size:13px; line-height:1; display:flex; align-items:center; justify-content:center;
+    padding:0; transition:all .15s var(--ease-out);
+  }
+  .hist-btn:hover:not(:disabled){border-color:var(--green); color:var(--green); box-shadow:var(--glow-green);}
+  .hist-btn:disabled{opacity:0.25; cursor:not-allowed;}
 
   .studio-body{padding:20px;}
   .drop{
@@ -458,6 +465,8 @@
             <button class="tb-dot p" id="btnClose" title="Minimize"><span>×</span></button>
           </div>
           <span class="tb-title"><b>apic</b>@studio ~ %</span>
+          <button class="hist-btn" id="undoBtn" title="Undo (Ctrl+Z)" disabled>↺</button>
+          <button class="hist-btn" id="redoBtn" title="Redo (Ctrl+Y)" disabled>↻</button>
         </div>
         <span class="tb-title" id="toolTitle">edit.exe</span>
       </div>
@@ -540,6 +549,12 @@
         <div class="bench-panel" id="panel-objremove">
           <p class="hint" style="margin-top:0;">Paint over the object you want gone, then run Remove. Runs a fully on-device inpainting pass (no upload) — best on small/medium objects over fairly even backgrounds (skin, sky, walls, fabric); very busy backgrounds are harder for any tool, free or paid.</p>
           <div class="row"><label>Brush size</label><input type="range" id="orBrush" min="6" max="120" value="30"><span class="val" id="orBrushVal">30</span></div>
+          <div class="row"><label>Quality</label>
+            <select id="orQuality">
+              <option value="fast">Fast</option>
+              <option value="best" selected>Best (content-aware)</option>
+            </select>
+          </div>
           <div class="row"><button class="btn btn-ghost btn-sm" id="orClear" style="flex:1;">Clear mask</button></div>
           <button class="btn btn-gold btn-sm" id="runObjRemove">Remove painted object</button>
           <span class="filesize" id="orStatus" style="margin-left:10px;"></span>
@@ -963,6 +978,7 @@
       if(typeof syncOverlay === 'function') syncOverlay();
       fileInfo.textContent = file.name + ' · ' + Math.round(file.size/1024) + ' KB · ' + img.naturalWidth + '×' + img.naturalHeight;
       updateGate();
+      history = []; histIndex = -1; commitHistory();
     };
     img.src = URL.createObjectURL(file);
   }
@@ -1018,9 +1034,88 @@
       ['editBrightVal','editContrastVal','editSaturateVal'].forEach(function(id){ document.getElementById(id).textContent='100%'; });
       document.getElementById('editBlurVal').textContent = '0px';
       resetAdvancedUI();
+      commitHistory();
     };
     snap.src = url;
   }
+
+  /* ---------------- undo / redo history ----------------
+     A real edit history, the way Photoshop's history panel works: every
+     committed action (load, crop, object removal, background removal,
+     rotate/flip, and every slider once you let go of it) is a snapshot you
+     can step backward and forward through with buttons or Ctrl+Z / Ctrl+Y. */
+  var HIST_MAX = 40;
+  var history = [];
+  var histIndex = -1;
+  var restoringHistory = false;
+  var HIST_FIELD_IDS = ['editFilter','editFilterMore','editBright','editContrast','editSaturate','editBlur',
+    'advBlack','advWhite','advGamma','advSharpen','advTemp','advVignette','advHue'];
+  var undoBtn = document.getElementById('undoBtn');
+  var redoBtn = document.getElementById('redoBtn');
+
+  function captureFields(){
+    var o = {};
+    HIST_FIELD_IDS.forEach(function(id){ var el = document.getElementById(id); if(el) o[id] = el.value; });
+    return o;
+  }
+  function applyFields(o){
+    HIST_FIELD_IDS.forEach(function(id){
+      var el = document.getElementById(id);
+      if(el && o[id] !== undefined && el.value !== o[id]){
+        el.value = o[id];
+        el.dispatchEvent(new Event('input', {bubbles:true}));
+      }
+    });
+  }
+  function updateHistoryButtons(){
+    if(undoBtn) undoBtn.disabled = histIndex <= 0;
+    if(redoBtn) redoBtn.disabled = histIndex >= history.length-1;
+  }
+  function commitHistory(){
+    if(restoringHistory || !originalImg) return;
+    var snapshot = { src: originalImg.src, rotation: rotation, flipH: flipH, flipV: flipV, fields: captureFields() };
+    history = history.slice(0, histIndex+1);
+    var last = history[history.length-1];
+    if(last && last.src === snapshot.src && JSON.stringify(last.fields) === JSON.stringify(snapshot.fields) &&
+       last.rotation === snapshot.rotation && last.flipH === snapshot.flipH && last.flipV === snapshot.flipV) return;
+    history.push(snapshot);
+    if(history.length > HIST_MAX) history.shift();
+    histIndex = history.length - 1;
+    updateHistoryButtons();
+  }
+  function restoreSnapshot(snapshot){
+    restoringHistory = true;
+    rotation = snapshot.rotation; flipH = snapshot.flipH; flipV = snapshot.flipV;
+    applyFields(snapshot.fields);
+    var finish = function(){
+      render(); syncOverlay();
+      restoringHistory = false;
+      updateHistoryButtons();
+    };
+    if(originalImg && originalImg.src === snapshot.src){
+      finish();
+    } else {
+      var img = new Image();
+      img.onload = function(){ originalImg = img; finish(); };
+      img.src = snapshot.src;
+    }
+  }
+  function undoHistory(){ if(histIndex > 0){ histIndex--; restoreSnapshot(history[histIndex]); } }
+  function redoHistory(){ if(histIndex < history.length-1){ histIndex++; restoreSnapshot(history[histIndex]); } }
+  if(undoBtn) undoBtn.addEventListener('click', undoHistory);
+  if(redoBtn) redoBtn.addEventListener('click', redoHistory);
+  window.addEventListener('keydown', function(e){
+    var tag = (e.target && e.target.tagName) || '';
+    if(tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+    if(!(e.ctrlKey || e.metaKey)) return;
+    if(e.key === 'z' || e.key === 'Z'){
+      e.preventDefault();
+      if(e.shiftKey) redoHistory(); else undoHistory();
+    } else if(e.key === 'y' || e.key === 'Y'){
+      e.preventDefault();
+      redoHistory();
+    }
+  });
 
   /* ---------------- overlay: brush mask (object removal) + crop select ---------------- */
   var overlay = document.getElementById('overlay');
@@ -1118,6 +1213,7 @@
       cropRect = null;
       render(); syncOverlay();
       fileInfo.textContent = snap.naturalWidth + '×' + snap.naturalHeight + ' (cropped)';
+      commitHistory();
     };
     snap.src = out.toDataURL('image/png');
   });
@@ -1160,7 +1256,9 @@
     // 2) cap the working resolution for speed, work on a crop, then
     //    upscale + composite back so everything outside the hole stays
     //    at full original resolution
-    var maxWork = 640;
+    var qualityEl = document.getElementById('orQuality');
+    var quality = qualityEl ? qualityEl.value : 'best';
+    var maxWork = quality === 'fast' ? 480 : 860;
     var scale = Math.min(1, maxWork / Math.max(regionW, regionH));
     var ww = Math.max(8, Math.round(regionW*scale)), wh = Math.max(8, Math.round(regionH*scale));
 
@@ -1221,28 +1319,40 @@
       var bwid = tx1-tx0, bhei = ty1-ty0;
       if(blockKnownFrac[bi] < 0.05){ blockKnownFrac[bi] = 0.2; holeBlocks.push(bi); continue; } // wait for neighbours first
 
-      // search for the best-matching fully-valid-texture block nearby
-      var bestScore = Infinity, bestX = -1, bestY = -1;
+      // search for the best-matching fully-valid-texture block nearby —
+      // tries both the patch as-is and horizontally mirrored, since a lot of
+      // real-world textures (skin, fabric, foliage) match better flipped.
+      var bestScore = Infinity, bestX = -1, bestY = -1, bestFlip = false;
       for(var cy=0; cy+bhei<=wh; cy+=stride){
         for(var cx=0; cx+bwid<=ww; cx+=stride){
           // skip candidates that overlap anything painted or transparent
           var ok = true;
           for(var vy=cy; vy<cy+bhei && ok; vy+=2){ for(var vx=cx; vx<cx+bwid && ok; vx+=2){ if(!validSrc[vy*ww+vx]){ ok=false; } } }
           if(!ok) continue;
-          var score = 0, cmp=0;
+          var scoreN = 0, cmpN = 0, scoreM = 0, cmpM = 0;
           for(var py=0; py<bhei; py++){
             for(var px=0; px<bwid; px++){
               var tIdx = (ty0+py)*ww + (tx0+px);
               if(!validSrc[tIdx]) continue; // only compare against already-good texture in the target patch
-              var cIdx = (cy+py)*ww + (cx+px);
-              var ti4 = tIdx*4, ci4 = cIdx*4;
-              var dr = wd[ti4]-wd[ci4], dg = wd[ti4+1]-wd[ci4+1], db = wd[ti4+2]-wd[ci4+2];
-              score += dr*dr+dg*dg+db*db; cmp++;
+              var ti4 = tIdx*4;
+              var cIdxN = (cy+py)*ww + (cx+px);
+              var cn4 = cIdxN*4;
+              var drN = wd[ti4]-wd[cn4], dgN = wd[ti4+1]-wd[cn4+1], dbN = wd[ti4+2]-wd[cn4+2];
+              scoreN += drN*drN+dgN*dgN+dbN*dbN; cmpN++;
+              var cIdxM = (cy+py)*ww + (cx+(bwid-1-px));
+              var cm4 = cIdxM*4;
+              var drM = wd[ti4]-wd[cm4], dgM = wd[ti4+1]-wd[cm4+1], dbM = wd[ti4+2]-wd[cm4+2];
+              scoreM += drM*drM+dgM*dgM+dbM*dbM; cmpM++;
             }
           }
-          if(cmp < 4) continue;
-          score = score/cmp;
-          if(score < bestScore){ bestScore = score; bestX = cx; bestY = cy; }
+          if(cmpN >= 4){
+            var avgN = scoreN/cmpN;
+            if(avgN < bestScore){ bestScore = avgN; bestX = cx; bestY = cy; bestFlip = false; }
+          }
+          if(cmpM >= 4){
+            var avgM = scoreM/cmpM;
+            if(avgM < bestScore){ bestScore = avgM; bestX = cx; bestY = cy; bestFlip = true; }
+          }
         }
       }
       if(bestX >= 0){
@@ -1250,7 +1360,7 @@
           for(var fx=0; fx<bwid; fx++){
             var tId = (ty0+fy)*ww + (tx0+fx);
             if(!isPainted[tId] || resolved[tId]) continue; // never touch a pixel the user didn't paint
-            var sId = (bestY+fy)*ww + (bestX+fx);
+            var sId = bestFlip ? ((bestY+fy)*ww + (bestX+(bwid-1-fx))) : ((bestY+fy)*ww + (bestX+fx));
             var td4=tId*4, sd4=sId*4;
             wd[td4]=wd[sd4]; wd[td4+1]=wd[sd4+1]; wd[td4+2]=wd[sd4+2]; wd[td4+3]=255;
             resolved[tId] = 1; validSrc[tId] = 1; // freshly-filled texture can now seed later blocks too
@@ -1294,6 +1404,36 @@
       }
     }
 
+    // Seam-softening pass: a hard block-by-block copy leaves faint grid lines
+    // at patch boundaries. Real content-aware fill blends those seams — here
+    // we blur just the pixels that sit on a block edge, using their already-
+    // filled neighbours, so texture stays sharp in the interior of each patch
+    // but the transitions between patches disappear.
+    var wdCopy = wd.slice();
+    for(var ys=0; ys<wh; ys++){
+      for(var xs=0; xs<ww; xs++){
+        var idxs = ys*ww+xs;
+        if(!isPainted[idxs]) continue;
+        var mx = xs % block, my = ys % block;
+        if(!(mx<=1 || mx>=block-2 || my<=1 || my>=block-2)) continue;
+        var rs2=0,gs2=0,bs2=0,cs2=0;
+        for(var oy=-1; oy<=1; oy++){
+          for(var ox=-1; ox<=1; ox++){
+            var nx2=xs+ox, ny2=ys+oy;
+            if(nx2<0||ny2<0||nx2>=ww||ny2>=wh) continue;
+            var nidx2=(ny2*ww+nx2)*4;
+            rs2+=wdCopy[nidx2]; gs2+=wdCopy[nidx2+1]; bs2+=wdCopy[nidx2+2]; cs2++;
+          }
+        }
+        if(cs2>0){
+          var id4=idxs*4;
+          wd[id4]   = wd[id4]*0.45   + (rs2/cs2)*0.55;
+          wd[id4+1] = wd[id4+1]*0.45 + (gs2/cs2)*0.55;
+          wd[id4+2] = wd[id4+2]*0.45 + (bs2/cs2)*0.55;
+        }
+      }
+    }
+
     sctx.putImageData(work, 0, 0);
 
     // 3) composite the filled crop back onto the full-resolution canvas,
@@ -1307,7 +1447,8 @@
 
     var featherCanvas = document.createElement('canvas'); featherCanvas.width = regionW; featherCanvas.height = regionH;
     var fctx = featherCanvas.getContext('2d');
-    fctx.filter = 'blur(2px)';
+    var featherPx = Math.max(2, Math.min(6, Math.round(Math.min(regionW, regionH) * 0.012)));
+    fctx.filter = 'blur(' + featherPx + 'px)';
     fctx.drawImage(maskCanvas, sx0, sy0, regionW, regionH, 0, 0, regionW, regionH);
     var featherData = fctx.getImageData(0,0,regionW,regionH);
     var upData = uctx.getImageData(0,0,regionW,regionH);
@@ -1358,7 +1499,10 @@
     document.getElementById('advVignetteVal').textContent = '0';
     document.getElementById('advHueVal').textContent = '0°';
   }
-  document.getElementById('resetAdvanced').addEventListener('click', function(){ resetAdvancedUI(); render(); });
+  ['advBlack','advWhite','advGamma','advSharpen','advTemp','advVignette','advHue'].forEach(function(id){
+    document.getElementById(id).addEventListener('change', function(){ commitHistory(); });
+  });
+  document.getElementById('resetAdvanced').addEventListener('click', function(){ resetAdvancedUI(); render(); commitHistory(); });
 
   function applyAdvancedFx(){
     var black = parseInt(document.getElementById('advBlack').value,10);
@@ -1440,6 +1584,9 @@
       render();
     });
   });
+  ['editFilter','editFilterMore','editBright','editContrast','editSaturate','editBlur'].forEach(function(id){
+    document.getElementById(id).addEventListener('change', function(){ commitHistory(); });
+  });
   document.getElementById('resetEdit').addEventListener('click', function(){
     document.getElementById('editFilter').value = 'none';
     document.getElementById('editBright').value = 100;
@@ -1451,6 +1598,7 @@
     document.getElementById('editSaturateVal').textContent = '100%';
     document.getElementById('editBlurVal').textContent = '0px';
     render();
+    commitHistory();
   });
   document.querySelectorAll('.quick-btn').forEach(function(b){
     b.addEventListener('click', function(){
@@ -1460,6 +1608,7 @@
       if(t === 'v') flipV *= -1;
       render();
       syncOverlay();
+      commitHistory();
     });
   });
 
