@@ -368,6 +368,12 @@
 
   /* admin */
   textarea{background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:4px; padding:9px 12px; font-family:var(--sans); font-size:13px; resize:vertical;}
+  .signup-row{display:flex; align-items:center; gap:12px; padding:10px 14px; border-bottom:1px solid var(--line);}
+  .signup-row:last-child{border-bottom:none;}
+  .signup-row img{width:30px; height:30px; border-radius:50%; flex-shrink:0; background:var(--bg-3);}
+  .signup-row .su-name{font-family:var(--sans); font-size:13px; font-weight:600; color:var(--text);}
+  .signup-row .su-email{font-family:var(--mono); font-size:11px; color:var(--text-muted);}
+  .signup-row .su-meta{margin-left:auto; text-align:right; font-family:var(--mono); font-size:10.5px; color:var(--text-muted); flex-shrink:0;}
 
   /* footer */
   footer{padding:44px 0 30px;}
@@ -643,6 +649,13 @@
   <!-- ADMIN -->
   <section id="adminPanel" class="download-section" style="display:none; border-top:1px solid var(--line);">
     <div class="wrap">
+      <div class="download-card" style="text-align:left; margin-bottom:22px;">
+        <div class="eyebrow">Owner tools</div>
+        <h2 style="font-size:22px;">Signups</h2>
+        <p>Everyone who has signed in, most recent first. Requires the admin custom claim — see setup notes at the bottom of this file.</p>
+        <div id="signupsStatus" class="filesize" style="margin-bottom:10px;"></div>
+        <div id="signupsList" style="display:flex; flex-direction:column; gap:0; max-height:420px; overflow:auto; border:1px solid var(--line); border-radius:8px;"></div>
+      </div>
       <div class="download-card" style="text-align:left;">
         <div class="eyebrow">Owner tools</div>
         <h2 style="font-size:22px;">Send an update to everyone</h2>
@@ -763,7 +776,7 @@
   var EMAILJS_SERVICE_ID   = "YOUR_EMAILJS_SERVICE_ID";
   var EMAILJS_WELCOME_TMPL = "YOUR_WELCOME_TEMPLATE_ID";
   var EMAILJS_UPDATE_TMPL  = "YOUR_UPDATE_TEMPLATE_ID";
-  var ADMIN_EMAIL = "you@example.com";
+  var ADMIN_EMAIL = "aak12anmol@gmail.com";
 
   var FIREBASE_READY = window.firebase && FIREBASE_CONFIG.apiKey.indexOf('YOUR_FIREBASE') === -1;
   var EMAILJS_READY  = window.emailjs && EMAILJS_PUBLIC_KEY.indexOf('YOUR_EMAILJS') === -1;
@@ -803,6 +816,7 @@
     closeModal();
     updateGate();
     document.getElementById('adminPanel').style.display = isRealAdmin() ? 'block' : 'none';
+    if(isRealAdmin()) loadSignups();
     try{ localStorage.setItem('apic_user', JSON.stringify(profile)); }catch(e){}
     if(!isRestore){ trackUser(profile); }
   }
@@ -915,6 +929,46 @@
     });
   }
   loadCounters(); trackVisit();
+
+  function fmtWhen(ts){
+    try{
+      var d = ts && ts.toDate ? ts.toDate() : (ts ? new Date(ts) : null);
+      if(!d) return '';
+      return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+    }catch(e){ return ''; }
+  }
+  function loadSignups(){
+    var statusEl = document.getElementById('signupsStatus');
+    var listEl = document.getElementById('signupsList');
+    if(!statusEl || !listEl) return;
+    if(!isRealAdmin()){ statusEl.textContent = 'Not authorized.'; listEl.innerHTML = ''; return; }
+    if(!FIREBASE_READY){ statusEl.textContent = 'Firestore not configured — see setup notes.'; return; }
+    statusEl.textContent = 'Loading…';
+    db.collection('users').orderBy('lastSignIn','desc').limit(200).get().then(function(snap){
+      listEl.innerHTML = '';
+      if(snap.empty){ statusEl.textContent = 'No signups yet.'; return; }
+      snap.forEach(function(doc){
+        var u = doc.data();
+        var row = document.createElement('div'); row.className = 'signup-row';
+        var img = document.createElement('img'); img.src = u.photo || ''; img.alt = '';
+        var textWrap = document.createElement('div');
+        var nameEl = document.createElement('div'); nameEl.className = 'su-name'; nameEl.textContent = u.name || '(no name)';
+        var emailEl = document.createElement('div'); emailEl.className = 'su-email'; emailEl.textContent = u.email || doc.id;
+        textWrap.appendChild(nameEl); textWrap.appendChild(emailEl);
+        var meta = document.createElement('div'); meta.className = 'su-meta';
+        meta.innerHTML = ''; // built with textContent below, not raw HTML
+        var line1 = document.createElement('div'); line1.textContent = 'last: ' + fmtWhen(u.lastSignIn);
+        var line2 = document.createElement('div'); line2.textContent = (u.signInCount||1) + ' sign-in' + ((u.signInCount||1) === 1 ? '' : 's');
+        meta.appendChild(line1); meta.appendChild(line2);
+        row.appendChild(img); row.appendChild(textWrap); row.appendChild(meta);
+        listEl.appendChild(row);
+      });
+      statusEl.textContent = snap.size + ' signup' + (snap.size === 1 ? '' : 's') + ' shown.';
+    }).catch(function(err){
+      console.error('loadSignups failed:', err);
+      statusEl.textContent = 'Could not load — check the Firestore rules include the admin custom claim (see setup notes).';
+    });
+  }
 
   function sendWelcomeEmail(profile){
     if(!EMAILJS_READY){ console.log('[demo] would send welcome email to', profile.email); return; }
@@ -1965,7 +2019,8 @@ top of the <script> tag (search for "CONFIG —") and it goes live.
 
      match /databases/{database}/documents {
        match /users/{id} {
-         allow read, update: if request.auth != null && request.auth.token.email == id;
+         allow read, update: if request.auth != null &&
+           (request.auth.token.email == id || request.auth.token.admin == true);
          allow create: if request.auth != null && request.auth.token.email == id
                         && request.resource.data.email == id;
          allow delete: if false;
@@ -1982,13 +2037,13 @@ top of the <script> tag (search for "CONFIG —") and it goes live.
        }
      }
 
-   ADMIN BROADCAST — with the rules above, admin@you can no longer read
-   OTHER users' docs either (nobody can but the user themself), which is
-   what the "send an update to everyone" panel needs. There is no way to
-   grant that from client-side JS — ADMIN_EMAIL being correct is not proof
-   of anything to Firestore, it's just a string in a file anyone can read.
-   The only real fix is a Firebase **custom claim**, set once from a trusted
-   environment (never from this HTML file):
+   ADMIN ACCESS (signups list + broadcast) — with the rules above, nobody
+   can read another user's document by default, which is correct. To let
+   your own account see the Signups list and use the broadcast panel, it
+   needs the `admin: true` custom claim baked into the rule above. Grant it
+   once from a trusted environment (never from this HTML file, and never by
+   editing anything in the browser — a custom claim can only be set with
+   the Admin SDK, which requires a real service-account credential):
 
      // save as grant-admin.js, run once with: node grant-admin.js
      // npm i firebase-admin ; download a service-account key from
@@ -1999,12 +2054,11 @@ top of the <script> tag (search for "CONFIG —") and it goes live.
        admin.auth().setCustomUserClaims(u.uid, { admin: true })
      ).then(() => console.log('done — sign out and back in on the site'));
 
-   Then extend the users rule so the admin claim can read everyone:
-     allow read: if request.auth != null &&
-       (request.auth.token.email == id || request.auth.token.admin == true);
-
    serviceAccountKey.json is a real credential — keep it off GitHub, out of
-   the deployed site, and delete it once you've run the script.
+   the deployed site, and delete it locally once you've run the script.
+   Until you run this, the Signups list and broadcast panel will show but
+   the Firestore read will fail with a permission error — that's expected
+   and means the rules are doing their job.
 
 3) EMAILJS (free tier, 200 emails/month, no backend)
    emailjs.com -> sign up -> Email Services -> connect Gmail -> Email
