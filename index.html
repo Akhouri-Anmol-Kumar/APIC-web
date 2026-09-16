@@ -338,7 +338,7 @@
   .section-head p{color:var(--text-muted); font-size:15px; line-height:1.6; margin:0;}
 
   .features{border-top:1px solid var(--line);}
-  .frame-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:0; border:1px solid var(--line); border-radius:var(--radius); overflow:hidden;}
+  .frame-grid{display:grid; grid-template-columns:repeat(5,1fr); gap:0; border:1px solid var(--line); border-radius:var(--radius); overflow:hidden;}
   .frame{padding:30px 22px; border-right:1px solid var(--line); transition:background .25s var(--ease-out), transform .25s var(--ease-out), box-shadow .25s var(--ease-out); position:relative; z-index:1;}
   .frame:last-child{border-right:none;}
   .frame::before{content:""; position:absolute; top:0; left:0; right:0; height:2px; background:var(--grad-brand); transform:scaleX(0); transform-origin:left; transition:transform .3s var(--ease-out);}
@@ -490,6 +490,7 @@
           <button class="tool-btn active" data-tool="edit" disabled>Edit</button>
           <button class="tool-btn" data-tool="advanced" disabled>Advanced</button>
           <button class="tool-btn" data-tool="objremove" disabled>Remove Object</button>
+          <button class="tool-btn" data-tool="resize" disabled>Resize</button>
           <button class="tool-btn" data-tool="convert" disabled>Convert</button>
           <button class="tool-btn" data-tool="compress" disabled>Compress</button>
           <button class="tool-btn" data-tool="bgremove" disabled>Remove BG</button>
@@ -566,6 +567,23 @@
           <span class="filesize" id="orStatus" style="margin-left:10px;"></span>
         </div>
 
+        <!-- RESIZE -->
+        <div class="bench-panel" id="panel-resize">
+          <p class="hint" style="margin-top:0;">Resamples in multiple half-size steps rather than one big jump — the same trick used to avoid the soft, muddy look a single-pass shrink gives you. Every pixel is recomputed at full quality, nothing is cropped or stretched unless you change the aspect ratio.</p>
+          <div class="row"><label>Width</label><input type="number" id="resizeW" min="1"></div>
+          <div class="row"><label>Height</label><input type="number" id="resizeH" min="1"></div>
+          <div class="row"><label>Unit</label>
+            <select id="resizeUnit">
+              <option value="px">Pixels</option>
+              <option value="pct">Percent (%)</option>
+            </select>
+          </div>
+          <div class="row"><label>Lock ratio</label><input type="checkbox" id="resizeLock" style="accent-color:var(--green); width:16px; height:16px;" checked></div>
+          <div class="row"><button class="btn btn-ghost btn-sm" id="resetResizeFields" style="flex:1;">Use current size</button></div>
+          <button class="btn btn-gold btn-sm" id="applyResize">Apply resize</button>
+          <span class="filesize" id="resizeStatus" style="margin-left:10px;"></span>
+        </div>
+
         <!-- CONVERT -->
         <div class="bench-panel" id="panel-convert">
           <div class="row"><label>Format</label>
@@ -617,7 +635,7 @@
     <div class="wrap">
       <div class="section-head">
         <div class="eyebrow">The Stack</div>
-        <h2>Four tools. Zero uploads.</h2>
+        <h2>Five tools. Zero uploads.</h2>
         <p>Everything above runs in your browser, on your device — the same engine the desktop app uses, rebuilt for the web.</p>
       </div>
       <div class="frame-grid">
@@ -625,6 +643,7 @@
         <div class="frame reveal"><span class="frame-num">02</span><h3>Convert</h3><p>PNG, JPEG, WebP, BMP, ICO or PDF — six formats, zero round trips to a server.</p></div>
         <div class="frame reveal"><span class="frame-num">03</span><h3>Compress</h3><p>Smart target-size search keeps maximum quality at your file size budget.</p></div>
         <div class="frame reveal"><span class="frame-num">04</span><h3>Remove BG</h3><p>On-device AI segmentation cuts your subject out — no upload, no wait in a queue.</p></div>
+        <div class="frame reveal"><span class="frame-num">05</span><h3>Resize</h3><p>Exact pixel or percent dimensions with step-down resampling for crisp, accurate results.</p></div>
       </div>
     </div>
   </section>
@@ -1014,8 +1033,8 @@
   var exportBtn = document.getElementById('exportBtn');
   var toolTitle = document.getElementById('toolTitle');
   var toolBtns = document.querySelectorAll('.tool-btn');
-  var panels = {edit:'panel-edit', advanced:'panel-advanced', objremove:'panel-objremove', convert:'panel-convert', compress:'panel-compress', bgremove:'panel-bgremove'};
-  var titles = {edit:'edit.exe', advanced:'advanced.exe', objremove:'removeobj.exe', convert:'convert.exe', compress:'compress.exe', bgremove:'removebg.exe'};
+  var panels = {edit:'panel-edit', advanced:'panel-advanced', objremove:'panel-objremove', resize:'panel-resize', convert:'panel-convert', compress:'panel-compress', bgremove:'panel-bgremove'};
+  var titles = {edit:'edit.exe', advanced:'advanced.exe', objremove:'removeobj.exe', resize:'resize.exe', convert:'convert.exe', compress:'compress.exe', bgremove:'removebg.exe'};
   var activeTool = 'edit';
   var originalImg = null;   // pristine source
   var rotation = 0, flipH = 1, flipV = 1;
@@ -1046,6 +1065,7 @@
       if(typeof syncOverlay === 'function') syncOverlay();
       fileInfo.textContent = file.name + ' · ' + Math.round(file.size/1024) + ' KB · ' + img.naturalWidth + '×' + img.naturalHeight;
       updateGate();
+      if(typeof syncResizeFields === 'function') syncResizeFields();
       history = []; histIndex = -1; commitHistory();
     };
     img.src = URL.createObjectURL(file);
@@ -1638,6 +1658,7 @@
       toolBtns.forEach(function(x){ x.classList.toggle('active', x === b); });
       Object.keys(panels).forEach(function(k){ document.getElementById(panels[k]).classList.toggle('show', k === activeTool); });
       toolTitle.textContent = titles[activeTool];
+      if(activeTool === 'resize') syncResizeFields();
       syncOverlay();
     });
   });
@@ -1698,6 +1719,105 @@
     octx.drawImage(srcCanvas, 0, 0);
     return out;
   }
+
+  /* ---------------- resize ----------------
+     A single ctx.drawImage() shrink in one big jump is what makes browser
+     resizes look soft/aliased on large reductions. Instead this halves the
+     source at most one step at a time (each step re-rendered at
+     imageSmoothingQuality "high") until it's within 2x of the target, then
+     does one final high-quality pass onto the exact target size — the same
+     "step down" approach used by proper image editors, so detail and edges
+     stay crisp instead of blurring or moiréing. Upscaling still can't
+     invent detail that isn't there, but always uses the best available
+     interpolation rather than a plain nearest-neighbour stretch. */
+  function highQualityResize(srcCanvas, targetW, targetH){
+    targetW = Math.max(1, Math.round(targetW));
+    targetH = Math.max(1, Math.round(targetH));
+    var cur = srcCanvas, curW = srcCanvas.width, curH = srcCanvas.height;
+    while(curW > targetW*2 || curH > targetH*2){
+      var nextW = Math.max(targetW, Math.round(curW/2));
+      var nextH = Math.max(targetH, Math.round(curH/2));
+      var step = document.createElement('canvas');
+      step.width = nextW; step.height = nextH;
+      var sctx = step.getContext('2d');
+      sctx.imageSmoothingEnabled = true;
+      sctx.imageSmoothingQuality = 'high';
+      sctx.drawImage(cur, 0, 0, nextW, nextH);
+      cur = step; curW = nextW; curH = nextH;
+    }
+    var out = document.createElement('canvas');
+    out.width = targetW; out.height = targetH;
+    var octx2 = out.getContext('2d');
+    octx2.imageSmoothingEnabled = true;
+    octx2.imageSmoothingQuality = 'high';
+    octx2.drawImage(cur, 0, 0, targetW, targetH);
+    return out;
+  }
+
+  function currentAspect(){ return canvas.height ? canvas.width/canvas.height : 1; }
+
+  function syncResizeFields(){
+    if(!originalImg) return;
+    document.getElementById('resizeUnit').value = 'px';
+    document.getElementById('resizeW').value = canvas.width;
+    document.getElementById('resizeH').value = canvas.height;
+    document.getElementById('resizeStatus').textContent = '';
+  }
+
+  document.getElementById('resizeW').addEventListener('input', function(){
+    if(!document.getElementById('resizeLock').checked) return;
+    var unit = document.getElementById('resizeUnit').value;
+    var hEl = document.getElementById('resizeH');
+    if(unit === 'pct'){ hEl.value = this.value; }
+    else { hEl.value = Math.round((parseFloat(this.value)||0) / currentAspect()); }
+  });
+  document.getElementById('resizeH').addEventListener('input', function(){
+    if(!document.getElementById('resizeLock').checked) return;
+    var unit = document.getElementById('resizeUnit').value;
+    var wEl = document.getElementById('resizeW');
+    if(unit === 'pct'){ wEl.value = this.value; }
+    else { wEl.value = Math.round((parseFloat(this.value)||0) * currentAspect()); }
+  });
+  document.getElementById('resizeUnit').addEventListener('change', function(){
+    var wEl = document.getElementById('resizeW'), hEl = document.getElementById('resizeH');
+    if(this.value === 'pct'){
+      wEl.value = Math.round((parseFloat(wEl.value)||canvas.width) / canvas.width * 100);
+      hEl.value = Math.round((parseFloat(hEl.value)||canvas.height) / canvas.height * 100);
+    } else {
+      wEl.value = Math.round(canvas.width * ((parseFloat(wEl.value)||100) / 100));
+      hEl.value = Math.round(canvas.height * ((parseFloat(hEl.value)||100) / 100));
+    }
+  });
+  document.getElementById('resetResizeFields').addEventListener('click', function(){ syncResizeFields(); });
+
+  document.getElementById('applyResize').addEventListener('click', function(){
+    if(!originalImg) return;
+    var unit = document.getElementById('resizeUnit').value;
+    var wRaw = parseFloat(document.getElementById('resizeW').value);
+    var hRaw = parseFloat(document.getElementById('resizeH').value);
+    var statusEl = document.getElementById('resizeStatus');
+    if(!wRaw || !hRaw || wRaw <= 0 || hRaw <= 0){ statusEl.textContent = 'Enter a valid width and height.'; return; }
+    var targetW, targetH;
+    if(unit === 'pct'){
+      targetW = Math.round(canvas.width * wRaw/100);
+      targetH = Math.round(canvas.height * hRaw/100);
+    } else {
+      targetW = Math.round(wRaw);
+      targetH = Math.round(hRaw);
+    }
+    targetW = Math.max(1, Math.min(10000, targetW));
+    targetH = Math.max(1, Math.min(10000, targetH));
+    if(targetW === canvas.width && targetH === canvas.height){ statusEl.textContent = 'Already that size.'; return; }
+    var resized = highQualityResize(canvas, targetW, targetH);
+    canvas.width = resized.width; canvas.height = resized.height;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(resized, 0, 0);
+    bakeToOriginal();
+    syncOverlay();
+    syncResizeFields();
+    fileInfo.textContent = fileInfo.textContent.replace(/\d+×\d+\s*$/, canvas.width + '×' + canvas.height);
+    statusEl.textContent = 'Resized to ' + canvas.width + '×' + canvas.height;
+  });
 
   /* -------- BMP encoder (24-bit, from a canvas) -------- */
   function canvasToBMP(srcCanvas){
