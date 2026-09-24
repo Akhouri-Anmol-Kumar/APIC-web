@@ -2248,5 +2248,182 @@ COSTS AT SMALL SCALE: $0 across all of the above.
 })();
 </script>
 
+<!-- ============================================================================
+     APIC — export watermark gate (additive, appended)
+     Adds: (1) a "sign in or export with watermark" prompt for guests,
+     (2) a bottom-right "Edited on APIC" watermark on gated exports,
+     (3) a localStorage-tracked free demo so the prompt only shows once.
+     Nothing above this comment is modified — this only listens for the
+     existing #exportBtn click and, when needed, intercepts it.
+============================================================================= -->
+<style>
+  #apicWmOverlay{
+    position:fixed; inset:0; z-index:9999;
+    background:rgba(3,4,6,0.72);
+    display:none; align-items:center; justify-content:center;
+    padding:20px; backdrop-filter:blur(6px);
+  }
+  #apicWmOverlay.show{ display:flex; }
+  #apicWmCard{
+    width:100%; max-width:380px;
+    background:var(--bg-2, #14141c);
+    border:1px solid var(--line, rgba(150,255,210,0.14));
+    border-radius:var(--card-radius, 14px);
+    box-shadow:var(--shadow-lift, 0 26px 60px -24px rgba(0,0,0,0.65));
+    padding:28px 26px;
+    color:var(--text, #eef1f6);
+    font-family:var(--sans, 'Inter', sans-serif);
+    text-align:center;
+  }
+  #apicWmCard h3{
+    font-family:var(--display, 'Space Grotesk', sans-serif);
+    font-size:19px; margin:0 0 10px; font-weight:700; line-height:1.3;
+  }
+  #apicWmCard p{
+    font-size:13.5px; line-height:1.55; color:var(--text-muted, #8b8fa3);
+    margin:0 0 22px;
+  }
+  #apicWmCard .apic-wm-btn{
+    display:block; width:100%; padding:12px 16px; margin-bottom:10px;
+    border-radius:8px; border:1px solid var(--line, rgba(150,255,210,0.14));
+    background:transparent; color:var(--text, #eef1f6);
+    font-family:var(--sans, 'Inter', sans-serif); font-size:14px; font-weight:600;
+    cursor:pointer; transition:transform .15s ease, box-shadow .15s ease, opacity .15s ease;
+  }
+  #apicWmCard .apic-wm-btn:last-child{ margin-bottom:0; }
+  #apicWmCard .apic-wm-btn:hover{ transform:translateY(-1px); opacity:0.92; }
+  #apicWmCard .apic-wm-primary{
+    background:var(--green, #39ff9d); color:#04140c; border-color:transparent;
+  }
+</style>
+
+<div id="apicWmOverlay">
+  <div id="apicWmCard">
+    <h3>Sign in to export without watermark</h3>
+    <p>Sign in for a clean export, or continue now with a small "Edited on APIC" watermark in the corner.</p>
+    <button type="button" class="apic-wm-btn apic-wm-primary" id="apicWmSignIn">Sign in to remove watermark</button>
+    <button type="button" class="apic-wm-btn" id="apicWmContinue">Export with watermark</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var DEMO_USED_KEY = 'apic_watermark_demo_used';
+
+  var exportBtn = document.getElementById('exportBtn');
+  var realCanvas = document.getElementById('canvas');
+  var overlay = document.getElementById('apicWmOverlay');
+  var signInChoiceBtn = document.getElementById('apicWmSignIn');
+  var watermarkChoiceBtn = document.getElementById('apicWmContinue');
+  if(!exportBtn || !realCanvas || !overlay) return;
+
+  var bypassOnce = false; // lets our own re-dispatched click pass straight through
+
+  function isSignedIn(){
+    // The existing sign-in code (both real Firebase and demo-mode) mirrors
+    // the session into localStorage['apic_user'] on sign-in and removes it
+    // on sign-out, so this is a reliable, read-only signal of auth state.
+    try{ return !!localStorage.getItem('apic_user'); }catch(e){ return false; }
+  }
+  function demoUsed(){
+    try{ return localStorage.getItem(DEMO_USED_KEY) === '1'; }catch(e){ return false; }
+  }
+  function markDemoUsed(){
+    try{ localStorage.setItem(DEMO_USED_KEY, '1'); }catch(e){}
+  }
+  function hasImageLoaded(){
+    return realCanvas.style.display === 'block';
+  }
+
+  // The existing gate hides #exportBtn entirely whenever nobody is signed
+  // in (see updateGate() above). Guests still need to be able to click
+  // Export to reach the watermark prompt below, so keep it visible
+  // whenever an image is loaded, regardless of sign-in state. Polling
+  // (rather than only reacting to attribute mutations) guarantees this
+  // still applies even when the existing code re-sets display to the
+  // same "none" value it already had.
+  function ensureExportBtnReachable(){
+    if(hasImageLoaded() && exportBtn.style.display === 'none'){
+      exportBtn.style.display = 'inline-flex';
+    }
+  }
+  ensureExportBtnReachable();
+  setInterval(ensureExportBtnReachable, 250);
+
+  function drawWatermark(ctx, w, h){
+    if(w <= 0 || h <= 0) return;
+    var fontSize = Math.max(14, Math.min(42, Math.round(w * 0.022)));
+    var pad = Math.max(12, Math.round(fontSize * 0.8));
+    ctx.save();
+    ctx.font = '400 ' + fontSize + 'px "Inter", -apple-system, sans-serif';
+    try{ ctx.letterSpacing = '0.5px'; }catch(e){}
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'bottom';
+    ctx.shadowColor = 'rgba(0,0,0,0.55)';
+    ctx.shadowBlur = Math.max(3, fontSize * 0.18);
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = Math.max(1, fontSize * 0.06);
+    ctx.fillStyle = 'rgba(255,255,255,0.92)';
+    ctx.fillText('Edited on APIC', w - pad, h - pad);
+    ctx.restore();
+  }
+
+  // Bakes the watermark onto the real editor canvas for just long enough
+  // for the existing export handler to read it, then restores the exact
+  // pixels the user had — so the on-screen editor canvas stays clean and
+  // only the exported file carries the watermark. This works because
+  // canvas.toBlob()/toDataURL()/drawImage() all snapshot pixels the
+  // instant they're called (synchronously, before any await resolves),
+  // and dispatching a click is itself synchronous — so every branch of
+  // the existing export handler has already taken its snapshot by the
+  // time dispatchEvent() below returns control to us.
+  function exportWithWatermark(){
+    var w = realCanvas.width, h = realCanvas.height;
+    var rctx = realCanvas.getContext('2d');
+    var clean = rctx.getImageData(0, 0, w, h);
+    drawWatermark(rctx, w, h);
+    bypassOnce = true;
+    exportBtn.dispatchEvent(new MouseEvent('click', {bubbles:true, cancelable:true}));
+    rctx.putImageData(clean, 0, 0);
+  }
+
+  function openGate(){ overlay.classList.add('show'); }
+  function closeGate(){ overlay.classList.remove('show'); }
+
+  signInChoiceBtn.addEventListener('click', function(){
+    closeGate();
+    var existingSignInBtn = document.getElementById('signInBtn');
+    if(existingSignInBtn) existingSignInBtn.click(); // reuses the existing Google sign-in flow
+  });
+  watermarkChoiceBtn.addEventListener('click', function(){
+    closeGate();
+    markDemoUsed();
+    exportWithWatermark();
+  });
+  overlay.addEventListener('click', function(e){ if(e.target === overlay) closeGate(); });
+
+  // Capture phase on document runs before the existing bubble-phase click
+  // listener that's bound directly on #exportBtn, so we can decide here
+  // whether to let that original export run untouched, redirect it through
+  // the watermark path, or pause it behind the sign-in/watermark prompt.
+  document.addEventListener('click', function(e){
+    if(e.target !== exportBtn) return;
+    if(bypassOnce){ bypassOnce = false; return; } // our own re-dispatched click — let it through
+    if(!hasImageLoaded()) return; // nothing to export yet — let existing handler's own guard run
+    if(isSignedIn()) return; // signed in — normal, clean export, untouched
+
+    e.stopImmediatePropagation();
+    e.preventDefault();
+    if(demoUsed()){
+      exportWithWatermark();
+    } else {
+      openGate();
+    }
+  }, true);
+})();
+</script>
+
 </body>
 </html>
