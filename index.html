@@ -138,6 +138,16 @@
     --text:#0c0e0a;
     --text-muted:#5b5f52;
     --shadow: 0 40px 100px -30px rgba(20,30,15,0.22);
+    /* The neon accents above (--green, --cyan, --pink, --yellow) are tuned
+       for a near-black background — they're very light colors themselves,
+       so used as text on this light background they fail contrast and
+       read as barely-there. Swap in darkened equivalents that keep the
+       same hue but stay readable on a light page. */
+    --green:#0a6e3d;
+    --green-soft:#116b3e;
+    --pink:#9e1071;
+    --cyan:#005f82;
+    --yellow:#6b5700;
   }
   *{box-sizing:border-box;}
   html{scroll-behavior:smooth;}
@@ -1122,6 +1132,7 @@
   var titles = {edit:'edit.exe', advanced:'advanced.exe', objremove:'removeobj.exe', resize:'resize.exe', convert:'convert.exe', compress:'compress.exe', bgremove:'removebg.exe'};
   var activeTool = 'edit';
   var originalImg = null;   // pristine source
+  var originalFileType = null; // MIME type of the uploaded file, e.g. 'image/jpeg' — used so the default export (outside the Convert tool) matches what was uploaded instead of always forcing PNG
   var rotation = 0, flipH = 1, flipV = 1;
   var hasAlpha = false;     // true after background removal
 
@@ -1141,7 +1152,7 @@
     if(!file.type.startsWith('image/')) return;
     var img = new Image();
     img.onload = function(){
-      originalImg = img; rotation = 0; flipH = 1; flipV = 1; hasAlpha = false;
+      originalImg = img; originalFileType = file.type; rotation = 0; flipH = 1; flipV = 1; hasAlpha = false;
       canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
       canvas.style.display = 'block'; dropEl.classList.remove('has-alpha');
       dropEl.querySelector('svg').style.display = 'none';
@@ -2045,7 +2056,21 @@
           download(result.blob, 'apic-compressed.jpg');
         }
       } else {
-        download(await canvasToBlob(canvas, 'image/png'), 'apic-export.png');
+        // BUG FIX: this branch (Edit / Advanced / Resize / Object-removal /
+        // Background-removal — i.e. every tool except Convert and Compress)
+        // used to always export PNG regardless of what was uploaded, so a
+        // JPEG a user opened and edited silently came out as a .png. Now it
+        // keeps the original format when that's still meaningful: JPEG/WebP
+        // stay JPEG/WebP, and anything else (including once Remove
+        // Background has added real transparency) falls back to PNG, which
+        // is the only format here that can hold that transparency.
+        if(!hasAlpha && originalFileType === 'image/jpeg'){
+          download(await canvasToBlob(flattenToWhite(canvas), 'image/jpeg', 0.92), 'apic-export.jpg');
+        } else if(!hasAlpha && originalFileType === 'image/webp'){
+          download(await canvasToBlob(canvas, 'image/webp', 0.92), 'apic-export.webp');
+        } else {
+          download(await canvasToBlob(canvas, 'image/png'), 'apic-export.png');
+        }
       }
     } catch(err){ console.error(err); alert('Export failed — try a different format.'); }
     exportBtn.disabled = false; exportBtn.textContent = origText;
