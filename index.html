@@ -100,6 +100,29 @@
   };
 </script>
 
+<!-- ONNX Runtime Web (free, runs fully on-device — powers Remove Object's real AI fill) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/onnxruntime-web/1.23.2/ort.min.js"></script>
+<script>
+  // MI-GAN (Picsart AI Research, ICCV 2023, MIT license) — a small, fast
+  // generative inpainting network, exported to ONNX. This is a genuine
+  // trained neural network doing the fill (not a block-copy trick): it
+  // hallucinates plausible texture/structure for the erased region the
+  // way Photoshop's Generative Fill or Galaxy AI's eraser do, and it
+  // still runs 100% client-side (WASM), so nothing is uploaded anywhere.
+  // On first use the browser downloads the ~28MB model once and caches it.
+  window.__loadMigan = function(){
+    if(window.__miganSessionPromise) return window.__miganSessionPromise;
+    window.__miganSessionPromise = (async function(){
+      if(!window.ort){ throw new Error('onnxruntime-web did not load (offline or blocked?)'); }
+      ort.env.wasm.wasmPaths = 'https://cdnjs.cloudflare.com/ajax/libs/onnxruntime-web/1.23.2/';
+      var modelUrl = 'https://huggingface.co/andraniksargsyan/migan/resolve/main/migan_pipeline_v2.onnx';
+      return await ort.InferenceSession.create(modelUrl, { executionProviders: ['wasm'] });
+    })();
+    window.__miganSessionPromise.catch(function(){ window.__miganSessionPromise = null; }); // let a retry re-attempt after a real failure
+    return window.__miganSessionPromise;
+  };
+</script>
+
 <style>
   :root{
     --bg:#07070a;
@@ -320,23 +343,6 @@
   .tool-btn:hover:not(:disabled){border-color:var(--green); color:var(--text); transform:translateY(-1px);}
   .tool-btn.active{border-color:var(--green); color:var(--green); background:color-mix(in srgb, var(--green) 10%, transparent); box-shadow:var(--glow-green);}
   .tool-btn:disabled{opacity:0.3; cursor:not-allowed;}
-  /* Edit / Advanced / Remove Object / Resize get called out as the core,
-     always-in-use tools — bumped to bold + full-contrast text (this reads
-     as bright white in dark mode, dark ink in light mode, so it stays
-     readable in both) instead of the dim --text-muted every other
-     tool-btn uses when it isn't hovered/active. */
-  .tool-btn[data-tool="edit"]:not(.active),
-  .tool-btn[data-tool="advanced"]:not(.active),
-  .tool-btn[data-tool="objremove"]:not(.active),
-  .tool-btn[data-tool="resize"]:not(.active){
-    color:var(--text); font-weight:800;
-  }
-  .tool-btn[data-tool="edit"]:disabled,
-  .tool-btn[data-tool="advanced"]:disabled,
-  .tool-btn[data-tool="objremove"]:disabled,
-  .tool-btn[data-tool="resize"]:disabled{
-    color:var(--text-muted); font-weight:600;
-  }
 
   .bench-panel{margin-top:16px; display:none;}
   .bench-panel.show{display:block;}
@@ -613,12 +619,12 @@
 
         <!-- OBJECT REMOVE -->
         <div class="bench-panel" id="panel-objremove">
-          <p class="hint" style="margin-top:0;">Paint over the object you want gone, then run Remove. Runs a fully on-device inpainting pass (no upload) — best on small/medium objects over fairly even backgrounds (skin, sky, walls, fabric); very busy backgrounds are harder for any tool, free or paid.</p>
+          <p class="hint" style="margin-top:0;">Paint over the object you want gone, then run Remove. Uses a real AI inpainting model (MI-GAN) running fully on-device via WebAssembly — no upload, nothing leaves your browser. The first run downloads the ~28MB model once (cached after that); if the AI model can't load (offline / unsupported browser) it automatically falls back to a quick on-device patch fill instead.</p>
           <div class="row"><label>Brush size</label><input type="range" id="orBrush" min="6" max="120" value="30"><span class="val" id="orBrushVal">30</span></div>
           <div class="row"><label>Quality</label>
             <select id="orQuality">
               <option value="fast">Fast</option>
-              <option value="best" selected>Best (content-aware)</option>
+              <option value="best" selected>Best (AI fill)</option>
             </select>
           </div>
           <div class="row"><button class="btn btn-ghost btn-sm" id="orClear" style="flex:1;">Clear mask</button></div>
@@ -1139,7 +1145,6 @@
   var titles = {edit:'edit.exe', advanced:'advanced.exe', objremove:'removeobj.exe', resize:'resize.exe', convert:'convert.exe', compress:'compress.exe', bgremove:'removebg.exe'};
   var activeTool = 'edit';
   var originalImg = null;   // pristine source
-  var originalFileType = null; // MIME type of the uploaded file, e.g. 'image/jpeg' — used so the default export (outside the Convert tool) matches what was uploaded instead of always forcing PNG
   var rotation = 0, flipH = 1, flipV = 1;
   var hasAlpha = false;     // true after background removal
 
@@ -1159,7 +1164,7 @@
     if(!file.type.startsWith('image/')) return;
     var img = new Image();
     img.onload = function(){
-      originalImg = img; originalFileType = file.type; rotation = 0; flipH = 1; flipV = 1; hasAlpha = false;
+      originalImg = img; rotation = 0; flipH = 1; flipV = 1; hasAlpha = false;
       canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
       canvas.style.display = 'block'; dropEl.classList.remove('has-alpha');
       dropEl.querySelector('svg').style.display = 'none';
@@ -1409,59 +1414,19 @@
     snap.src = out.toDataURL('image/png');
   });
 
-  /* ---------------- object removal: exemplar-based patch fill ----------------
+  /* ---------------- object removal: fallback exemplar-based patch fill ----------------
+     Used automatically ONLY when the real AI model (aiInpaint, below) can't
+     load — e.g. the visitor is offline, or the CDN/model host is blocked.
      No model download, no server call. This is a block-based exemplar/
      texture-synthesis fill (the same family of algorithm behind classic
      "content-aware fill" before generative AI models existed): the hole is
      processed boundary-inward in small blocks, and each block is replaced
      by copying real pixels from the best-matching patch found elsewhere in
      the surrounding image — not an average/blur — so edges and texture
-     stay sharp. A true diffusion-model generative fill (what Galaxy AI's
-     eraser uses) needs a large trained model and isn't something that runs
-     for free, client-side, in a static HTML page — this is the strongest
-     honest equivalent achievable that way, and it should look genuinely
-     sharp rather than smeared. */
-  function dilateMask(src, w, h, r){
-    // Binary dilation (grow every 1-pixel outward by r), done as a
-    // separable "distance to nearest 1" scan — two passes per axis — so it
-    // stays O(w*h) regardless of r. A naive r*r-per-pixel scan is fine on
-    // the small low-res crop but would be slow enough to visibly stall the
-    // browser on the full-resolution pass for a large photo, since almost
-    // every pixel in a big image sits far from the (small) hole and would
-    // scan its entire neighbourhood without ever finding a hit.
-    if(r <= 0) return src;
-    var rowDilated = new Uint8Array(w*h);
-    for(var y=0;y<h;y++){
-      var rowOff = y*w, dist = r+1;
-      for(var x=0;x<w;x++){
-        dist = src[rowOff+x] ? 0 : Math.min(dist+1, r+1);
-        rowDilated[rowOff+x] = dist<=r ? 1 : 0;
-      }
-      dist = r+1;
-      for(var x=w-1;x>=0;x--){
-        dist = src[rowOff+x] ? 0 : Math.min(dist+1, r+1);
-        if(dist<=r) rowDilated[rowOff+x] = 1;
-      }
-    }
-    var out = new Uint8Array(w*h);
-    for(var x=0;x<w;x++){
-      var dist2 = r+1;
-      for(var y=0;y<h;y++){
-        var idx = y*w+x;
-        dist2 = rowDilated[idx] ? 0 : Math.min(dist2+1, r+1);
-        out[idx] = dist2<=r ? 1 : 0;
-      }
-      dist2 = r+1;
-      for(var y=h-1;y>=0;y--){
-        var idx2 = y*w+x;
-        dist2 = rowDilated[idx2] ? 0 : Math.min(dist2+1, r+1);
-        if(dist2<=r) out[idx2] = 1;
-      }
-    }
-    return out;
-  }
-
-  function inpaint(){
+     stay sharp. It's a reasonable safety net, but it cannot hallucinate
+     structure the way a trained network can — aiInpaint() is what should
+     run in the normal case. */
+  function patchFillInpaint(){
     var W = canvas.width, H = canvas.height;
     var fullMask = mctx.getImageData(0,0,W,H).data;
 
@@ -1505,22 +1470,11 @@
     var maskSmall = mSctx.getImageData(0,0,ww,wh).data;
 
     var n = ww*wh;
-    var isPaintedRaw = new Uint8Array(n); // exactly what the user brushed, before any growth
-    // Threshold lowered from the old >60 to >20 so the brush stroke's own
-    // soft/anti-aliased edge (which a round brush always has) counts as
-    // "painted" on its own — that's what was actually leaving a thin
-    // uncovered sliver of the object before, not a lack of extra growth.
-    for(var i0=0;i0<n;i0++){ isPaintedRaw[i0] = maskSmall[i0*4+3] > 20 ? 1 : 0; }
-    // Only a small 1px safety margin beyond that now (down from 2px) —
-    // growing the hole too aggressively was eating into real, untouched
-    // subject content right next to the brush stroke (e.g. a shoulder just
-    // outside where an object was painted over), which is worse than
-    // leaving an occasional hairline sliver.
-    var dilatePxWork = Math.max(1, Math.round(1*scale));
-    var isPainted = dilateMask(isPaintedRaw, ww, wh, dilatePxWork);
+    var isPainted = new Uint8Array(n);   // pixels the user actually brushed — this IS the hole
     var resolved = new Uint8Array(n);    // pixel has a final, correct value (no longer needs filling)
     var validSrc = new Uint8Array(n);    // pixel is safe to COPY FROM (real opaque texture, never painted)
     for(var i=0;i<n;i++){
+      isPainted[i] = maskSmall[i*4+3] > 60 ? 1 : 0;
       resolved[i] = isPainted[i] ? 0 : 1;
       // A pixel is only valid as source texture if it wasn't painted AND is
       // actually opaque. After Remove Background, the checkerboard area is
@@ -1687,31 +1641,103 @@
     uctx.imageSmoothingEnabled = true; uctx.imageSmoothingQuality = 'high';
     uctx.drawImage(srcCanvas, 0, 0, regionW, regionH);
 
-    // Same reasoning as the low-res hole above: binarize + dilate the raw
-    // brush-stroke alpha at full resolution BEFORE feathering, so the soft
-    // blur softens the edge of a safely-oversized hole rather than the
-    // user's imprecise brush edge. Kept intentionally small and capped —
-    // scaling this with image size used to let it balloon into a big
-    // margin on large photos (9px+), which was eating into real subject
-    // content (a shoulder, an ear) right next to the brush stroke instead
-    // of just cleaning up the object's own edge.
-    var rawMaskCanvas = document.createElement('canvas'); rawMaskCanvas.width = regionW; rawMaskCanvas.height = regionH;
-    var rctx = rawMaskCanvas.getContext('2d');
-    rctx.drawImage(maskCanvas, sx0, sy0, regionW, regionH, 0, 0, regionW, regionH);
-    var rawMaskData = rctx.getImageData(0,0,regionW,regionH).data;
-    var rawAlphaBin = new Uint8Array(regionW*regionH);
-    for(var ri=0; ri<regionW*regionH; ri++){ rawAlphaBin[ri] = rawMaskData[ri*4+3] > 10 ? 1 : 0; }
-    var dilateFullPx = Math.max(1, Math.min(3, Math.round(Math.min(regionW, regionH) * 0.002)));
-    var dilatedFull = dilateMask(rawAlphaBin, regionW, regionH, dilateFullPx);
-    var dilatedFloat = new Float32Array(regionW*regionH);
-    for(var di=0; di<regionW*regionH; di++){ dilatedFloat[di] = dilatedFull[di] ? 255 : 0; }
+    var featherCanvas = document.createElement('canvas'); featherCanvas.width = regionW; featherCanvas.height = regionH;
+    var fctx = featherCanvas.getContext('2d');
     var featherPx = Math.max(2, Math.min(6, Math.round(Math.min(regionW, regionH) * 0.012)));
-    var featheredFull = boxBlurAlpha(dilatedFloat, regionW, regionH, featherPx);
+    fctx.filter = 'blur(' + featherPx + 'px)';
+    fctx.drawImage(maskCanvas, sx0, sy0, regionW, regionH, 0, 0, regionW, regionH);
+    var featherData = fctx.getImageData(0,0,regionW,regionH);
     var upData = uctx.getImageData(0,0,regionW,regionH);
-    for(var pi=0; pi<regionW*regionH; pi++){ upData.data[pi*4+3] = Math.round(Math.max(0, Math.min(255, featheredFull[pi]))); }
+    for(var pi=0; pi<regionW*regionH; pi++){ upData.data[pi*4+3] = featherData.data[pi*4+3]; }
     uctx.putImageData(upData, 0, 0);
 
     ctx.drawImage(upCanvas, sx0, sy0);
+  }
+
+  /* ---------------- object removal: real AI fill (MI-GAN, on-device) ----------------
+     This is the primary path. MI-GAN is a genuinely trained generative
+     inpainting network (Picsart AI Research, ICCV 2023, MIT licensed) —
+     the same family of model behind tools like Photoshop's Generative
+     Fill or Galaxy AI's eraser, just much smaller so it can run for free
+     in a browser tab via WebAssembly (onnxruntime-web). It downloads once
+     (~28MB, cached by the browser afterwards) and then runs 100%
+     client-side — the photo never leaves the device.
+     The whole canvas is downscaled to a safe working size (so it stays
+     fast even on huge photos), run through the network, then the result
+     is upscaled and composited back using a feathered version of the
+     user's own mask — so only the painted pixels are ever touched, and
+     everything outside the mask stays untouched full-resolution original. */
+  async function aiInpaint(statusEl){
+    var session = await window.__loadMigan();
+
+    var W = canvas.width, H = canvas.height;
+    var qualityEl = document.getElementById('orQuality');
+    var quality = qualityEl ? qualityEl.value : 'best';
+    var maxSide = quality === 'fast' ? 900 : 1600;
+    var scale = Math.min(1, maxSide / Math.max(W, H));
+    var ww = Math.max(8, Math.round(W * scale)), wh = Math.max(8, Math.round(H * scale));
+
+    var srcCanvas = document.createElement('canvas'); srcCanvas.width = ww; srcCanvas.height = wh;
+    var sctx = srcCanvas.getContext('2d');
+    sctx.imageSmoothingEnabled = true; sctx.imageSmoothingQuality = 'high';
+    sctx.drawImage(canvas, 0, 0, ww, wh);
+    var imgData = sctx.getImageData(0, 0, ww, wh).data;
+
+    var maskSmall = document.createElement('canvas'); maskSmall.width = ww; maskSmall.height = wh;
+    var msctx = maskSmall.getContext('2d');
+    msctx.drawImage(maskCanvas, 0, 0, ww, wh);
+    var maskData = msctx.getImageData(0, 0, ww, wh).data;
+
+    var plane = ww * wh;
+    var imgArr = new Uint8Array(3 * plane);
+    var maskArr = new Uint8Array(plane); // MI-GAN convention: 255 = keep, 0 = hole to fill
+    for(var i = 0; i < plane; i++){
+      var i4 = i * 4;
+      imgArr[i] = imgData[i4]; imgArr[plane + i] = imgData[i4 + 1]; imgArr[2 * plane + i] = imgData[i4 + 2];
+      maskArr[i] = maskData[i4 + 3] > 40 ? 0 : 255;
+    }
+
+    function pickName(names, want, idx){ var p = names.indexOf(want); return p !== -1 ? names[p] : names[idx]; }
+    var imageInputName = pickName(session.inputNames, 'image', 0);
+    var maskInputName  = pickName(session.inputNames, 'mask', 1);
+    var outputName     = pickName(session.outputNames, 'result', 0);
+
+    if(statusEl) statusEl.innerHTML = '<span class="spinner"></span> AI removing object…';
+    var feeds = {};
+    feeds[imageInputName] = new ort.Tensor('uint8', imgArr, [1, 3, wh, ww]);
+    feeds[maskInputName]  = new ort.Tensor('uint8', maskArr, [1, 1, wh, ww]);
+    var results = await session.run(feeds);
+    var outData = results[outputName].data;
+
+    var outCanvas = document.createElement('canvas'); outCanvas.width = ww; outCanvas.height = wh;
+    var octx2 = outCanvas.getContext('2d');
+    var outImgData = octx2.createImageData(ww, wh);
+    var od = outImgData.data;
+    for(var j = 0; j < plane; j++){
+      var j4 = j * 4;
+      od[j4] = outData[j]; od[j4 + 1] = outData[plane + j]; od[j4 + 2] = outData[2 * plane + j]; od[j4 + 3] = 255;
+    }
+    octx2.putImageData(outImgData, 0, 0);
+
+    // upscale the AI result to full resolution, then composite it in only
+    // where the user painted (feathered) — everything else stays exactly
+    // as it was, at full original sharpness.
+    var upCanvas = document.createElement('canvas'); upCanvas.width = W; upCanvas.height = H;
+    var uctx = upCanvas.getContext('2d');
+    uctx.imageSmoothingEnabled = true; uctx.imageSmoothingQuality = 'high';
+    uctx.drawImage(outCanvas, 0, 0, W, H);
+
+    var featherCanvas = document.createElement('canvas'); featherCanvas.width = W; featherCanvas.height = H;
+    var fctx = featherCanvas.getContext('2d');
+    var featherPx = Math.max(2, Math.round(Math.min(W, H) * 0.006));
+    fctx.filter = 'blur(' + featherPx + 'px)';
+    fctx.drawImage(maskCanvas, 0, 0, W, H);
+    var featherData = fctx.getImageData(0, 0, W, H);
+    var upData = uctx.getImageData(0, 0, W, H);
+    for(var pi = 0; pi < W * H; pi++){ upData.data[pi * 4 + 3] = featherData.data[pi * 4 + 3]; }
+    uctx.putImageData(upData, 0, 0);
+
+    ctx.drawImage(upCanvas, 0, 0);
   }
 
   document.getElementById('runObjRemove').addEventListener('click', function(){
@@ -1721,14 +1747,31 @@
     var painted = false;
     for(var i=3;i<maxAlpha.length;i+=4){ if(maxAlpha[i] > 40){ painted = true; break; } }
     if(!painted){ statusEl.textContent = 'Paint over the object first.'; return; }
-    statusEl.innerHTML = '<span class="spinner"></span> filling…';
-    setTimeout(function(){
-      inpaint();
-      mctx.clearRect(0,0,maskCanvas.width,maskCanvas.height);
-      redrawOverlay();
-      bakeToOriginal();
-      statusEl.textContent = '✓ done';
-    }, 30);
+    statusEl.innerHTML = '<span class="spinner"></span> loading AI model…';
+    (async function(){
+      try{
+        await aiInpaint(statusEl);
+        mctx.clearRect(0,0,maskCanvas.width,maskCanvas.height);
+        redrawOverlay();
+        bakeToOriginal();
+        statusEl.textContent = '✓ done (AI fill)';
+      } catch(err){
+        console.error('AI object removal failed, falling back to patch fill:', err);
+        statusEl.innerHTML = '<span class="spinner"></span> AI engine unavailable — quick filling…';
+        setTimeout(function(){
+          try{
+            patchFillInpaint();
+            mctx.clearRect(0,0,maskCanvas.width,maskCanvas.height);
+            redrawOverlay();
+            bakeToOriginal();
+            statusEl.textContent = '✓ done (quick fill — AI unavailable, check connection)';
+          } catch(err2){
+            console.error('Fallback patch fill failed too:', err2);
+            statusEl.textContent = 'Remove failed — try a smaller selection.';
+          }
+        }, 30);
+      }
+    })();
   });
 
   /* ---------------- advanced pixel FX (levels / gamma / sharpen / temp / vignette) ---------------- */
@@ -2128,21 +2171,7 @@
           download(result.blob, 'apic-compressed.jpg');
         }
       } else {
-        // BUG FIX: this branch (Edit / Advanced / Resize / Object-removal /
-        // Background-removal — i.e. every tool except Convert and Compress)
-        // used to always export PNG regardless of what was uploaded, so a
-        // JPEG a user opened and edited silently came out as a .png. Now it
-        // keeps the original format when that's still meaningful: JPEG/WebP
-        // stay JPEG/WebP, and anything else (including once Remove
-        // Background has added real transparency) falls back to PNG, which
-        // is the only format here that can hold that transparency.
-        if(!hasAlpha && originalFileType === 'image/jpeg'){
-          download(await canvasToBlob(flattenToWhite(canvas), 'image/jpeg', 0.92), 'apic-export.jpg');
-        } else if(!hasAlpha && originalFileType === 'image/webp'){
-          download(await canvasToBlob(canvas, 'image/webp', 0.92), 'apic-export.webp');
-        } else {
-          download(await canvasToBlob(canvas, 'image/png'), 'apic-export.png');
-        }
+        download(await canvasToBlob(canvas, 'image/png'), 'apic-export.png');
       }
     } catch(err){ console.error(err); alert('Export failed — try a different format.'); }
     exportBtn.disabled = false; exportBtn.textContent = origText;
@@ -2240,44 +2269,6 @@
         throw new Error('Model returned no mask data.');
       }
 
-      // 0) Kill disconnected "islands" of foreground confidence — a stray
-      //    light patch, reflection, or busy texture in the background can
-      //    get real (sometimes high) foreground confidence from the model
-      //    even though it's nowhere near the subject. Left alone, that
-      //    survives as an opaque, wrong-coloured floating blob once
-      //    everything else around it goes transparent (exactly the
-      //    "yellowish patch on the transparent side" bug). A real subject
-      //    is one connected blob, so keep only the single largest connected
-      //    foreground component and force everything else to background.
-      var fgBinary = new Uint8Array(w*h);
-      for(var ci=0; ci<w*h; ci++){ fgBinary[ci] = alpha[ci] > 127 ? 1 : 0; }
-      var ccLabels = new Int32Array(w*h).fill(-1);
-      var compSizes = [];
-      var ccQueue = new Int32Array(w*h);
-      for(var si=0; si<w*h; si++){
-        if(fgBinary[si] && ccLabels[si] === -1){
-          var label = compSizes.length;
-          var qHead = 0, qTail = 0;
-          ccQueue[qTail++] = si; ccLabels[si] = label;
-          while(qHead < qTail){
-            var cur = ccQueue[qHead++];
-            var cy2 = (cur/w)|0, cx2 = cur - cy2*w;
-            if(cx2>0){ var nbL=cur-1; if(fgBinary[nbL] && ccLabels[nbL]===-1){ ccLabels[nbL]=label; ccQueue[qTail++]=nbL; } }
-            if(cx2<w-1){ var nbR=cur+1; if(fgBinary[nbR] && ccLabels[nbR]===-1){ ccLabels[nbR]=label; ccQueue[qTail++]=nbR; } }
-            if(cy2>0){ var nbU=cur-w; if(fgBinary[nbU] && ccLabels[nbU]===-1){ ccLabels[nbU]=label; ccQueue[qTail++]=nbU; } }
-            if(cy2<h-1){ var nbD=cur+w; if(fgBinary[nbD] && ccLabels[nbD]===-1){ ccLabels[nbD]=label; ccQueue[qTail++]=nbD; } }
-          }
-          compSizes.push(qTail);
-        }
-      }
-      if(compSizes.length > 1){
-        var bestLabel = 0, bestSize = compSizes[0];
-        for(var li=1; li<compSizes.length; li++){ if(compSizes[li] > bestSize){ bestSize = compSizes[li]; bestLabel = li; } }
-        for(var zi=0; zi<w*h; zi++){
-          if(fgBinary[zi] && ccLabels[zi] !== bestLabel){ alpha[zi] = 0; }
-        }
-      }
-
       // 1) Push mid-tones toward pure 0/255 so the *interior* of the subject
       //    is fully opaque (no ghostly semi-transparent skin), while leaving
       //    the transition band around 0.5 soft — this is what produces a
@@ -2315,43 +2306,6 @@
       for(var p=0;p<w*h;p++){
         imgData.data[p*4+3] = Math.round(Math.max(0, Math.min(255, feathered[p])));
       }
-
-      // 4) Colour decontamination — this is the actual fix for "background
-      //    still visible around the edges" (e.g. a plant's leaves peeking
-      //    through hair). A pixel at, say, 50% alpha isn't semi-transparent
-      //    subject colour — its RGB is a literal 50/50 blend of subject and
-      //    background colour, so erosion/feathering alone (which only ever
-      //    touch the alpha channel) can soften *where* the edge falls but
-      //    can't remove that baked-in background tint. Estimate a local
-      //    background colour from nearby confidently-background pixels,
-      //    then unmix each edge pixel against that estimate so only the
-      //    subject's own colour is left.
-      var bgWeight = new Float32Array(w*h), bgR = new Float32Array(w*h), bgG = new Float32Array(w*h), bgB = new Float32Array(w*h);
-      for(var bwI=0; bwI<w*h; bwI++){
-        if(feathered[bwI] < 25){
-          bgWeight[bwI] = 1;
-          bgR[bwI] = imgData.data[bwI*4]; bgG[bwI] = imgData.data[bwI*4+1]; bgB[bwI] = imgData.data[bwI*4+2];
-        }
-      }
-      var bgRadius = Math.max(4, Math.round(Math.min(w,h) * 0.02));
-      var bwSum = boxBlurAlpha(bgWeight, w, h, bgRadius);
-      var brSum = boxBlurAlpha(bgR, w, h, bgRadius);
-      var bgSum = boxBlurAlpha(bgG, w, h, bgRadius);
-      var bbSum = boxBlurAlpha(bgB, w, h, bgRadius);
-      for(var dq=0; dq<w*h; dq++){
-        var aq = feathered[dq]/255;
-        if(aq <= 0.03 || aq >= 0.97) continue; // fully background or fully subject — nothing to unmix
-        var bw2 = bwSum[dq];
-        if(bw2 < 0.02) continue; // no nearby confident background sample — leave the pixel as-is
-        var estR = brSum[dq]/bw2, estG = bgSum[dq]/bw2, estB = bbSum[dq]/bw2;
-        var idx4q = dq*4;
-        var origR = imgData.data[idx4q], origG = imgData.data[idx4q+1], origB = imgData.data[idx4q+2];
-        var safeA = Math.max(aq, 0.12);
-        imgData.data[idx4q]   = Math.max(0, Math.min(255, Math.round((origR - (1-aq)*estR) / safeA)));
-        imgData.data[idx4q+1] = Math.max(0, Math.min(255, Math.round((origG - (1-aq)*estG) / safeA)));
-        imgData.data[idx4q+2] = Math.max(0, Math.min(255, Math.round((origB - (1-aq)*estB) / safeA)));
-      }
-
       wctx.putImageData(imgData, 0, 0);
 
       canvas.width = w; canvas.height = h;
