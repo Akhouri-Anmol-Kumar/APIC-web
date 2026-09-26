@@ -1653,6 +1653,26 @@
 
     var baseData = ctx.getImageData(sx0, sy0, regionW, regionH);
     var bd = baseData.data;
+
+    // Same local sanity check as the AI path: compare the fill that's
+    // about to be written against the real, untouched pixels immediately
+    // around it (within this already-padded crop). If the patch-matching
+    // search somehow only found dark shadow to copy from and the result
+    // is implausibly darker than its own surroundings, don't ship it —
+    // throw so the caller shows an honest "failed" instead of a black hole.
+    var pfRingSum=0, pfRingN=0, pfHoleSum=0, pfHoleN=0;
+    for(var pfi = 0; pfi < regionW * regionH; pfi += 2){
+      var pf4 = pfi * 4, pfA = featherData[pf4 + 3];
+      if(pfA > 200){ pfHoleSum += (fillData[pf4]+fillData[pf4+1]+fillData[pf4+2])/3; pfHoleN++; }
+      else if(pfA < 20){ pfRingSum += (bd[pf4]+bd[pf4+1]+bd[pf4+2])/3; pfRingN++; }
+    }
+    if(pfRingN && pfHoleN){
+      var pfRingMean = pfRingSum/pfRingN, pfHoleMean = pfHoleSum/pfHoleN;
+      if(pfRingMean > 25 && pfHoleMean < 12){
+        throw new Error('Quick fill failed a sanity check (hole avg ' + Math.round(pfHoleMean) + ' vs surrounding avg ' + Math.round(pfRingMean) + ')');
+      }
+    }
+
     for(var bi2 = 0; bi2 < regionW * regionH; bi2++){
       var a = featherData[bi2 * 4 + 3] / 255;
       if(a <= 0) continue;
@@ -1764,20 +1784,23 @@
     }
     octx2.putImageData(outImgData, 0, 0);
 
-    // Sanity check: a correctly-decoded result should have roughly the
-    // same overall brightness as the photo we fed in (only a small region
-    // changed). If it came back drastically darker overall, something
-    // decoded wrong (wrong shape/dtype guess) — bail out to the fallback
-    // instead of ever showing a black hole again.
-    function sampledMean(arr, len){
-      var sum = 0, n = 0, step = Math.max(1, Math.floor(len / 4000));
-      for(var k = 0; k < len; k += step){ sum += arr[k]; n++; }
+    // Sanity check #1 (cheap, early): a correctly-decoded result should
+    // have roughly the same overall brightness as the photo we fed in.
+    // IMPORTANT: sample RGB bytes only — od/imgArr must not include the
+    // constant alpha=255 byte in the average, or a genuinely-black RGB
+    // result gets diluted by that padding and slips through undetected
+    // (this was the actual bug last time: the check looked "not dark
+    // enough to fail" only because 1 in every 4 sampled bytes was a
+    // fixed 255, not real pixel data).
+    function sampledMeanRGB(arr, len, stride){
+      var sum = 0, n = 0, step = Math.max(stride, Math.floor(len / 4000 / stride) * stride);
+      for(var k = 0; k + 2 < len; k += step){ sum += (arr[k] + arr[k+1] + arr[k+2]) / 3; n++; }
       return n ? sum / n : 0;
     }
-    var inputMean = sampledMean(imgArr, imgArr.length);
-    var outputMean = sampledMean(od, od.length);
+    var inputMean = sampledMeanRGB(imgArr, imgArr.length, 1);   // imgArr is planar RGB — not quite RGB-per-pixel triples, but still real pixel bytes with no alpha padding, good enough as a coarse brightness reference
+    var outputMean = sampledMeanRGB(od, od.length, 4);          // od is RGBA — stride 4 walks R,G,B of each pixel, skipping the alpha byte
     if(inputMean > 20 && outputMean < inputMean * 0.2){
-      throw new Error('AI output failed a sanity check (came back unexpectedly dark) — dims were ' + JSON.stringify(outTensor.dims) + ', type ' + outTensor.type);
+      throw new Error('AI output failed the early sanity check (unexpectedly dark) — dims ' + JSON.stringify(outTensor.dims) + ', type ' + outTensor.type);
     }
 
     // upscale the AI result to full resolution, then composite it in
@@ -1800,6 +1823,52 @@
 
     var baseData = ctx.getImageData(0, 0, W, H);
     var bd2 = baseData.data;
+
+    // Sanity check #2 (authoritative, local): compare the brightness the
+    // fill is ABOUT to have against the brightness of the real, untouched
+    // pixels immediately around the hole (not a whole-photo average,
+    // which can be thrown off by vignettes/dark corners). This runs on
+    // the exact pixels that are about to be shown, right before the
+    // irreversible canvas write, so it catches ANY broken fill — bad
+    // tensor decode, NaN propagation, wrong model output, anything —
+    // regardless of what caused it.
+    var bbMinX=W, bbMinY=H, bbMaxX=0, bbMaxY=0, bbAny=false;
+    for(var by=0; by<H; by+=2){
+      for(var bx=0; bx<W; bx+=2){
+        if(featherData[(by*W+bx)*4+3] > 180){ bbAny=true; if(bx<bbMinX)bbMinX=bx; if(bx>bbMaxX)bbMaxX=bx; if(by<bbMinY)bbMinY=by; if(by>bbMaxY)bbMaxY=by; }
+      }
+    }
+    if(bbAny){
+      var ringPad = Math.max(24, Math.round((bbMaxX-bbMinX)*0.7));
+      var rgx0=Math.max(0,bbMinX-ringPad), rgy0=Math.max(0,bbMinY-ringPad), rgx1=Math.min(W,bbMaxX+ringPad), rgy1=Math.min(H,bbMaxY+ringPad);
+      var ringSum=0, ringN=0;
+      for(var ry=rgy0; ry<rgy1; ry+=3){
+        for(var rx=rgx0; rx<rgx1; rx+=3){
+          var rIdx = ry*W+rx;
+          if(featherData[rIdx*4+3] > 20) continue; // real surrounding pixels only, not the hole itself
+          var r4 = rIdx*4;
+          ringSum += (bd2[r4]+bd2[r4+1]+bd2[r4+2])/3; ringN++;
+        }
+      }
+      var ringMean = ringN ? ringSum/ringN : null;
+
+      var holeSum=0, holeN=0;
+      for(var hy=bbMinY; hy<=bbMaxY; hy+=2){
+        for(var hx=bbMinX; hx<=bbMaxX; hx+=2){
+          var hIdx = hy*W+hx;
+          if(featherData[hIdx*4+3] < 200) continue;
+          var h4 = hIdx*4;
+          var fr = fillData[h4], fg = fillData[h4+1], fb = fillData[h4+2];
+          holeSum += (fr+fg+fb)/3; holeN++;
+        }
+      }
+      var holeMean = holeN ? holeSum/holeN : null;
+
+      if(ringMean !== null && holeMean !== null && ringMean > 25 && holeMean < 12){
+        throw new Error('AI fill failed the local sanity check (hole avg ' + Math.round(holeMean) + ' vs surrounding avg ' + Math.round(ringMean) + ') — falling back');
+      }
+    }
+
     for(var qi = 0; qi < W * H; qi++){
       var qa = featherData[qi * 4 + 3] / 255;
       if(qa <= 0) continue;
