@@ -1632,26 +1632,37 @@
 
     sctx.putImageData(work, 0, 0);
 
-    // 3) composite the filled crop back onto the full-resolution canvas,
-    //    only inside the (feathered) painted area — everything outside the
-    //    hole is untouched original-resolution pixels, so nothing else
-    //    loses sharpness.
+    // 3) composite the filled crop back onto the full-resolution canvas.
+    //    Done as an explicit manual RGB blend in JS (not via canvas
+    //    globalCompositeOperation alpha math) so there is zero chance of
+    //    a partially-transparent result letting the page's dark
+    //    background show through as a black/grey smudge — every pixel
+    //    we touch is force-written fully opaque.
     var upCanvas = document.createElement('canvas'); upCanvas.width = regionW; upCanvas.height = regionH;
     var uctx = upCanvas.getContext('2d');
     uctx.imageSmoothingEnabled = true; uctx.imageSmoothingQuality = 'high';
     uctx.drawImage(srcCanvas, 0, 0, regionW, regionH);
+    var fillData = uctx.getImageData(0, 0, regionW, regionH).data;
 
     var featherCanvas = document.createElement('canvas'); featherCanvas.width = regionW; featherCanvas.height = regionH;
     var fctx = featherCanvas.getContext('2d');
     var featherPx = Math.max(2, Math.min(6, Math.round(Math.min(regionW, regionH) * 0.012)));
     fctx.filter = 'blur(' + featherPx + 'px)';
     fctx.drawImage(maskCanvas, sx0, sy0, regionW, regionH, 0, 0, regionW, regionH);
-    var featherData = fctx.getImageData(0,0,regionW,regionH);
-    var upData = uctx.getImageData(0,0,regionW,regionH);
-    for(var pi=0; pi<regionW*regionH; pi++){ upData.data[pi*4+3] = featherData.data[pi*4+3]; }
-    uctx.putImageData(upData, 0, 0);
+    var featherData = fctx.getImageData(0, 0, regionW, regionH).data;
 
-    ctx.drawImage(upCanvas, sx0, sy0);
+    var baseData = ctx.getImageData(sx0, sy0, regionW, regionH);
+    var bd = baseData.data;
+    for(var bi2 = 0; bi2 < regionW * regionH; bi2++){
+      var a = featherData[bi2 * 4 + 3] / 255;
+      if(a <= 0) continue;
+      var bi4 = bi2 * 4;
+      bd[bi4]     = bd[bi4]     * (1 - a) + fillData[bi4]     * a;
+      bd[bi4 + 1] = bd[bi4 + 1] * (1 - a) + fillData[bi4 + 1] * a;
+      bd[bi4 + 2] = bd[bi4 + 2] * (1 - a) + fillData[bi4 + 2] * a;
+      bd[bi4 + 3] = 255; // a filled hole must never end up transparent
+    }
+    ctx.putImageData(baseData, sx0, sy0);
   }
 
   /* ---------------- object removal: real AI fill (MI-GAN, on-device) ----------------
@@ -1769,25 +1780,36 @@
       throw new Error('AI output failed a sanity check (came back unexpectedly dark) — dims were ' + JSON.stringify(outTensor.dims) + ', type ' + outTensor.type);
     }
 
-    // upscale the AI result to full resolution, then composite it in only
-    // where the user painted (feathered) — everything else stays exactly
-    // as it was, at full original sharpness.
+    // upscale the AI result to full resolution, then composite it in
+    // where the user painted. Manual RGB blend in JS (not canvas alpha
+    // compositing) — same reasoning as the fallback fill: guarantees the
+    // filled hole is force-written fully opaque, so a stray alpha value
+    // can never let the page's dark background bleed through as black.
     var upCanvas = document.createElement('canvas'); upCanvas.width = W; upCanvas.height = H;
     var uctx = upCanvas.getContext('2d');
     uctx.imageSmoothingEnabled = true; uctx.imageSmoothingQuality = 'high';
     uctx.drawImage(outCanvas, 0, 0, W, H);
+    var fillData = uctx.getImageData(0, 0, W, H).data;
 
     var featherCanvas = document.createElement('canvas'); featherCanvas.width = W; featherCanvas.height = H;
     var fctx = featherCanvas.getContext('2d');
     var featherPx = Math.max(2, Math.round(Math.min(W, H) * 0.006));
     fctx.filter = 'blur(' + featherPx + 'px)';
     fctx.drawImage(maskCanvas, 0, 0, W, H);
-    var featherData = fctx.getImageData(0, 0, W, H);
-    var upData = uctx.getImageData(0, 0, W, H);
-    for(var pi = 0; pi < W * H; pi++){ upData.data[pi * 4 + 3] = featherData.data[pi * 4 + 3]; }
-    uctx.putImageData(upData, 0, 0);
+    var featherData = fctx.getImageData(0, 0, W, H).data;
 
-    ctx.drawImage(upCanvas, 0, 0);
+    var baseData = ctx.getImageData(0, 0, W, H);
+    var bd2 = baseData.data;
+    for(var qi = 0; qi < W * H; qi++){
+      var qa = featherData[qi * 4 + 3] / 255;
+      if(qa <= 0) continue;
+      var q4 = qi * 4;
+      bd2[q4]     = bd2[q4]     * (1 - qa) + fillData[q4]     * qa;
+      bd2[q4 + 1] = bd2[q4 + 1] * (1 - qa) + fillData[q4 + 1] * qa;
+      bd2[q4 + 2] = bd2[q4 + 2] * (1 - qa) + fillData[q4 + 2] * qa;
+      bd2[q4 + 3] = 255; // a filled hole must never end up transparent
+    }
+    ctx.putImageData(baseData, 0, 0);
   }
 
   document.getElementById('runObjRemove').addEventListener('click', function(){
