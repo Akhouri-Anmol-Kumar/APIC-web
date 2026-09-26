@@ -138,16 +138,6 @@
     --text:#0c0e0a;
     --text-muted:#5b5f52;
     --shadow: 0 40px 100px -30px rgba(20,30,15,0.22);
-    /* The neon accents above (--green, --cyan, --pink, --yellow) are tuned
-       for a near-black background — they're very light colors themselves,
-       so used as text on this light background they fail contrast and
-       read as barely-there. Swap in darkened equivalents that keep the
-       same hue but stay readable on a light page. */
-    --green:#0a6e3d;
-    --green-soft:#116b3e;
-    --pink:#9e1071;
-    --cyan:#005f82;
-    --yellow:#6b5700;
   }
   *{box-sizing:border-box;}
   html{scroll-behavior:smooth;}
@@ -330,6 +320,23 @@
   .tool-btn:hover:not(:disabled){border-color:var(--green); color:var(--text); transform:translateY(-1px);}
   .tool-btn.active{border-color:var(--green); color:var(--green); background:color-mix(in srgb, var(--green) 10%, transparent); box-shadow:var(--glow-green);}
   .tool-btn:disabled{opacity:0.3; cursor:not-allowed;}
+  /* Edit / Advanced / Remove Object / Resize get called out as the core,
+     always-in-use tools — bumped to bold + full-contrast text (this reads
+     as bright white in dark mode, dark ink in light mode, so it stays
+     readable in both) instead of the dim --text-muted every other
+     tool-btn uses when it isn't hovered/active. */
+  .tool-btn[data-tool="edit"]:not(.active),
+  .tool-btn[data-tool="advanced"]:not(.active),
+  .tool-btn[data-tool="objremove"]:not(.active),
+  .tool-btn[data-tool="resize"]:not(.active){
+    color:var(--text); font-weight:800;
+  }
+  .tool-btn[data-tool="edit"]:disabled,
+  .tool-btn[data-tool="advanced"]:disabled,
+  .tool-btn[data-tool="objremove"]:disabled,
+  .tool-btn[data-tool="resize"]:disabled{
+    color:var(--text-muted); font-weight:600;
+  }
 
   .bench-panel{margin-top:16px; display:none;}
   .bench-panel.show{display:block;}
@@ -1414,6 +1421,46 @@
      for free, client-side, in a static HTML page — this is the strongest
      honest equivalent achievable that way, and it should look genuinely
      sharp rather than smeared. */
+  function dilateMask(src, w, h, r){
+    // Binary dilation (grow every 1-pixel outward by r), done as a
+    // separable "distance to nearest 1" scan — two passes per axis — so it
+    // stays O(w*h) regardless of r. A naive r*r-per-pixel scan is fine on
+    // the small low-res crop but would be slow enough to visibly stall the
+    // browser on the full-resolution pass for a large photo, since almost
+    // every pixel in a big image sits far from the (small) hole and would
+    // scan its entire neighbourhood without ever finding a hit.
+    if(r <= 0) return src;
+    var rowDilated = new Uint8Array(w*h);
+    for(var y=0;y<h;y++){
+      var rowOff = y*w, dist = r+1;
+      for(var x=0;x<w;x++){
+        dist = src[rowOff+x] ? 0 : Math.min(dist+1, r+1);
+        rowDilated[rowOff+x] = dist<=r ? 1 : 0;
+      }
+      dist = r+1;
+      for(var x=w-1;x>=0;x--){
+        dist = src[rowOff+x] ? 0 : Math.min(dist+1, r+1);
+        if(dist<=r) rowDilated[rowOff+x] = 1;
+      }
+    }
+    var out = new Uint8Array(w*h);
+    for(var x=0;x<w;x++){
+      var dist2 = r+1;
+      for(var y=0;y<h;y++){
+        var idx = y*w+x;
+        dist2 = rowDilated[idx] ? 0 : Math.min(dist2+1, r+1);
+        out[idx] = dist2<=r ? 1 : 0;
+      }
+      dist2 = r+1;
+      for(var y=h-1;y>=0;y--){
+        var idx2 = y*w+x;
+        dist2 = rowDilated[idx2] ? 0 : Math.min(dist2+1, r+1);
+        if(dist2<=r) out[idx2] = 1;
+      }
+    }
+    return out;
+  }
+
   function inpaint(){
     var W = canvas.width, H = canvas.height;
     var fullMask = mctx.getImageData(0,0,W,H).data;
@@ -1458,11 +1505,20 @@
     var maskSmall = mSctx.getImageData(0,0,ww,wh).data;
 
     var n = ww*wh;
-    var isPainted = new Uint8Array(n);   // pixels the user actually brushed — this IS the hole
+    var isPaintedRaw = new Uint8Array(n); // exactly what the user brushed, before any growth
+    for(var i0=0;i0<n;i0++){ isPaintedRaw[i0] = maskSmall[i0*4+3] > 60 ? 1 : 0; }
+    // Grow the hole by a couple of pixels (scaled to this crop's working
+    // resolution). Users rarely paint flush with an object's exact edge —
+    // a 1-2px sliver of the object is almost always left just outside the
+    // brush stroke, and that sliver is exactly the "line that's not
+    // removed" users report. Filling slightly past what was painted (then
+    // feathering the boundary at composite time, below) removes it without
+    // visibly eating into surrounding background.
+    var dilatePxWork = Math.max(1, Math.round(2*scale));
+    var isPainted = dilateMask(isPaintedRaw, ww, wh, dilatePxWork);
     var resolved = new Uint8Array(n);    // pixel has a final, correct value (no longer needs filling)
     var validSrc = new Uint8Array(n);    // pixel is safe to COPY FROM (real opaque texture, never painted)
     for(var i=0;i<n;i++){
-      isPainted[i] = maskSmall[i*4+3] > 60 ? 1 : 0;
       resolved[i] = isPainted[i] ? 0 : 1;
       // A pixel is only valid as source texture if it wasn't painted AND is
       // actually opaque. After Remove Background, the checkerboard area is
@@ -1629,14 +1685,25 @@
     uctx.imageSmoothingEnabled = true; uctx.imageSmoothingQuality = 'high';
     uctx.drawImage(srcCanvas, 0, 0, regionW, regionH);
 
-    var featherCanvas = document.createElement('canvas'); featherCanvas.width = regionW; featherCanvas.height = regionH;
-    var fctx = featherCanvas.getContext('2d');
+    // Same reasoning as the low-res hole above: binarize + dilate the raw
+    // brush-stroke alpha at full resolution BEFORE feathering, so the soft
+    // blur softens the edge of a safely-oversized hole rather than the
+    // user's imprecise brush edge (which is what let a thin line of the
+    // original object survive at partial opacity in the old version).
+    var rawMaskCanvas = document.createElement('canvas'); rawMaskCanvas.width = regionW; rawMaskCanvas.height = regionH;
+    var rctx = rawMaskCanvas.getContext('2d');
+    rctx.drawImage(maskCanvas, sx0, sy0, regionW, regionH, 0, 0, regionW, regionH);
+    var rawMaskData = rctx.getImageData(0,0,regionW,regionH).data;
+    var rawAlphaBin = new Uint8Array(regionW*regionH);
+    for(var ri=0; ri<regionW*regionH; ri++){ rawAlphaBin[ri] = rawMaskData[ri*4+3] > 25 ? 1 : 0; }
+    var dilateFullPx = Math.max(2, Math.round(Math.min(regionW, regionH) * 0.006));
+    var dilatedFull = dilateMask(rawAlphaBin, regionW, regionH, dilateFullPx);
+    var dilatedFloat = new Float32Array(regionW*regionH);
+    for(var di=0; di<regionW*regionH; di++){ dilatedFloat[di] = dilatedFull[di] ? 255 : 0; }
     var featherPx = Math.max(2, Math.min(6, Math.round(Math.min(regionW, regionH) * 0.012)));
-    fctx.filter = 'blur(' + featherPx + 'px)';
-    fctx.drawImage(maskCanvas, sx0, sy0, regionW, regionH, 0, 0, regionW, regionH);
-    var featherData = fctx.getImageData(0,0,regionW,regionH);
+    var featheredFull = boxBlurAlpha(dilatedFloat, regionW, regionH, featherPx);
     var upData = uctx.getImageData(0,0,regionW,regionH);
-    for(var pi=0; pi<regionW*regionH; pi++){ upData.data[pi*4+3] = featherData.data[pi*4+3]; }
+    for(var pi=0; pi<regionW*regionH; pi++){ upData.data[pi*4+3] = Math.round(Math.max(0, Math.min(255, featheredFull[pi]))); }
     uctx.putImageData(upData, 0, 0);
 
     ctx.drawImage(upCanvas, sx0, sy0);
@@ -2205,6 +2272,43 @@
       for(var p=0;p<w*h;p++){
         imgData.data[p*4+3] = Math.round(Math.max(0, Math.min(255, feathered[p])));
       }
+
+      // 4) Colour decontamination — this is the actual fix for "background
+      //    still visible around the edges" (e.g. a plant's leaves peeking
+      //    through hair). A pixel at, say, 50% alpha isn't semi-transparent
+      //    subject colour — its RGB is a literal 50/50 blend of subject and
+      //    background colour, so erosion/feathering alone (which only ever
+      //    touch the alpha channel) can soften *where* the edge falls but
+      //    can't remove that baked-in background tint. Estimate a local
+      //    background colour from nearby confidently-background pixels,
+      //    then unmix each edge pixel against that estimate so only the
+      //    subject's own colour is left.
+      var bgWeight = new Float32Array(w*h), bgR = new Float32Array(w*h), bgG = new Float32Array(w*h), bgB = new Float32Array(w*h);
+      for(var bwI=0; bwI<w*h; bwI++){
+        if(feathered[bwI] < 25){
+          bgWeight[bwI] = 1;
+          bgR[bwI] = imgData.data[bwI*4]; bgG[bwI] = imgData.data[bwI*4+1]; bgB[bwI] = imgData.data[bwI*4+2];
+        }
+      }
+      var bgRadius = Math.max(4, Math.round(Math.min(w,h) * 0.02));
+      var bwSum = boxBlurAlpha(bgWeight, w, h, bgRadius);
+      var brSum = boxBlurAlpha(bgR, w, h, bgRadius);
+      var bgSum = boxBlurAlpha(bgG, w, h, bgRadius);
+      var bbSum = boxBlurAlpha(bgB, w, h, bgRadius);
+      for(var dq=0; dq<w*h; dq++){
+        var aq = feathered[dq]/255;
+        if(aq <= 0.03 || aq >= 0.97) continue; // fully background or fully subject — nothing to unmix
+        var bw2 = bwSum[dq];
+        if(bw2 < 0.02) continue; // no nearby confident background sample — leave the pixel as-is
+        var estR = brSum[dq]/bw2, estG = bgSum[dq]/bw2, estB = bbSum[dq]/bw2;
+        var idx4q = dq*4;
+        var origR = imgData.data[idx4q], origG = imgData.data[idx4q+1], origB = imgData.data[idx4q+2];
+        var safeA = Math.max(aq, 0.12);
+        imgData.data[idx4q]   = Math.max(0, Math.min(255, Math.round((origR - (1-aq)*estR) / safeA)));
+        imgData.data[idx4q+1] = Math.max(0, Math.min(255, Math.round((origG - (1-aq)*estG) / safeA)));
+        imgData.data[idx4q+2] = Math.max(0, Math.min(255, Math.round((origB - (1-aq)*estB) / safeA)));
+      }
+
       wctx.putImageData(imgData, 0, 0);
 
       canvas.width = w; canvas.height = h;
