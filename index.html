@@ -1707,17 +1707,67 @@
     feeds[imageInputName] = new ort.Tensor('uint8', imgArr, [1, 3, wh, ww]);
     feeds[maskInputName]  = new ort.Tensor('uint8', maskArr, [1, 1, wh, ww]);
     var results = await session.run(feeds);
-    var outData = results[outputName].data;
+    var outTensor = results[outputName];
+    if(!outTensor || !outTensor.data || !outTensor.dims){
+      throw new Error('AI model returned no usable output tensor');
+    }
 
-    var outCanvas = document.createElement('canvas'); outCanvas.width = ww; outCanvas.height = wh;
+    // Decode defensively: don't assume the output is exactly [1,3,wh,ww]
+    // uint8 CHW — different exports disagree on this, and guessing wrong
+    // is exactly what caused a solid-black result before (reading past
+    // the end of the real data returns "undefined", which paints as
+    // black). Instead, read the tensor's own reported shape/dtype and
+    // adapt to whatever layout it actually is.
+    var outDims = outTensor.dims.slice();
+    if(outDims.length === 4 && outDims[0] === 1) outDims = outDims.slice(1); // drop batch dim
+    var oW, oH, chwLayout;
+    if(outDims.length === 3 && outDims[0] === 3){ chwLayout = true; oH = outDims[1]; oW = outDims[2]; }
+    else if(outDims.length === 3 && outDims[2] === 3){ chwLayout = false; oH = outDims[0]; oW = outDims[1]; }
+    else { throw new Error('Unexpected AI output shape: ' + JSON.stringify(outTensor.dims)); }
+
+    var outRaw = outTensor.data;
+    var isFloatOut = (outTensor.type === 'float32' || outTensor.type === 'float64');
+    var outScale = 1;
+    if(isFloatOut){
+      // some exports return 0..1, others 0..255 — sample the data to tell them apart
+      var maxSeen = 0, sampleStep = Math.max(1, Math.floor(outRaw.length / 4000));
+      for(var s = 0; s < outRaw.length; s += sampleStep){ if(outRaw[s] > maxSeen) maxSeen = outRaw[s]; }
+      outScale = maxSeen <= 1.5 ? 255 : 1;
+    }
+
+    var oPlane = oW * oH;
+    var outCanvas = document.createElement('canvas'); outCanvas.width = oW; outCanvas.height = oH;
     var octx2 = outCanvas.getContext('2d');
-    var outImgData = octx2.createImageData(ww, wh);
+    var outImgData = octx2.createImageData(oW, oH);
     var od = outImgData.data;
-    for(var j = 0; j < plane; j++){
-      var j4 = j * 4;
-      od[j4] = outData[j]; od[j4 + 1] = outData[plane + j]; od[j4 + 2] = outData[2 * plane + j]; od[j4 + 3] = 255;
+    for(var p = 0; p < oPlane; p++){
+      var r, g, b;
+      if(chwLayout){ r = outRaw[p]; g = outRaw[oPlane + p]; b = outRaw[2 * oPlane + p]; }
+      else { var base = p * 3; r = outRaw[base]; g = outRaw[base + 1]; b = outRaw[base + 2]; }
+      if(isFloatOut){ r *= outScale; g *= outScale; b *= outScale; }
+      var d4 = p * 4;
+      od[d4] = r < 0 ? 0 : (r > 255 ? 255 : r);
+      od[d4 + 1] = g < 0 ? 0 : (g > 255 ? 255 : g);
+      od[d4 + 2] = b < 0 ? 0 : (b > 255 ? 255 : b);
+      od[d4 + 3] = 255;
     }
     octx2.putImageData(outImgData, 0, 0);
+
+    // Sanity check: a correctly-decoded result should have roughly the
+    // same overall brightness as the photo we fed in (only a small region
+    // changed). If it came back drastically darker overall, something
+    // decoded wrong (wrong shape/dtype guess) — bail out to the fallback
+    // instead of ever showing a black hole again.
+    function sampledMean(arr, len){
+      var sum = 0, n = 0, step = Math.max(1, Math.floor(len / 4000));
+      for(var k = 0; k < len; k += step){ sum += arr[k]; n++; }
+      return n ? sum / n : 0;
+    }
+    var inputMean = sampledMean(imgArr, imgArr.length);
+    var outputMean = sampledMean(od, od.length);
+    if(inputMean > 20 && outputMean < inputMean * 0.2){
+      throw new Error('AI output failed a sanity check (came back unexpectedly dark) — dims were ' + JSON.stringify(outTensor.dims) + ', type ' + outTensor.type);
+    }
 
     // upscale the AI result to full resolution, then composite it in only
     // where the user painted (feathered) — everything else stays exactly
