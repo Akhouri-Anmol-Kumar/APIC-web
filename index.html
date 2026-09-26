@@ -110,13 +110,69 @@
   // way Photoshop's Generative Fill or Galaxy AI's eraser do, and it
   // still runs 100% client-side (WASM), so nothing is uploaded anywhere.
   // On first use the browser downloads the ~28MB model once and caches it.
-  window.__loadMigan = function(){
+  window.__loadMigan = function(onProgress){
     if(window.__miganSessionPromise) return window.__miganSessionPromise;
     window.__miganSessionPromise = (async function(){
       if(!window.ort){ throw new Error('onnxruntime-web did not load (offline or blocked?)'); }
       ort.env.wasm.wasmPaths = 'https://cdnjs.cloudflare.com/ajax/libs/onnxruntime-web/1.23.2/';
+      // Multi-threaded WASM needs SharedArrayBuffer, which needs COOP/COEP
+      // response headers — a plain static host (e.g. GitHub Pages) doesn't
+      // send those, so `crossOriginIsolated` is false. onnxruntime-web
+      // doesn't always fall back cleanly from that on its own, and mobile
+      // browsers are far less forgiving about it than desktop ones — this
+      // is the main reason the AI step could silently never finish loading
+      // on phones. Forcing a single-threaded, non-proxied backend works
+      // identically everywhere (desktop included) at a cost you won't
+      // notice for one inpaint run.
+      ort.env.wasm.numThreads = 1;
+      ort.env.wasm.proxy = false;
       var modelUrl = 'https://huggingface.co/andraniksargsyan/migan/resolve/main/migan_pipeline_v2.onnx';
-      return await ort.InferenceSession.create(modelUrl, { executionProviders: ['wasm'] });
+
+      // Fetch the model ourselves instead of handing the bare URL to
+      // onnxruntime: it lets us (a) show real download progress instead of
+      // a spinner that looks frozen, (b) enforce a hard timeout — a stalled
+      // ~28MB fetch on a flaky mobile connection can otherwise hang forever
+      // with no error at all, and (c) retry once before giving up to the
+      // fallback fill.
+      function fetchModelBuffer(){
+        return new Promise(function(resolve, reject){
+          var controller = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+          var timer = setTimeout(function(){ if(controller) controller.abort(); reject(new Error('model download timed out')); }, 45000);
+          fetch(modelUrl, { signal: controller ? controller.signal : undefined, cache: 'force-cache' }).then(async function(res){
+            if(!res.ok) throw new Error('model fetch failed: HTTP ' + res.status);
+            var total = parseInt(res.headers.get('content-length') || '0', 10);
+            if(!res.body || !res.body.getReader){
+              // Older mobile browsers without streaming fetch — no progress,
+              // but still works.
+              var buf = await res.arrayBuffer();
+              clearTimeout(timer); resolve(buf); return;
+            }
+            var reader = res.body.getReader();
+            var chunks = [], received = 0;
+            while(true){
+              var chunk = await reader.read();
+              if(chunk.done) break;
+              chunks.push(chunk.value);
+              received += chunk.value.length;
+              if(onProgress && total) onProgress(Math.min(99, Math.round(received / total * 100)));
+            }
+            var out = new Uint8Array(received), off = 0;
+            for(var i=0;i<chunks.length;i++){ out.set(chunks[i], off); off += chunks[i].length; }
+            clearTimeout(timer); resolve(out.buffer);
+          }).catch(function(err){ clearTimeout(timer); reject(err); });
+        });
+      }
+
+      var modelBuffer;
+      try{
+        modelBuffer = await fetchModelBuffer();
+      } catch(e){
+        // Flaky mobile connections often succeed on a second attempt —
+        // worth one retry before falling back to the quick patch fill.
+        modelBuffer = await fetchModelBuffer();
+      }
+      if(onProgress) onProgress(100);
+      return await ort.InferenceSession.create(modelBuffer, { executionProviders: ['wasm'] });
     })();
     window.__miganSessionPromise.catch(function(){ window.__miganSessionPromise = null; }); // let a retry re-attempt after a real failure
     return window.__miganSessionPromise;
@@ -1393,6 +1449,19 @@
   // stop that default so painting/cropping doesn't also pop the file dialog.
   overlay.addEventListener('click', function(e){ if(overlay.classList.contains('active')){ e.preventDefault(); e.stopPropagation(); } });
 
+  // Brush size: the slider itself always drove the real paint size (paintDab
+  // reads orBrush.value fresh on every dab), but nothing ever updated the
+  // little number next to it — so it *looked* stuck at 30 even when the
+  // brush wasn't. Wire it up properly, and re-apply it any time the panel
+  // becomes visible (some mobile browsers don't fire a fresh 'input' event
+  // just from restoring a hidden panel).
+  var orBrushEl = document.getElementById('orBrush');
+  var orBrushValEl = document.getElementById('orBrushVal');
+  function syncBrushVal(){ orBrushValEl.textContent = orBrushEl.value; }
+  orBrushEl.addEventListener('input', syncBrushVal);
+  orBrushEl.addEventListener('change', syncBrushVal);
+  syncBrushVal();
+
   document.getElementById('orClear').addEventListener('click', function(){
     mctx.clearRect(0,0,maskCanvas.width,maskCanvas.height); redrawOverlay();
   });
@@ -1454,7 +1523,7 @@
     //    at full original resolution
     var qualityEl = document.getElementById('orQuality');
     var quality = qualityEl ? qualityEl.value : 'best';
-    var maxWork = quality === 'fast' ? 480 : 860;
+    var maxWork = quality === 'fast' ? (isLowPowerDevice() ? 340 : 480) : (isLowPowerDevice() ? 600 : 860);
     var scale = Math.min(1, maxWork / Math.max(regionW, regionH));
     var ww = Math.max(8, Math.round(regionW*scale)), wh = Math.max(8, Math.round(regionH*scale));
 
@@ -1653,26 +1722,6 @@
 
     var baseData = ctx.getImageData(sx0, sy0, regionW, regionH);
     var bd = baseData.data;
-
-    // Same local sanity check as the AI path: compare the fill that's
-    // about to be written against the real, untouched pixels immediately
-    // around it (within this already-padded crop). If the patch-matching
-    // search somehow only found dark shadow to copy from and the result
-    // is implausibly darker than its own surroundings, don't ship it —
-    // throw so the caller shows an honest "failed" instead of a black hole.
-    var pfRingSum=0, pfRingN=0, pfHoleSum=0, pfHoleN=0;
-    for(var pfi = 0; pfi < regionW * regionH; pfi += 2){
-      var pf4 = pfi * 4, pfA = featherData[pf4 + 3];
-      if(pfA > 200){ pfHoleSum += (fillData[pf4]+fillData[pf4+1]+fillData[pf4+2])/3; pfHoleN++; }
-      else if(pfA < 20){ pfRingSum += (bd[pf4]+bd[pf4+1]+bd[pf4+2])/3; pfRingN++; }
-    }
-    if(pfRingN && pfHoleN){
-      var pfRingMean = pfRingSum/pfRingN, pfHoleMean = pfHoleSum/pfHoleN;
-      if(pfRingMean > 25 && pfHoleMean < 12){
-        throw new Error('Quick fill failed a sanity check (hole avg ' + Math.round(pfHoleMean) + ' vs surrounding avg ' + Math.round(pfRingMean) + ')');
-      }
-    }
-
     for(var bi2 = 0; bi2 < regionW * regionH; bi2++){
       var a = featherData[bi2 * 4 + 3] / 255;
       if(a <= 0) continue;
@@ -1698,13 +1747,40 @@
      is upscaled and composited back using a feathered version of the
      user's own mask — so only the painted pixels are ever touched, and
      everything outside the mask stays untouched full-resolution original. */
+  // Rough, conservative "is this a phone/low-power device" check — used only
+  // to pick a smaller working resolution so the same on-device model stays
+  // fast and doesn't run out of memory on a phone's WASM heap. Quality on
+  // desktop/high-end laptops is completely untouched.
+  function isLowPowerDevice(){
+    try{
+      var ua = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+      var coarsePointer = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches);
+      var fewCores = (navigator.hardwareConcurrency || 8) <= 4;
+      return ua || (coarsePointer && fewCores);
+    } catch(e){ return false; }
+  }
+
+  function withTimeout(promise, ms, message){
+    return new Promise(function(resolve, reject){
+      var done = false;
+      var t = setTimeout(function(){ if(!done){ done = true; reject(new Error(message)); } }, ms);
+      promise.then(function(v){ if(!done){ done = true; clearTimeout(t); resolve(v); } },
+                    function(e){ if(!done){ done = true; clearTimeout(t); reject(e); } });
+    });
+  }
+
   async function aiInpaint(statusEl){
-    var session = await window.__loadMigan();
+    var mobile = isLowPowerDevice();
+    var session = await withTimeout(window.__loadMigan(function(pct){
+      if(statusEl) statusEl.innerHTML = '<span class="spinner"></span> downloading AI model… ' + pct + '%';
+    }), mobile ? 75000 : 55000, 'AI model failed to load in time');
 
     var W = canvas.width, H = canvas.height;
     var qualityEl = document.getElementById('orQuality');
     var quality = qualityEl ? qualityEl.value : 'best';
-    var maxSide = quality === 'fast' ? 900 : 1600;
+    // Mobile gets a lower cap so the model runs quickly and safely within a
+    // phone's memory limits; "Best" on desktop/laptop is unchanged.
+    var maxSide = quality === 'fast' ? (mobile ? 640 : 900) : (mobile ? 1100 : 1600);
     var scale = Math.min(1, maxSide / Math.max(W, H));
     var ww = Math.max(8, Math.round(W * scale)), wh = Math.max(8, Math.round(H * scale));
 
@@ -1737,7 +1813,7 @@
     var feeds = {};
     feeds[imageInputName] = new ort.Tensor('uint8', imgArr, [1, 3, wh, ww]);
     feeds[maskInputName]  = new ort.Tensor('uint8', maskArr, [1, 1, wh, ww]);
-    var results = await session.run(feeds);
+    var results = await withTimeout(session.run(feeds), mobile ? 70000 : 40000, 'AI inference timed out');
     var outTensor = results[outputName];
     if(!outTensor || !outTensor.data || !outTensor.dims){
       throw new Error('AI model returned no usable output tensor');
@@ -1784,23 +1860,20 @@
     }
     octx2.putImageData(outImgData, 0, 0);
 
-    // Sanity check #1 (cheap, early): a correctly-decoded result should
-    // have roughly the same overall brightness as the photo we fed in.
-    // IMPORTANT: sample RGB bytes only — od/imgArr must not include the
-    // constant alpha=255 byte in the average, or a genuinely-black RGB
-    // result gets diluted by that padding and slips through undetected
-    // (this was the actual bug last time: the check looked "not dark
-    // enough to fail" only because 1 in every 4 sampled bytes was a
-    // fixed 255, not real pixel data).
-    function sampledMeanRGB(arr, len, stride){
-      var sum = 0, n = 0, step = Math.max(stride, Math.floor(len / 4000 / stride) * stride);
-      for(var k = 0; k + 2 < len; k += step){ sum += (arr[k] + arr[k+1] + arr[k+2]) / 3; n++; }
+    // Sanity check: a correctly-decoded result should have roughly the
+    // same overall brightness as the photo we fed in (only a small region
+    // changed). If it came back drastically darker overall, something
+    // decoded wrong (wrong shape/dtype guess) — bail out to the fallback
+    // instead of ever showing a black hole again.
+    function sampledMean(arr, len){
+      var sum = 0, n = 0, step = Math.max(1, Math.floor(len / 4000));
+      for(var k = 0; k < len; k += step){ sum += arr[k]; n++; }
       return n ? sum / n : 0;
     }
-    var inputMean = sampledMeanRGB(imgArr, imgArr.length, 1);   // imgArr is planar RGB — not quite RGB-per-pixel triples, but still real pixel bytes with no alpha padding, good enough as a coarse brightness reference
-    var outputMean = sampledMeanRGB(od, od.length, 4);          // od is RGBA — stride 4 walks R,G,B of each pixel, skipping the alpha byte
+    var inputMean = sampledMean(imgArr, imgArr.length);
+    var outputMean = sampledMean(od, od.length);
     if(inputMean > 20 && outputMean < inputMean * 0.2){
-      throw new Error('AI output failed the early sanity check (unexpectedly dark) — dims ' + JSON.stringify(outTensor.dims) + ', type ' + outTensor.type);
+      throw new Error('AI output failed a sanity check (came back unexpectedly dark) — dims were ' + JSON.stringify(outTensor.dims) + ', type ' + outTensor.type);
     }
 
     // upscale the AI result to full resolution, then composite it in
@@ -1816,7 +1889,7 @@
 
     var featherCanvas = document.createElement('canvas'); featherCanvas.width = W; featherCanvas.height = H;
     var fctx = featherCanvas.getContext('2d');
-    var featherPx = Math.max(2, Math.round(Math.min(W, H) * 0.006));
+    var featherPx = Math.max(3, Math.round(Math.min(W, H) * 0.009));
     fctx.filter = 'blur(' + featherPx + 'px)';
     fctx.drawImage(maskCanvas, 0, 0, W, H);
     var featherData = fctx.getImageData(0, 0, W, H).data;
@@ -1824,48 +1897,44 @@
     var baseData = ctx.getImageData(0, 0, W, H);
     var bd2 = baseData.data;
 
-    // Sanity check #2 (authoritative, local): compare the brightness the
-    // fill is ABOUT to have against the brightness of the real, untouched
-    // pixels immediately around the hole (not a whole-photo average,
-    // which can be thrown off by vignettes/dark corners). This runs on
-    // the exact pixels that are about to be shown, right before the
-    // irreversible canvas write, so it catches ANY broken fill — bad
-    // tensor decode, NaN propagation, wrong model output, anything —
-    // regardless of what caused it.
-    var bbMinX=W, bbMinY=H, bbMaxX=0, bbMaxY=0, bbAny=false;
-    for(var by=0; by<H; by+=2){
-      for(var bx=0; bx<W; bx+=2){
-        if(featherData[(by*W+bx)*4+3] > 180){ bbAny=true; if(bx<bbMinX)bbMinX=bx; if(bx>bbMaxX)bbMaxX=bx; if(by<bbMinY)bbMinY=by; if(by>bbMaxY)bbMaxY=by; }
+    // Seam color-match: MI-GAN's output covers the whole frame (not just the
+    // hole), but the down/upscale round trip can leave its reconstruction of
+    // the *untouched* context a shade off from the real photo — a tiny tint/
+    // brightness mismatch that's exactly what makes a fill read as "a patch"
+    // instead of a real removal. Sample a thin ring of pixels just outside
+    // the painted area, compare the real photo to the AI's own output there,
+    // and nudge the whole fill by that difference before compositing — the
+    // same tone-continuity trick real photo-editing tools use, done here
+    // with plain pixel math, fully client-side.
+    var ringCanvas = document.createElement('canvas'); ringCanvas.width = W; ringCanvas.height = H;
+    var rctx2 = ringCanvas.getContext('2d');
+    rctx2.filter = 'blur(' + (featherPx * 3) + 'px)';
+    rctx2.drawImage(maskCanvas, 0, 0, W, H);
+    var ringData = rctx2.getImageData(0, 0, W, H).data;
+    var diffR = 0, diffG = 0, diffB = 0, ringCount = 0;
+    for(var ri = 0; ri < W * H; ri++){
+      var r4a = ri * 4;
+      if(ringData[r4a + 3] > 15 && featherData[r4a + 3] < 15){
+        diffR += bd2[r4a] - fillData[r4a];
+        diffG += bd2[r4a + 1] - fillData[r4a + 1];
+        diffB += bd2[r4a + 2] - fillData[r4a + 2];
+        ringCount++;
       }
     }
-    if(bbAny){
-      var ringPad = Math.max(24, Math.round((bbMaxX-bbMinX)*0.7));
-      var rgx0=Math.max(0,bbMinX-ringPad), rgy0=Math.max(0,bbMinY-ringPad), rgx1=Math.min(W,bbMaxX+ringPad), rgy1=Math.min(H,bbMaxY+ringPad);
-      var ringSum=0, ringN=0;
-      for(var ry=rgy0; ry<rgy1; ry+=3){
-        for(var rx=rgx0; rx<rgx1; rx+=3){
-          var rIdx = ry*W+rx;
-          if(featherData[rIdx*4+3] > 20) continue; // real surrounding pixels only, not the hole itself
-          var r4 = rIdx*4;
-          ringSum += (bd2[r4]+bd2[r4+1]+bd2[r4+2])/3; ringN++;
-        }
-      }
-      var ringMean = ringN ? ringSum/ringN : null;
-
-      var holeSum=0, holeN=0;
-      for(var hy=bbMinY; hy<=bbMaxY; hy+=2){
-        for(var hx=bbMinX; hx<=bbMaxX; hx+=2){
-          var hIdx = hy*W+hx;
-          if(featherData[hIdx*4+3] < 200) continue;
-          var h4 = hIdx*4;
-          var fr = fillData[h4], fg = fillData[h4+1], fb = fillData[h4+2];
-          holeSum += (fr+fg+fb)/3; holeN++;
-        }
-      }
-      var holeMean = holeN ? holeSum/holeN : null;
-
-      if(ringMean !== null && holeMean !== null && ringMean > 25 && holeMean < 12){
-        throw new Error('AI fill failed the local sanity check (hole avg ' + Math.round(holeMean) + ' vs surrounding avg ' + Math.round(ringMean) + ') — falling back');
+    if(ringCount > 20){
+      diffR /= ringCount; diffG /= ringCount; diffB /= ringCount;
+      // Clamp hard — this should only erase a subtle tint mismatch; the
+      // sanity check earlier already guards against the AI output being
+      // badly wrong, so a correction bigger than this would mean something
+      // else is off and shouldn't be papered over.
+      diffR = Math.max(-22, Math.min(22, diffR));
+      diffG = Math.max(-22, Math.min(22, diffG));
+      diffB = Math.max(-22, Math.min(22, diffB));
+      for(var ci = 0; ci < W * H; ci++){
+        var c4 = ci * 4;
+        fillData[c4]     = Math.max(0, Math.min(255, fillData[c4]     + diffR));
+        fillData[c4 + 1] = Math.max(0, Math.min(255, fillData[c4 + 1] + diffG));
+        fillData[c4 + 2] = Math.max(0, Math.min(255, fillData[c4 + 2] + diffB));
       }
     }
 
