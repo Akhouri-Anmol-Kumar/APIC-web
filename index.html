@@ -1506,15 +1506,17 @@
 
     var n = ww*wh;
     var isPaintedRaw = new Uint8Array(n); // exactly what the user brushed, before any growth
-    for(var i0=0;i0<n;i0++){ isPaintedRaw[i0] = maskSmall[i0*4+3] > 60 ? 1 : 0; }
-    // Grow the hole by a couple of pixels (scaled to this crop's working
-    // resolution). Users rarely paint flush with an object's exact edge —
-    // a 1-2px sliver of the object is almost always left just outside the
-    // brush stroke, and that sliver is exactly the "line that's not
-    // removed" users report. Filling slightly past what was painted (then
-    // feathering the boundary at composite time, below) removes it without
-    // visibly eating into surrounding background.
-    var dilatePxWork = Math.max(1, Math.round(2*scale));
+    // Threshold lowered from the old >60 to >20 so the brush stroke's own
+    // soft/anti-aliased edge (which a round brush always has) counts as
+    // "painted" on its own — that's what was actually leaving a thin
+    // uncovered sliver of the object before, not a lack of extra growth.
+    for(var i0=0;i0<n;i0++){ isPaintedRaw[i0] = maskSmall[i0*4+3] > 20 ? 1 : 0; }
+    // Only a small 1px safety margin beyond that now (down from 2px) —
+    // growing the hole too aggressively was eating into real, untouched
+    // subject content right next to the brush stroke (e.g. a shoulder just
+    // outside where an object was painted over), which is worse than
+    // leaving an occasional hairline sliver.
+    var dilatePxWork = Math.max(1, Math.round(1*scale));
     var isPainted = dilateMask(isPaintedRaw, ww, wh, dilatePxWork);
     var resolved = new Uint8Array(n);    // pixel has a final, correct value (no longer needs filling)
     var validSrc = new Uint8Array(n);    // pixel is safe to COPY FROM (real opaque texture, never painted)
@@ -1688,15 +1690,18 @@
     // Same reasoning as the low-res hole above: binarize + dilate the raw
     // brush-stroke alpha at full resolution BEFORE feathering, so the soft
     // blur softens the edge of a safely-oversized hole rather than the
-    // user's imprecise brush edge (which is what let a thin line of the
-    // original object survive at partial opacity in the old version).
+    // user's imprecise brush edge. Kept intentionally small and capped —
+    // scaling this with image size used to let it balloon into a big
+    // margin on large photos (9px+), which was eating into real subject
+    // content (a shoulder, an ear) right next to the brush stroke instead
+    // of just cleaning up the object's own edge.
     var rawMaskCanvas = document.createElement('canvas'); rawMaskCanvas.width = regionW; rawMaskCanvas.height = regionH;
     var rctx = rawMaskCanvas.getContext('2d');
     rctx.drawImage(maskCanvas, sx0, sy0, regionW, regionH, 0, 0, regionW, regionH);
     var rawMaskData = rctx.getImageData(0,0,regionW,regionH).data;
     var rawAlphaBin = new Uint8Array(regionW*regionH);
-    for(var ri=0; ri<regionW*regionH; ri++){ rawAlphaBin[ri] = rawMaskData[ri*4+3] > 25 ? 1 : 0; }
-    var dilateFullPx = Math.max(2, Math.round(Math.min(regionW, regionH) * 0.006));
+    for(var ri=0; ri<regionW*regionH; ri++){ rawAlphaBin[ri] = rawMaskData[ri*4+3] > 10 ? 1 : 0; }
+    var dilateFullPx = Math.max(1, Math.min(3, Math.round(Math.min(regionW, regionH) * 0.002)));
     var dilatedFull = dilateMask(rawAlphaBin, regionW, regionH, dilateFullPx);
     var dilatedFloat = new Float32Array(regionW*regionH);
     for(var di=0; di<regionW*regionH; di++){ dilatedFloat[di] = dilatedFull[di] ? 255 : 0; }
@@ -2233,6 +2238,44 @@
         mask.close();
       } else {
         throw new Error('Model returned no mask data.');
+      }
+
+      // 0) Kill disconnected "islands" of foreground confidence — a stray
+      //    light patch, reflection, or busy texture in the background can
+      //    get real (sometimes high) foreground confidence from the model
+      //    even though it's nowhere near the subject. Left alone, that
+      //    survives as an opaque, wrong-coloured floating blob once
+      //    everything else around it goes transparent (exactly the
+      //    "yellowish patch on the transparent side" bug). A real subject
+      //    is one connected blob, so keep only the single largest connected
+      //    foreground component and force everything else to background.
+      var fgBinary = new Uint8Array(w*h);
+      for(var ci=0; ci<w*h; ci++){ fgBinary[ci] = alpha[ci] > 127 ? 1 : 0; }
+      var ccLabels = new Int32Array(w*h).fill(-1);
+      var compSizes = [];
+      var ccQueue = new Int32Array(w*h);
+      for(var si=0; si<w*h; si++){
+        if(fgBinary[si] && ccLabels[si] === -1){
+          var label = compSizes.length;
+          var qHead = 0, qTail = 0;
+          ccQueue[qTail++] = si; ccLabels[si] = label;
+          while(qHead < qTail){
+            var cur = ccQueue[qHead++];
+            var cy2 = (cur/w)|0, cx2 = cur - cy2*w;
+            if(cx2>0){ var nbL=cur-1; if(fgBinary[nbL] && ccLabels[nbL]===-1){ ccLabels[nbL]=label; ccQueue[qTail++]=nbL; } }
+            if(cx2<w-1){ var nbR=cur+1; if(fgBinary[nbR] && ccLabels[nbR]===-1){ ccLabels[nbR]=label; ccQueue[qTail++]=nbR; } }
+            if(cy2>0){ var nbU=cur-w; if(fgBinary[nbU] && ccLabels[nbU]===-1){ ccLabels[nbU]=label; ccQueue[qTail++]=nbU; } }
+            if(cy2<h-1){ var nbD=cur+w; if(fgBinary[nbD] && ccLabels[nbD]===-1){ ccLabels[nbD]=label; ccQueue[qTail++]=nbD; } }
+          }
+          compSizes.push(qTail);
+        }
+      }
+      if(compSizes.length > 1){
+        var bestLabel = 0, bestSize = compSizes[0];
+        for(var li=1; li<compSizes.length; li++){ if(compSizes[li] > bestSize){ bestSize = compSizes[li]; bestLabel = li; } }
+        for(var zi=0; zi<w*h; zi++){
+          if(fgBinary[zi] && ccLabels[zi] !== bestLabel){ alpha[zi] = 0; }
+        }
       }
 
       // 1) Push mid-tones toward pure 0/255 so the *interior* of the subject
