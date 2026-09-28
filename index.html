@@ -514,6 +514,28 @@
   .g-btn-slot{display:flex; justify-content:center; margin-bottom:14px;}
   .modal-close{position:absolute; top:14px; right:18px; background:none; border:none; color:var(--text-muted); font-size:20px; cursor:pointer;}
 
+  /* legal / privacy layer (additive) */
+  .legal-links{display:flex; flex-wrap:wrap; justify-content:center; gap:6px 22px; margin-top:22px; font-family:var(--mono); font-size:11px; letter-spacing:0.3px;}
+  .legal-links a{color:var(--text-muted); text-decoration:none; transition:color .2s;}
+  .legal-links a:hover{color:var(--green);}
+  .legal-modal{max-width:660px; text-align:left; padding:26px 24px 22px; max-height:86vh; display:flex; flex-direction:column;}
+  .legal-tabs{display:flex; flex-wrap:wrap; gap:8px; margin:0 0 14px; padding-right:28px;}
+  .legal-tabs button{background:transparent; color:var(--text-muted); border:1px solid var(--line); border-radius:999px; padding:6px 14px; font-family:var(--mono); font-size:11px; cursor:pointer; transition:all .2s;}
+  .legal-tabs button:hover{color:var(--text); border-color:var(--cyan);}
+  .legal-tabs button.on{color:#04140c; background:var(--green); border-color:var(--green);}
+  .legal-body{overflow:auto; padding-right:8px;}
+  .legal-body h3{font-family:var(--display); font-size:20px; margin:0 0 4px;}
+  .legal-body h4{font-family:var(--display); font-size:14px; margin:18px 0 6px; color:var(--text);}
+  .legal-body p, .legal-body li{color:var(--text-muted); font-size:13px; line-height:1.7; margin:0 0 9px;}
+  .legal-body ul{padding-left:18px; margin:0 0 9px;}
+  .legal-body a{color:var(--cyan);}
+  .legal-body .upd{font-family:var(--mono); font-size:10.5px; color:var(--text-muted); margin-bottom:14px;}
+  .legal-sec{display:none;} .legal-sec.on{display:block;}
+  #storageNotice{display:none; position:fixed; left:50%; transform:translateX(-50%); bottom:18px; z-index:180; max-width:580px; width:calc(100% - 28px); background:var(--bg-2); border:1px solid var(--line); border-radius:12px; padding:14px 16px; box-shadow:var(--shadow); gap:12px 16px; align-items:center; flex-wrap:wrap; font-size:12px; color:var(--text-muted); line-height:1.6;}
+  #storageNotice.show{display:flex;}
+  #storageNotice span{flex:1 1 260px;}
+  #storageNotice a{color:var(--cyan); cursor:pointer;}
+
   @media (max-width:900px){
     .frame-grid{grid-template-columns:1fr 1fr;}
     .frame{border-bottom:1px solid var(--line);}
@@ -834,6 +856,12 @@
         APIC is a product of <b>Akhouri Systems</b><br>
         Developed by Akhouri Anmol Kumar · © 2026
       </div>
+    </div>
+    <div class="legal-links">
+      <a href="#privacy" data-legal="privacy">Privacy Policy</a>
+      <a href="#terms" data-legal="terms">Terms of Use</a>
+      <a href="#cookies" data-legal="cookies">Cookies &amp; Storage</a>
+      <a href="#contact" data-legal="contact">Contact</a>
     </div>
     <div style="display:flex; justify-content:center; margin-top:24px;">
       <a href="https://www.launchory.app/startups/apic?ref=badge" target="_blank" rel="noopener">
@@ -2850,6 +2878,148 @@ COSTS AT SMALL SCALE: $0 across all of the above.
       openGate();
     }
   }, true);
+})();
+</script>
+
+<!-- LEGAL MODAL (Privacy / Terms / Cookies / Contact) -->
+<div class="modal-bg" id="legalBg">
+  <div class="modal legal-modal" role="dialog" aria-modal="true" aria-label="Legal information">
+    <button class="modal-close" id="legalClose" aria-label="Close">×</button>
+    <div class="legal-tabs">
+      <button data-legal="privacy">Privacy</button>
+      <button data-legal="terms">Terms</button>
+      <button data-legal="cookies">Cookies &amp; Storage</button>
+      <button data-legal="contact">Contact</button>
+    </div>
+    <div class="legal-body">
+
+      <div class="legal-sec" data-sec="privacy">
+        <h3>Privacy Policy</h3>
+        <div class="upd">Last updated: September 28, 2026</div>
+        <p>APIC is a product of Akhouri Systems, developed by Akhouri Anmol Kumar. This page explains, in plain words, what APIC does with your data.</p>
+        <h4>Your images stay on your device</h4>
+        <p>Editing, converting, compressing, resizing, background removal and AI tools run inside your browser. Your images are not uploaded to our servers. The first time you use an AI tool, your browser downloads a model file from a third-party host (see below), which is a normal file download.</p>
+        <h4>What we collect when you sign in</h4>
+        <ul>
+          <li>Through Google Sign-In (handled by Firebase Authentication) we receive your <b>name, email address and profile photo</b>. We never see your Google password.</li>
+          <li>We store those details in Firebase Firestore, along with your first and last sign-in time and how many times you signed in.</li>
+          <li>We keep anonymous totals such as page visits and member counts. These contain no personal information.</li>
+        </ul>
+        <h4>How we use it</h4>
+        <ul>
+          <li>To run your sign-in and show community numbers.</li>
+          <li>To send you a welcome email and occasional APIC update emails (sent through EmailJS). You can ask us to stop at any time.</li>
+          <li>We do not sell your data, and APIC does not show ads.</li>
+        </ul>
+        <h4>Third-party services</h4>
+        <p>APIC relies on Google (Sign-In, Firebase, Firestore, Fonts, model hosting), EmailJS, jsDelivr, cdnjs, Hugging Face, and GitHub (hosting and downloads). These services may see technical data such as your IP address when your browser contacts them, and each follows its own privacy policy.</p>
+        <h4>Keeping and deleting data</h4>
+        <p>We keep your account record until you ask us to delete it. To see, correct or delete your data, or to stop emails, use the Contact tab. You can also sign out any time.</p>
+        <h4>Children</h4>
+        <p>APIC is not intended for children under 13, and we do not knowingly collect their data. If you think a child has signed up, tell us and we will remove the account.</p>
+        <h4>Security and changes</h4>
+        <p>We use reputable services and reasonable safeguards, but no system is perfectly secure. If this policy changes, the date above will change too.</p>
+      </div>
+
+      <div class="legal-sec" data-sec="terms">
+        <h3>Terms of Use</h3>
+        <div class="upd">Last updated: September 28, 2026</div>
+        <p>By using APIC you agree to these terms. If you do not agree, please do not use the site.</p>
+        <h4>Using APIC</h4>
+        <ul>
+          <li>APIC is provided free, "as is" and "as available". Features can change, pause or end at any time.</li>
+          <li>You must be at least 13 years old to use it.</li>
+          <li>You are responsible for the images you process and must have the right to use and edit them.</li>
+        </ul>
+        <h4>What you must not do</h4>
+        <ul>
+          <li>Use APIC for anything illegal, harmful, abusive or that infringes other people's rights.</li>
+          <li>Attempt to break, overload, scrape or reverse-engineer the service or its sign-in.</li>
+        </ul>
+        <h4>Ownership</h4>
+        <p>You keep full ownership of your images and anything you create. The APIC name, logo, design and code belong to Akhouri Systems.</p>
+        <h4>AI results and no warranty</h4>
+        <p>AI tools can make mistakes. Check results before you rely on them. We do not promise APIC will be error-free, always available, or suited to any particular purpose. Keep copies of your original files.</p>
+        <h4>Limit of liability</h4>
+        <p>To the extent the law allows, Akhouri Systems is not liable for any loss or damage resulting from your use of APIC, including lost or altered files.</p>
+        <h4>Accounts, changes and law</h4>
+        <p>We may suspend accounts that break these terms. We may update these terms, and continuing to use APIC means you accept the update. These terms are governed by the laws of India.</p>
+      </div>
+
+      <div class="legal-sec" data-sec="cookies">
+        <h3>Cookies &amp; Storage</h3>
+        <div class="upd">Last updated: September 28, 2026</div>
+        <p>APIC does not use advertising or tracking cookies. It uses your browser's local storage for a few small things:</p>
+        <ul>
+          <li><b>apic_user</b>: keeps you signed in on this device (your name, email and photo). Removed when you sign out.</li>
+          <li><b>apic_watermark_demo_used</b>: remembers that you already used the free demo.</li>
+          <li><b>apic_notice_ok</b>: remembers that you closed the notice about this.</li>
+          <li>Google and Firebase may store their own identifiers so sign-in works securely.</li>
+          <li>Your browser may cache the AI model files so they do not download again.</li>
+        </ul>
+        <p>You can clear all of this any time in your browser settings. Doing so will sign you out.</p>
+      </div>
+
+      <div class="legal-sec" data-sec="contact">
+        <h3>Contact</h3>
+        <p>Questions, feedback, or want your data removed or emails stopped? Reach out here:</p>
+        <p><a class="legal-contact" target="_blank" rel="noopener"></a></p>
+        <p>Please do not post sensitive personal details publicly. Just say what you need and we will follow up.</p>
+        <p>APIC, a product of <b>Akhouri Systems</b>. Developed by Akhouri Anmol Kumar.</p>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- STORAGE NOTICE -->
+<div id="storageNotice" role="region" aria-label="Storage notice">
+  <span>APIC uses your browser's local storage to keep you signed in. No ad or tracking cookies. <a data-legal="cookies">Details</a></span>
+  <button class="btn btn-gold btn-sm" id="storageOk">Got it</button>
+</div>
+
+<script>
+(function(){
+  /* Edit these two lines to change the contact link shown in the Contact tab. */
+  var CONTACT_HREF  = 'https://github.com/Akhouri-Anmol-Kumar/APIC/issues';
+  var CONTACT_LABEL = 'Open an issue on the APIC GitHub page';
+
+  var bg = document.getElementById('legalBg');
+  var secs = bg.querySelectorAll('.legal-sec');
+  var tabs = bg.querySelectorAll('.legal-tabs button');
+  var body = bg.querySelector('.legal-body');
+  var names = ['privacy','terms','cookies','contact'];
+  Array.prototype.forEach.call(bg.querySelectorAll('.legal-contact'), function(a){ a.href = CONTACT_HREF; a.textContent = CONTACT_LABEL; });
+
+  function show(name){
+    if(names.indexOf(name) === -1) name = 'privacy';
+    Array.prototype.forEach.call(secs, function(s){ s.classList.toggle('on', s.getAttribute('data-sec') === name); });
+    Array.prototype.forEach.call(tabs, function(b){ b.classList.toggle('on', b.getAttribute('data-legal') === name); });
+    body.scrollTop = 0;
+    bg.classList.add('show');
+    try{ history.replaceState(null, '', '#' + name); }catch(e){}
+  }
+  function hide(){
+    bg.classList.remove('show');
+    try{ if(names.indexOf(location.hash.slice(1)) !== -1) history.replaceState(null, '', location.pathname + location.search); }catch(e){}
+  }
+  document.addEventListener('click', function(e){
+    var t = e.target.closest ? e.target.closest('[data-legal]') : null;
+    if(!t || t.id === 'legalBg') return;
+    e.preventDefault(); show(t.getAttribute('data-legal'));
+  });
+  document.getElementById('legalClose').addEventListener('click', hide);
+  bg.addEventListener('click', function(e){ if(e.target === bg) hide(); });
+  document.addEventListener('keydown', function(e){ if(e.key === 'Escape' && bg.classList.contains('show')) hide(); });
+  window.addEventListener('hashchange', function(){ var h = location.hash.slice(1); if(names.indexOf(h) !== -1) show(h); });
+  if(names.indexOf(location.hash.slice(1)) !== -1) show(location.hash.slice(1));
+
+  var note = document.getElementById('storageNotice');
+  var seen = false; try{ seen = localStorage.getItem('apic_notice_ok') === '1'; }catch(e){}
+  if(!seen){ setTimeout(function(){ note.classList.add('show'); }, 2500); }
+  document.getElementById('storageOk').addEventListener('click', function(){
+    note.classList.remove('show'); try{ localStorage.setItem('apic_notice_ok', '1'); }catch(e){}
+  });
 })();
 </script>
 
