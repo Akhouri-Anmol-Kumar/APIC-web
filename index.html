@@ -485,7 +485,18 @@
     .studio-wrap, .studio-wrap > .eyebrow{transition:none;}
     .studio.has-image .drop canvas#canvas{animation:none;}
   }
-  #overlay.active{pointer-events:auto; cursor:crosshair;}
+  #overlay.active{pointer-events:auto; cursor:crosshair; touch-action:none; -webkit-touch-callout:none; -webkit-user-select:none; user-select:none;}
+
+  /* touch devices (phones + tablets): finger-sized targets, no iOS focus-zoom, no tap flash */
+  @media (pointer:coarse){
+    html{-webkit-tap-highlight-color:transparent; -webkit-text-size-adjust:100%;}
+    .btn, .tool-btn, .quick-btn{min-height:44px;}
+    .btn-sm{padding:10px 14px;}
+    select, input[type=number], input[type=text], textarea{font-size:16px; min-height:44px;}
+    input[type=range]{min-height:32px;}
+    .hist-btn{width:36px; height:36px; font-size:16px;}
+    .theme-toggle{width:42px; height:42px;}
+  }
 
   .bench-tools{
     display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:16px;
@@ -1410,6 +1421,18 @@
     var t = deviceTier();
     return t === 'desktop' ? Infinity : (t === 'low' ? 8.4e6 : 12.6e6);
   }
+  // Display sharpness: a phone shows the photo ~360-430 CSS px wide. Browsers shrink a
+  // canvas with plain bilinear sampling (no mipmaps), so a 4000px photo squeezed 3x+ looks
+  // jagged/blurry. Capping the working long side keeps the on-screen shrink under ~2x, and
+  // the one-time downscale below uses clean multi-step resampling instead.
+  function mobileSideCap(){
+    var t = deviceTier();
+    if(t === 'desktop') return Infinity;
+    var dpr = Math.min(3, window.devicePixelRatio || 1);
+    var screenPx = Math.max(screen.width || 0, screen.height || 0) * dpr;
+    var base = t === 'low' ? 1800 : 2560;
+    return Math.max(1400, Math.min(base, Math.round(screenPx * 1.15) || base));
+  }
   var ownUrls = [];   // blob URLs we created: {u, t}
   function trackUrl(u){ ownUrls.push({u: u, t: Date.now()}); return u; }
   function pruneUrls(){
@@ -1443,17 +1466,17 @@
       dropEl.querySelector('p').style.display = 'none';
       render();
       if(typeof syncOverlay === 'function') syncOverlay();
-      fileInfo.textContent = file.name + ' · ' + Math.round(file.size/1024) + ' KB · ' + im.naturalWidth + '×' + im.naturalHeight + (resized ? ' (resized to fit phone memory)' : '');
+      fileInfo.textContent = file.name + ' · ' + Math.round(file.size/1024) + ' KB · ' + im.naturalWidth + '×' + im.naturalHeight + (resized ? ' (optimised for phone screen & memory)' : '');
       updateGate();
       if(typeof syncResizeFields === 'function') syncResizeFields();
       history = []; histIndex = -1; commitHistory();
       pruneUrls();
     }
     img.onload = function(){
-      var nw = img.naturalWidth, nh = img.naturalHeight, cap = mobilePixelCap();
-      if(nw*nh <= cap){ finish(img, false); return; }
+      var nw = img.naturalWidth, nh = img.naturalHeight, cap = mobilePixelCap(), sideCap = mobileSideCap();
+      if(nw*nh <= cap && Math.max(nw, nh) <= sideCap){ finish(img, false); return; }
       try{
-        var sc = Math.sqrt(cap/(nw*nh)), tw = Math.floor(nw*sc), th = Math.floor(nh*sc);
+        var sc = Math.min(Math.sqrt(cap/(nw*nh)), sideCap/Math.max(nw, nh)), tw = Math.floor(nw*sc), th = Math.floor(nh*sc);
         var cv = bgResizeCanvas(img, tw, th);
         var jpeg = (file.type === 'image/jpeg');
         cv.toBlob(function(blob){
@@ -1632,7 +1655,9 @@
   function redrawOverlay(){
     octx.clearRect(0,0,overlay.width,overlay.height);
     if(activeTool === 'objremove'){
+      octx.save(); octx.globalAlpha = 0.65;
       octx.drawImage(maskCanvas, 0, 0);
+      octx.restore();
     } else if(activeTool === 'advanced' && cropRect){
       octx.save();
       octx.fillStyle = 'rgba(0,0,0,0.55)';
@@ -1657,7 +1682,7 @@
     e.preventDefault();
     var p = overlayPoint(e);
     if(activeTool === 'objremove'){
-      painting = true; paintDab(p);
+      painting = true; lastPaintPt = null; paintDab(p);
     } else if(activeTool === 'advanced'){
       cropping = true; cropStart = p; cropRect = {x:p.x, y:p.y, w:0, h:0};
     }
@@ -1672,15 +1697,36 @@
       redrawOverlay();
     }
   }
-  function pointerUp(){ painting = false; cropping = false; }
-  function paintDab(p){
-    var size = parseInt(document.getElementById('orBrush').value, 10);
-    mctx.fillStyle = '#ff3b6b';
-    mctx.beginPath(); mctx.arc(p.x, p.y, size/2, 0, Math.PI*2); mctx.fill();
-    var rad = size/2 + 1.5, bx0 = Math.max(0, Math.floor(p.x - rad)), by0 = Math.max(0, Math.floor(p.y - rad));
-    var bx1 = Math.min(maskCanvas.width, Math.ceil(p.x + rad)), by1 = Math.min(maskCanvas.height, Math.ceil(p.y + rad));
+  function pointerUp(){ painting = false; cropping = false; lastPaintPt = null; }
+  var lastPaintPt = null;
+  // Brush size is in ON-SCREEN pixels, so it feels the same on a phone (big photo shrunk
+  // to fit) as on a laptop; converted to image pixels here.
+  function brushCanvasSize(){
+    var sizeCss = parseInt(document.getElementById('orBrush').value, 10) || 30;
+    var cw = overlay.clientWidth || overlay.width;
+    var k = cw ? overlay.width / cw : 1;
+    return Math.max(2, sizeCss * k);
+  }
+  function growMaskBox(x, y, rad){
+    var bx0 = Math.max(0, Math.floor(x - rad)), by0 = Math.max(0, Math.floor(y - rad));
+    var bx1 = Math.min(maskCanvas.width, Math.ceil(x + rad)), by1 = Math.min(maskCanvas.height, Math.ceil(y + rad));
     if(!maskBox) maskBox = {x0: bx0, y0: by0, x1: bx1, y1: by1};
     else { maskBox.x0 = Math.min(maskBox.x0, bx0); maskBox.y0 = Math.min(maskBox.y0, by0); maskBox.x1 = Math.max(maskBox.x1, bx1); maskBox.y1 = Math.max(maskBox.y1, by1); }
+  }
+  // Touch screens only deliver a handful of move events per second, so stamping one circle
+  // per event leaves "dot dot dot". Join consecutive points with a round-capped line so the
+  // stroke is continuous at any finger speed (mouse behaves exactly as before).
+  function paintDab(p){
+    var size = brushCanvasSize();
+    mctx.fillStyle = '#ff3b6b'; mctx.strokeStyle = '#ff3b6b';
+    mctx.lineWidth = size; mctx.lineCap = 'round'; mctx.lineJoin = 'round';
+    if(lastPaintPt){
+      mctx.beginPath(); mctx.moveTo(lastPaintPt.x, lastPaintPt.y); mctx.lineTo(p.x, p.y); mctx.stroke();
+      growMaskBox(lastPaintPt.x, lastPaintPt.y, size/2 + 1.5);
+    }
+    mctx.beginPath(); mctx.arc(p.x, p.y, size/2, 0, Math.PI*2); mctx.fill();
+    growMaskBox(p.x, p.y, size/2 + 1.5);
+    lastPaintPt = {x: p.x, y: p.y};
     redrawOverlay();
   }
   ['mousedown','touchstart'].forEach(function(ev){ overlay.addEventListener(ev, pointerDown, {passive:false}); });
