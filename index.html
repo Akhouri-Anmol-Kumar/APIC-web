@@ -128,63 +128,73 @@
       ort.env.wasm.proxy = false;
       var modelUrl = 'https://huggingface.co/andraniksargsyan/migan/resolve/main/migan_pipeline_v2.onnx';
 
-      // Fetch the model ourselves instead of handing the bare URL to
-      // onnxruntime: it lets us (a) show real download progress instead of
-      // a spinner that looks frozen, (b) enforce a hard timeout — a stalled
-      // ~28MB fetch on a flaky mobile connection can otherwise hang forever
-      // with no error at all, and (c) retry once before giving up to the
-      // fallback fill.
-      function fetchModelBuffer(){
-        return new Promise(function(resolve, reject){
-          var controller = (typeof AbortController !== 'undefined') ? new AbortController() : null;
-          var timer = setTimeout(function(){ if(controller) controller.abort(); reject(new Error('model download timed out')); }, 45000);
-          fetch(modelUrl, { signal: controller ? controller.signal : undefined, cache: 'force-cache' }).then(async function(res){
-            if(!res.ok) throw new Error('model fetch failed: HTTP ' + res.status);
-            var total = parseInt(res.headers.get('content-length') || '0', 10);
-            if(!res.body || !res.body.getReader){
-              // Older mobile browsers without streaming fetch — no progress,
-              // but still works.
-              var buf = await res.arrayBuffer();
-              clearTimeout(timer); resolve(buf); return;
-            }
-            var reader = res.body.getReader();
-            var chunks = [], received = 0;
-            while(true){
-              var chunk = await reader.read();
-              if(chunk.done) break;
-              chunks.push(chunk.value);
-              received += chunk.value.length;
-              if(onProgress && total) onProgress(Math.min(99, Math.round(received / total * 100)));
-            }
-            var out = new Uint8Array(received), off = 0;
-            for(var i=0;i<chunks.length;i++){ out.set(chunks[i], off); off += chunks[i].length; }
-            clearTimeout(timer); resolve(out.buffer);
-          }).catch(function(err){ clearTimeout(timer); reject(err); });
-        });
-      }
-
-      var modelBuffer;
-      try{
-        modelBuffer = await fetchModelBuffer();
-      } catch(e){
-        // Flaky mobile connections often succeed on a second attempt —
-        // worth one retry before falling back to the quick patch fill.
-        modelBuffer = await fetchModelBuffer();
-      }
-      if(onProgress) onProgress(100);
-      return await ort.InferenceSession.create(modelBuffer, { executionProviders: ['wasm'] });
+      // Shared downloader: real progress, stall-based timeout (slow phone links are
+      // allowed to finish), one retry, and browser Cache Storage so it's a one-time
+      // download. Lean-memory session options so phones don't run out of WASM heap.
+      var modelBuffer = await window.__apicFetchModel(modelUrl, 28e6, onProgress);
+      return await ort.InferenceSession.create(modelBuffer, { executionProviders: ['wasm'], enableCpuMemArena: false, enableMemPattern: false });
     })();
     window.__miganSessionPromise.catch(function(){ window.__miganSessionPromise = null; }); // let a retry re-attempt after a real failure
     return window.__miganSessionPromise;
   };
 </script>
 
-<!-- On-device background-removal model (IS-Net "general use", DIS project, Apache-2.0).
-     Runs with the same onnxruntime-web already loaded above — fully client-side. -->
+<!-- Shared on-device model downloader + Remove Background models.
+     Fully client-side: models are plain file downloads, cached in the browser's
+     own Cache Storage (so a slow phone connection only ever downloads them once). -->
 <script>
+  window.__apicFetchModel = async function(url, estBytes, onProgress){
+    var CACHE = 'apic-models-v1';
+    try{
+      if(window.caches){
+        var c0 = await caches.open(CACHE), hit = await c0.match(url);
+        if(hit){ var cached = await hit.arrayBuffer(); if(onProgress) onProgress(100); return cached; }
+      }
+    }catch(e){ /* cache unavailable: just download */ }
+
+    // Stall-based timeout: aborts only if NO bytes arrive for 40s. A big model on a slow
+    // phone connection is allowed to take as long as it needs; a dead link is not.
+    function download(){
+      return new Promise(function(resolve, reject){
+        var ctl = (typeof AbortController !== 'undefined') ? new AbortController() : null, timer;
+        function arm(){ clearTimeout(timer); timer = setTimeout(function(){ if(ctl) ctl.abort(); reject(new Error('model download stalled')); }, 40000); }
+        arm();
+        fetch(url, { signal: ctl ? ctl.signal : undefined }).then(async function(res){
+          if(!res.ok) throw new Error('model fetch failed: HTTP ' + res.status);
+          var total = parseInt(res.headers.get('content-length') || '0', 10) || estBytes;
+          if(!res.body || !res.body.getReader){ var b = await res.arrayBuffer(); clearTimeout(timer); resolve(b); return; }
+          var reader = res.body.getReader(), got = 0, buf = new Uint8Array(total);
+          while(true){
+            var ch = await reader.read(); if(ch.done) break; arm();
+            if(got + ch.value.length > buf.length){
+              var nb = new Uint8Array(Math.max(buf.length*2, got + ch.value.length)); nb.set(buf.subarray(0, got)); buf = nb;
+            }
+            buf.set(ch.value, got); got += ch.value.length;
+            if(onProgress) onProgress(Math.min(99, Math.round(got/total*100)));
+          }
+          clearTimeout(timer);
+          resolve(got === buf.length ? buf.buffer : buf.buffer.slice(0, got));
+        }).catch(function(e){ clearTimeout(timer); reject(e); });
+      });
+    }
+    var out;
+    try{ out = await download(); } catch(e){ out = await download(); }  // one retry for flaky mobile links
+    try{
+      if(window.caches){
+        var c1 = await caches.open(CACHE);
+        await c1.put(url, new Response(out, { headers: { 'content-type': 'application/octet-stream' } }));
+      }
+    }catch(e){ /* quota / private mode: skip caching */ }
+    if(onProgress) onProgress(100);
+    return out;
+  };
+
+  // Remove Background models. "max"/"fast" = IS-Net (DIS, Apache-2.0, 1024px);
+  // "lite" = U2-Net-P (Apache-2.0, 320px, ~4.6 MB) — tiny memory footprint for phones.
   window.__BG_MODELS = {
-    max:  { mb: 176, url: 'https://huggingface.co/onnx-community/ISNet-ONNX/resolve/main/onnx/model.onnx' },
-    fast: { mb: 44,  url: 'https://huggingface.co/onnx-community/ISNet-ONNX/resolve/main/onnx/model_quantized.onnx' }
+    max:  { mb: 176, size: 1024, norm: 'dis', url: 'https://huggingface.co/onnx-community/ISNet-ONNX/resolve/main/onnx/model.onnx' },
+    fast: { mb: 44,  size: 1024, norm: 'dis', url: 'https://huggingface.co/onnx-community/ISNet-ONNX/resolve/main/onnx/model_quantized.onnx' },
+    lite: { mb: 5,   size: 320,  norm: 'u2',  url: 'https://huggingface.co/edgetools/u2netp/resolve/main/u2netp.onnx' }
   };
   window.__bgSessions = {};
   window.__loadBgModel = function(tier, onProgress){
@@ -195,55 +205,8 @@
       ort.env.wasm.numThreads = 1;
       ort.env.wasm.proxy = false;
       var cfg = window.__BG_MODELS[tier];
-      var CACHE = 'apic-models-v1';
-
-      async function fromCache(){
-        try{
-          if(!window.caches) return null;
-          var c = await caches.open(CACHE), hit = await c.match(cfg.url);
-          return hit ? await hit.arrayBuffer() : null;
-        }catch(e){ return null; }
-      }
-      async function toCache(buf){
-        try{
-          if(!window.caches) return;
-          var c = await caches.open(CACHE);
-          await c.put(cfg.url, new Response(buf, { headers: { 'content-type': 'application/octet-stream' } }));
-        }catch(e){ /* quota/private mode: just skip caching */ }
-      }
-      // Stall-based timeout (aborts only if NO bytes arrive for 30s), so a big
-      // model on a slow link isn't killed, but a dead connection is.
-      function download(){
-        return new Promise(function(resolve, reject){
-          var ctl = (typeof AbortController !== 'undefined') ? new AbortController() : null, timer;
-          function arm(){ clearTimeout(timer); timer = setTimeout(function(){ if(ctl) ctl.abort(); reject(new Error('model download stalled')); }, 30000); }
-          arm();
-          fetch(cfg.url, { signal: ctl ? ctl.signal : undefined }).then(async function(res){
-            if(!res.ok) throw new Error('model fetch failed: HTTP ' + res.status);
-            var total = parseInt(res.headers.get('content-length') || '0', 10) || cfg.mb*1e6;
-            if(!res.body || !res.body.getReader){ var b = await res.arrayBuffer(); clearTimeout(timer); resolve(b); return; }
-            var reader = res.body.getReader(), got = 0, buf = new Uint8Array(total), extra = null;
-            while(true){
-              var ch = await reader.read(); if(ch.done) break; arm();
-              if(got + ch.value.length > buf.length){      // size header was an estimate/wrong: grow
-                var nb = new Uint8Array(Math.max(buf.length*2, got + ch.value.length)); nb.set(buf.subarray(0, got)); buf = nb;
-              }
-              buf.set(ch.value, got); got += ch.value.length;
-              if(onProgress) onProgress(Math.min(99, Math.round(got/total*100)));
-            }
-            clearTimeout(timer);
-            resolve(buf.buffer.slice(0, got));
-          }).catch(function(e){ clearTimeout(timer); reject(e); });
-        });
-      }
-
-      var buf = await fromCache();
-      if(!buf){
-        try{ buf = await download(); } catch(e){ buf = await download(); }  // one retry
-        await toCache(buf);
-      }
-      if(onProgress) onProgress(100);
-      return await ort.InferenceSession.create(buf, { executionProviders: ['wasm'] });
+      var buf = await window.__apicFetchModel(cfg.url, cfg.mb*1e6, onProgress);
+      return await ort.InferenceSession.create(buf, { executionProviders: ['wasm'], enableCpuMemArena: false, enableMemPattern: false });
     })();
     window.__bgSessions[tier] = p;
     p.catch(function(){ delete window.__bgSessions[tier]; });
@@ -769,7 +732,7 @@
 
         <!-- OBJECT REMOVE -->
         <div class="bench-panel" id="panel-objremove">
-          <p class="hint" style="margin-top:0;">Paint over the object you want gone, then run Remove. Uses a real AI inpainting model (MI-GAN) running fully on-device via WebAssembly — no upload, nothing leaves your browser. The first run downloads the ~28MB model once (cached after that); if the AI model can't load (offline / unsupported browser) it automatically falls back to a quick on-device patch fill instead.</p>
+          <p class="hint" style="margin-top:0;">Paint over the object you want gone, then run Remove. Uses a real AI inpainting model (MI-GAN) running fully on-device via WebAssembly — no upload, nothing leaves your browser. Only the area around your brush is processed, so it stays fast and light on phones. The first run downloads the ~28MB model once (cached after that); if the AI model can't load (offline / unsupported browser) it automatically falls back to a quick on-device patch fill instead.</p>
           <div class="row"><label>Brush size</label><input type="range" id="orBrush" min="6" max="120" value="30"><span class="val" id="orBrushVal">30</span></div>
           <div class="row"><label>Quality</label>
             <select id="orQuality">
@@ -832,8 +795,9 @@
           <p class="hint" style="margin-top:0;">On-device AI cut-out for people, products, pets and objects, with edge refinement and colour-fringe removal. Output keeps your full resolution. Nothing is uploaded to any server.</p>
           <div class="row"><label>Quality</label>
             <select id="bgQuality">
-              <option value="max">Maximum accuracy — 176 MB first download, slower</option>
+              <option value="max">Maximum accuracy — 176 MB first download, PC recommended</option>
               <option value="fast">Fast — 44 MB first download</option>
+              <option value="lite">Light — 5 MB, made for phones</option>
             </select>
           </div>
           <button class="btn btn-gold btn-sm" id="runBgRemove">Remove background</button>
@@ -1322,23 +1286,69 @@
   dropEl.addEventListener('drop', function(e){ var f = e.dataTransfer.files[0]; if(f) loadImage(f); });
   fileInput.addEventListener('change', function(e){ if(e.target.files[0]) loadImage(e.target.files[0]); });
 
+  // Phones: a 48-108MP photo as a canvas (plus the brush mask + overlay canvases) is
+  // enough to get the tab killed. Normal phone photos (<= ~12.6MP) are untouched;
+  // only oversize ones are downsized, and only on phones. Desktop is never capped.
+  function mobilePixelCap(){
+    var t = deviceTier();
+    return t === 'desktop' ? Infinity : (t === 'low' ? 8.4e6 : 12.6e6);
+  }
+  var ownUrls = [];   // blob URLs we created: {u, t}
+  function trackUrl(u){ ownUrls.push({u: u, t: Date.now()}); return u; }
+  function pruneUrls(){
+    var keep = {};
+    history.forEach(function(h){ keep[h.src] = 1; });
+    if(originalImg) keep[originalImg.src] = 1;
+    var now = Date.now();
+    ownUrls = ownUrls.filter(function(o){
+      if(keep[o.u] || now - o.t < 20000) return true;   // in use, or too fresh to be sure
+      try{ URL.revokeObjectURL(o.u); }catch(e){}
+      return false;
+    });
+  }
+  function canvasToUrl(cnv, cb){
+    if(cnv.toBlob){
+      cnv.toBlob(function(blob){
+        if(blob) cb(trackUrl(URL.createObjectURL(blob)));
+        else cb(cnv.toDataURL('image/png'));
+      }, 'image/png');
+    } else { cb(cnv.toDataURL('image/png')); }
+  }
+
   function loadImage(file){
     if(!file.type.startsWith('image/')) return;
     var img = new Image();
-    img.onload = function(){
-      originalImg = img; rotation = 0; flipH = 1; flipV = 1; hasAlpha = false;
-      canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
+    function finish(im, resized){
+      originalImg = im; rotation = 0; flipH = 1; flipV = 1; hasAlpha = false;
+      canvas.width = im.naturalWidth; canvas.height = im.naturalHeight;
       canvas.style.display = 'block'; dropEl.classList.remove('has-alpha');
       dropEl.querySelector('svg').style.display = 'none';
       dropEl.querySelector('p').style.display = 'none';
       render();
       if(typeof syncOverlay === 'function') syncOverlay();
-      fileInfo.textContent = file.name + ' · ' + Math.round(file.size/1024) + ' KB · ' + img.naturalWidth + '×' + img.naturalHeight;
+      fileInfo.textContent = file.name + ' · ' + Math.round(file.size/1024) + ' KB · ' + im.naturalWidth + '×' + im.naturalHeight + (resized ? ' (resized to fit phone memory)' : '');
       updateGate();
       if(typeof syncResizeFields === 'function') syncResizeFields();
       history = []; histIndex = -1; commitHistory();
+      pruneUrls();
+    }
+    img.onload = function(){
+      var nw = img.naturalWidth, nh = img.naturalHeight, cap = mobilePixelCap();
+      if(nw*nh <= cap){ finish(img, false); return; }
+      try{
+        var sc = Math.sqrt(cap/(nw*nh)), tw = Math.floor(nw*sc), th = Math.floor(nh*sc);
+        var cv = bgResizeCanvas(img, tw, th);
+        var jpeg = (file.type === 'image/jpeg');
+        cv.toBlob(function(blob){
+          if(!blob){ finish(img, false); return; }
+          var small = new Image();
+          small.onload = function(){ finish(small, true); };
+          small.onerror = function(){ finish(img, false); };
+          small.src = trackUrl(URL.createObjectURL(blob));
+        }, jpeg ? 'image/jpeg' : 'image/png', 0.95);
+      } catch(e){ finish(img, false); }
     };
-    img.src = URL.createObjectURL(file);
+    img.src = trackUrl(URL.createObjectURL(file));
   }
 
   function currentFilterString(){
@@ -1379,22 +1389,23 @@
   // out the moment any slider was touched again, because render() always
   // redraws from the pristine originalImg. Called after those two ops.
   function bakeToOriginal(){
-    var snap = new Image();
-    var url = canvas.toDataURL('image/png');
-    snap.onload = function(){
-      originalImg = snap;
-      rotation = 0; flipH = 1; flipV = 1;
-      document.getElementById('editFilter').value = 'none';
-      document.getElementById('editBright').value = 100;
-      document.getElementById('editContrast').value = 100;
-      document.getElementById('editSaturate').value = 100;
-      document.getElementById('editBlur').value = 0;
-      ['editBrightVal','editContrastVal','editSaturateVal'].forEach(function(id){ document.getElementById(id).textContent='100%'; });
-      document.getElementById('editBlurVal').textContent = '0px';
-      resetAdvancedUI();
-      commitHistory();
-    };
-    snap.src = url;
+    canvasToUrl(canvas, function(url){
+      var snap = new Image();
+      snap.onload = function(){
+        originalImg = snap;
+        rotation = 0; flipH = 1; flipV = 1;
+        document.getElementById('editFilter').value = 'none';
+        document.getElementById('editBright').value = 100;
+        document.getElementById('editContrast').value = 100;
+        document.getElementById('editSaturate').value = 100;
+        document.getElementById('editBlur').value = 0;
+        ['editBrightVal','editContrastVal','editSaturateVal'].forEach(function(id){ document.getElementById(id).textContent='100%'; });
+        document.getElementById('editBlurVal').textContent = '0px';
+        resetAdvancedUI();
+        commitHistory();
+      };
+      snap.src = url;
+    });
   }
 
   /* ---------------- undo / redo history ----------------
@@ -1402,7 +1413,7 @@
      committed action (load, crop, object removal, background removal,
      rotate/flip, and every slider once you let go of it) is a snapshot you
      can step backward and forward through with buttons or Ctrl+Z / Ctrl+Y. */
-  var HIST_MAX = 40;
+  var HIST_MAX = (function(){ var t = deviceTier(); return t === 'desktop' ? 40 : (t === 'low' ? 5 : 10); })();
   var history = [];
   var histIndex = -1;
   var restoringHistory = false;
@@ -1440,6 +1451,7 @@
     if(history.length > HIST_MAX) history.shift();
     histIndex = history.length - 1;
     updateHistoryButtons();
+    pruneUrls();
   }
   function restoreSnapshot(snapshot){
     restoringHistory = true;
@@ -1482,11 +1494,13 @@
   var mctx = maskCanvas.getContext('2d');
   var cropRect = null; // {x,y,w,h} in canvas pixel space
   var painting = false, cropping = false, cropStart = null;
+  var maskBox = null; // bounds of painted pixels {x0,y0,x1,y1} in canvas px — lets object removal touch only that region
 
   function syncOverlay(){
     if(!originalImg){ overlay.style.display = 'none'; return; }
     overlay.width = canvas.width; overlay.height = canvas.height;
     maskCanvas.width = canvas.width; maskCanvas.height = canvas.height;
+    maskBox = null;
     overlay.style.left = canvas.offsetLeft + 'px';
     overlay.style.top = canvas.offsetTop + 'px';
     overlay.style.width = canvas.clientWidth + 'px';
@@ -1546,6 +1560,10 @@
     var size = parseInt(document.getElementById('orBrush').value, 10);
     mctx.fillStyle = '#ff3b6b';
     mctx.beginPath(); mctx.arc(p.x, p.y, size/2, 0, Math.PI*2); mctx.fill();
+    var rad = size/2 + 1.5, bx0 = Math.max(0, Math.floor(p.x - rad)), by0 = Math.max(0, Math.floor(p.y - rad));
+    var bx1 = Math.min(maskCanvas.width, Math.ceil(p.x + rad)), by1 = Math.min(maskCanvas.height, Math.ceil(p.y + rad));
+    if(!maskBox) maskBox = {x0: bx0, y0: by0, x1: bx1, y1: by1};
+    else { maskBox.x0 = Math.min(maskBox.x0, bx0); maskBox.y0 = Math.min(maskBox.y0, by0); maskBox.x1 = Math.max(maskBox.x1, bx1); maskBox.y1 = Math.max(maskBox.y1, by1); }
     redrawOverlay();
   }
   ['mousedown','touchstart'].forEach(function(ev){ overlay.addEventListener(ev, pointerDown, {passive:false}); });
@@ -1569,7 +1587,7 @@
   syncBrushVal();
 
   document.getElementById('orClear').addEventListener('click', function(){
-    mctx.clearRect(0,0,maskCanvas.width,maskCanvas.height); redrawOverlay();
+    mctx.clearRect(0,0,maskCanvas.width,maskCanvas.height); maskBox = null; redrawOverlay();
   });
   document.getElementById('clearCrop').addEventListener('click', function(){ cropRect = null; redrawOverlay(); });
 
@@ -1586,7 +1604,7 @@
       fileInfo.textContent = snap.naturalWidth + '×' + snap.naturalHeight + ' (cropped)';
       commitHistory();
     };
-    snap.src = out.toDataURL('image/png');
+    canvasToUrl(out, function(u){ snap.src = u; });
   });
 
   /* ---------------- object removal: fallback exemplar-based patch fill ----------------
@@ -1603,21 +1621,8 @@
      run in the normal case. */
   function patchFillInpaint(){
     var W = canvas.width, H = canvas.height;
-    var fullMask = mctx.getImageData(0,0,W,H).data;
-
-    // 1) bounding box of the painted area, padded so we have real
-    //    surrounding texture to copy from
-    var minX=W, minY=H, maxX=0, maxY=0, any=false;
-    for(var y=0;y<H;y++){
-      for(var x=0;x<W;x++){
-        if(fullMask[(y*W+x)*4+3] > 40){
-          any = true;
-          if(x<minX)minX=x; if(x>maxX)maxX=x;
-          if(y<minY)minY=y; if(y>maxY)maxY=y;
-        }
-      }
-    }
-    if(!any) return;
+    if(!maskBox) return;
+    var minX = maskBox.x0, minY = maskBox.y0, maxX = maskBox.x1 - 1, maxY = maskBox.y1 - 1;
     var bw = maxX-minX+1, bh = maxY-minY+1;
     var padX = Math.max(60, Math.round(bw*1.3)), padY = Math.max(60, Math.round(bh*1.3));
     var sx0 = Math.max(0, minX-padX), sy0 = Math.max(0, minY-padY);
@@ -1674,7 +1679,7 @@
     }
 
     // adaptive candidate stride so total work stays bounded regardless of hole size
-    var targetCandidates = Math.max(150, Math.min(3000, Math.floor(45000000 / Math.max(1, holeBlocks.length*block*block))));
+    var targetCandidates = Math.max(150, Math.min(3000, Math.floor((isLowPowerDevice() ? 12000000 : 45000000) / Math.max(1, holeBlocks.length*block*block))));
     var stride = Math.max(2, Math.round(Math.sqrt((ww*wh) / targetCandidates)));
 
     var guard = 0;
@@ -1819,18 +1824,17 @@
     uctx.drawImage(srcCanvas, 0, 0, regionW, regionH);
     var fillData = uctx.getImageData(0, 0, regionW, regionH).data;
 
-    var featherCanvas = document.createElement('canvas'); featherCanvas.width = regionW; featherCanvas.height = regionH;
-    var fctx = featherCanvas.getContext('2d');
     var featherPx = Math.max(2, Math.min(6, Math.round(Math.min(regionW, regionH) * 0.012)));
-    fctx.filter = 'blur(' + featherPx + 'px)';
-    fctx.drawImage(maskCanvas, sx0, sy0, regionW, regionH, 0, 0, regionW, regionH);
-    var featherData = fctx.getImageData(0, 0, regionW, regionH).data;
-
+    var mdR = mctx.getImageData(sx0, sy0, regionW, regionH).data, nR = regionW*regionH;
+    var featherA = new Float32Array(nR), fT = new Float32Array(nR), fB = new Float32Array(nR);
+    for(var mi = 0; mi < nR; mi++) featherA[mi] = mdR[mi*4+3] > 40 ? 1 : 0;
+    bgBox(featherA, regionW, regionH, featherPx, fB, fT); bgBox(fB, regionW, regionH, featherPx, featherA, fT);
+    fT = fB = mdR = null;
     var baseData = ctx.getImageData(sx0, sy0, regionW, regionH);
     var bd = baseData.data;
     for(var bi2 = 0; bi2 < regionW * regionH; bi2++){
-      var a = featherData[bi2 * 4 + 3] / 255;
-      if(a <= 0) continue;
+      var a = featherA[bi2];
+      if(a <= 0.003) continue;
       var bi4 = bi2 * 4;
       bd[bi4]     = bd[bi4]     * (1 - a) + fillData[bi4]     * a;
       bd[bi4 + 1] = bd[bi4 + 1] * (1 - a) + fillData[bi4 + 1] * a;
@@ -1841,30 +1845,26 @@
   }
 
   /* ---------------- object removal: real AI fill (MI-GAN, on-device) ----------------
-     This is the primary path. MI-GAN is a genuinely trained generative
-     inpainting network (Picsart AI Research, ICCV 2023, MIT licensed) —
-     the same family of model behind tools like Photoshop's Generative
-     Fill or Galaxy AI's eraser, just much smaller so it can run for free
-     in a browser tab via WebAssembly (onnxruntime-web). It downloads once
-     (~28MB, cached by the browser afterwards) and then runs 100%
-     client-side — the photo never leaves the device.
-     The whole canvas is downscaled to a safe working size (so it stays
-     fast even on huge photos), run through the network, then the result
-     is upscaled and composited back using a feathered version of the
-     user's own mask — so only the painted pixels are ever touched, and
-     everything outside the mask stays untouched full-resolution original. */
-  // Rough, conservative "is this a phone/low-power device" check — used only
-  // to pick a smaller working resolution so the same on-device model stays
-  // fast and doesn't run out of memory on a phone's WASM heap. Quality on
-  // desktop/high-end laptops is completely untouched.
-  function isLowPowerDevice(){
+     MI-GAN is a genuinely trained generative inpainting network (Picsart AI
+     Research, ICCV 2023, MIT licensed) that runs fully on-device via WebAssembly.
+     MOBILE-SAFE DESIGN: only the area around the painted object (plus context) is
+     cropped out, run through the network, and blended back. The rest of the photo
+     is never touched, never resampled and never copied, so memory and time depend
+     on the size of what you erased — not on the size of the photo. (The old version
+     pushed the WHOLE photo through ~5 full-resolution buffers, which is what ran
+     phones out of memory.) Desktop "Best" keeps the same 1600px working cap. */
+  function deviceTier(){
     try{
-      var ua = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-      var coarsePointer = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches);
-      var fewCores = (navigator.hardwareConcurrency || 8) <= 4;
-      return ua || (coarsePointer && fewCores);
-    } catch(e){ return false; }
+      var ua = navigator.userAgent || '';
+      var mobileUA = /Android|iPhone|iPad|iPod|Mobile/i.test(ua) || (/Macintosh/i.test(ua) && (navigator.maxTouchPoints || 0) > 1);
+      var coarse = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches);
+      var mobile = mobileUA || (coarse && Math.min(screen.width || 0, screen.height || 0) < 820);
+      if(!mobile) return 'desktop';
+      var mem = navigator.deviceMemory || 0, cores = navigator.hardwareConcurrency || 8;
+      return ((mem && mem <= 3) || cores <= 4) ? 'low' : 'mobile';
+    } catch(e){ return 'desktop'; }
   }
+  function isLowPowerDevice(){ return deviceTier() !== 'desktop'; }
 
   function withTimeout(promise, ms, message){
     return new Promise(function(resolve, reject){
@@ -1875,39 +1875,63 @@
     });
   }
 
-  async function aiInpaint(statusEl){
-    var mobile = isLowPowerDevice();
-    var session = await withTimeout(window.__loadMigan(function(pct){
-      if(statusEl) statusEl.innerHTML = '<span class="spinner"></span> downloading AI model… ' + pct + '%';
-    }), mobile ? 75000 : 55000, 'AI model failed to load in time');
+  function round8(v){ return Math.max(64, Math.round(v/8)*8); }
 
+  // Crop a region of src and scale it to tw x th with clean multi-step downscaling.
+  function cropScaled(src, sx, sy, sw, sh, tw, th){
+    var iw = Math.max(1, Math.min(sw, tw*2)), ih = Math.max(1, Math.min(sh, th*2));
+    var c = document.createElement('canvas'); c.width = iw; c.height = ih;
+    var cx = c.getContext('2d'); cx.imageSmoothingEnabled = true; cx.imageSmoothingQuality = 'high';
+    cx.drawImage(src, sx, sy, sw, sh, 0, 0, iw, ih);
+    return bgResizeCanvas(c, tw, th);
+  }
+
+  // Region (painted box + surrounding context) that actually gets processed.
+  function objRegion(){
     var W = canvas.width, H = canvas.height;
+    var bw = maskBox.x1 - maskBox.x0, bh = maskBox.y1 - maskBox.y0;
+    var tier = deviceTier(), lim = tier === 'low' ? 3e6 : (tier === 'mobile' ? 6e6 : Infinity);
+    var pad = Math.max(64, Math.round(Math.max(bw, bh)*0.9)), r;
+    while(true){
+      r = { x0: Math.max(0, maskBox.x0 - pad), y0: Math.max(0, maskBox.y0 - pad),
+            x1: Math.min(W, maskBox.x1 + pad), y1: Math.min(H, maskBox.y1 + pad) };
+      r.w = r.x1 - r.x0; r.h = r.y1 - r.y0;
+      if(r.w*r.h <= lim || pad <= 16) break;
+      pad = Math.max(16, Math.round(pad*0.6));
+    }
+    r.tooBig = r.w*r.h > lim;
+    return r;
+  }
+
+  async function aiInpaint(statusEl, R){
+    var tier = deviceTier(), mobile = tier !== 'desktop';
+    var session = await window.__loadMigan(function(pct){
+      if(statusEl) statusEl.innerHTML = '<span class="spinner"></span> downloading AI model… ' + pct + '% (one-time)';
+    });
     var qualityEl = document.getElementById('orQuality');
-    var quality = qualityEl ? qualityEl.value : 'best';
-    // Mobile gets a lower cap so the model runs quickly and safely within a
-    // phone's memory limits; "Best" on desktop/laptop is unchanged.
-    var maxSide = quality === 'fast' ? (mobile ? 640 : 900) : (mobile ? 1100 : 1600);
-    var scale = Math.min(1, maxSide / Math.max(W, H));
-    var ww = Math.max(8, Math.round(W * scale)), wh = Math.max(8, Math.round(H * scale));
+    var fast = (qualityEl ? qualityEl.value : 'best') === 'fast';
+    var maxSide = tier === 'low' ? (fast ? 384 : 512) : (tier === 'mobile' ? (fast ? 448 : 640) : (fast ? 900 : 1600));
+    var sx0 = R.x0, sy0 = R.y0, rw = R.w, rh = R.h;
+    var s = Math.min(1, maxSide / Math.max(rw, rh));
+    var ww = round8(rw*s), wh = round8(rh*s), plane = ww*wh, i;
+    var sxs = ww/rw;                       // effective horizontal scale (after rounding)
 
-    var srcCanvas = document.createElement('canvas'); srcCanvas.width = ww; srcCanvas.height = wh;
-    var sctx = srcCanvas.getContext('2d');
-    sctx.imageSmoothingEnabled = true; sctx.imageSmoothingQuality = 'high';
-    sctx.drawImage(canvas, 0, 0, ww, wh);
-    var imgData = sctx.getImageData(0, 0, ww, wh).data;
+    // --- model input: just the cropped region ---
+    var imgData = cropScaled(canvas, sx0, sy0, rw, rh, ww, wh).getContext('2d').getImageData(0, 0, ww, wh).data;
+    var mdW = cropScaled(maskCanvas, sx0, sy0, rw, rh, ww, wh).getContext('2d').getImageData(0, 0, ww, wh).data;
+    var hole = new Float32Array(plane);
+    for(i = 0; i < plane; i++) hole[i] = mdW[i*4+3] > 8 ? 1 : 0;
+    // grow the hole a little so the object's anti-aliased fringe is also replaced
+    var f = Math.max(2, Math.min(8, Math.round(0.01*Math.max(rw, rh))));       // feather radius (region px)
+    var dW = Math.max(1, Math.ceil((2*f + 2)*sxs));
+    var holeD = bgMorph(hole, ww, wh, dW, true);
+    hole = null;
 
-    var maskSmall = document.createElement('canvas'); maskSmall.width = ww; maskSmall.height = wh;
-    var msctx = maskSmall.getContext('2d');
-    msctx.drawImage(maskCanvas, 0, 0, ww, wh);
-    var maskData = msctx.getImageData(0, 0, ww, wh).data;
-
-    var plane = ww * wh;
-    var imgArr = new Uint8Array(3 * plane);
-    var maskArr = new Uint8Array(plane); // MI-GAN convention: 255 = keep, 0 = hole to fill
-    for(var i = 0; i < plane; i++){
-      var i4 = i * 4;
-      imgArr[i] = imgData[i4]; imgArr[plane + i] = imgData[i4 + 1]; imgArr[2 * plane + i] = imgData[i4 + 2];
-      maskArr[i] = maskData[i4 + 3] > 40 ? 0 : 255;
+    var imgArr = new Uint8Array(3*plane), maskArr = new Uint8Array(plane); // MI-GAN: 255 = keep, 0 = fill
+    for(i = 0; i < plane; i++){
+      var i4 = i*4;
+      imgArr[i] = imgData[i4]; imgArr[plane + i] = imgData[i4+1]; imgArr[2*plane + i] = imgData[i4+2];
+      maskArr[i] = holeD[i] > 0.5 ? 0 : 255;
     }
 
     function pickName(names, want, idx){ var p = names.indexOf(want); return p !== -1 ? names[p] : names[idx]; }
@@ -1916,23 +1940,19 @@
     var outputName     = pickName(session.outputNames, 'result', 0);
 
     if(statusEl) statusEl.innerHTML = '<span class="spinner"></span> AI removing object…';
+    await new Promise(function(r){ setTimeout(r, 30); });   // let the status paint before the heavy step
     var feeds = {};
     feeds[imageInputName] = new ort.Tensor('uint8', imgArr, [1, 3, wh, ww]);
     feeds[maskInputName]  = new ort.Tensor('uint8', maskArr, [1, 1, wh, ww]);
-    var results = await withTimeout(session.run(feeds), mobile ? 70000 : 40000, 'AI inference timed out');
+    var results = await withTimeout(session.run(feeds), mobile ? 150000 : 60000, 'AI inference timed out');
     var outTensor = results[outputName];
     if(!outTensor || !outTensor.data || !outTensor.dims){
       throw new Error('AI model returned no usable output tensor');
     }
 
-    // Decode defensively: don't assume the output is exactly [1,3,wh,ww]
-    // uint8 CHW — different exports disagree on this, and guessing wrong
-    // is exactly what caused a solid-black result before (reading past
-    // the end of the real data returns "undefined", which paints as
-    // black). Instead, read the tensor's own reported shape/dtype and
-    // adapt to whatever layout it actually is.
+    // Decode defensively (exports disagree on layout/dtype): adapt to the tensor's own shape.
     var outDims = outTensor.dims.slice();
-    if(outDims.length === 4 && outDims[0] === 1) outDims = outDims.slice(1); // drop batch dim
+    if(outDims.length === 4 && outDims[0] === 1) outDims = outDims.slice(1);
     var oW, oH, chwLayout;
     if(outDims.length === 3 && outDims[0] === 3){ chwLayout = true; oH = outDims[1]; oW = outDims[2]; }
     else if(outDims.length === 3 && outDims[2] === 3){ chwLayout = false; oH = outDims[0]; oW = outDims[1]; }
@@ -1942,149 +1962,116 @@
     var isFloatOut = (outTensor.type === 'float32' || outTensor.type === 'float64');
     var outScale = 1;
     if(isFloatOut){
-      // some exports return 0..1, others 0..255 — sample the data to tell them apart
       var maxSeen = 0, sampleStep = Math.max(1, Math.floor(outRaw.length / 4000));
-      for(var s = 0; s < outRaw.length; s += sampleStep){ if(outRaw[s] > maxSeen) maxSeen = outRaw[s]; }
+      for(var sI = 0; sI < outRaw.length; sI += sampleStep){ if(outRaw[sI] > maxSeen) maxSeen = outRaw[sI]; }
       outScale = maxSeen <= 1.5 ? 255 : 1;
     }
-
-    var oPlane = oW * oH;
+    var oPlane = oW*oH;
     var outCanvas = document.createElement('canvas'); outCanvas.width = oW; outCanvas.height = oH;
     var octx2 = outCanvas.getContext('2d');
     var outImgData = octx2.createImageData(oW, oH);
     var od = outImgData.data;
     for(var p = 0; p < oPlane; p++){
       var r, g, b;
-      if(chwLayout){ r = outRaw[p]; g = outRaw[oPlane + p]; b = outRaw[2 * oPlane + p]; }
-      else { var base = p * 3; r = outRaw[base]; g = outRaw[base + 1]; b = outRaw[base + 2]; }
+      if(chwLayout){ r = outRaw[p]; g = outRaw[oPlane + p]; b = outRaw[2*oPlane + p]; }
+      else { var base = p*3; r = outRaw[base]; g = outRaw[base+1]; b = outRaw[base+2]; }
       if(isFloatOut){ r *= outScale; g *= outScale; b *= outScale; }
-      var d4 = p * 4;
+      var d4 = p*4;
       od[d4] = r < 0 ? 0 : (r > 255 ? 255 : r);
-      od[d4 + 1] = g < 0 ? 0 : (g > 255 ? 255 : g);
-      od[d4 + 2] = b < 0 ? 0 : (b > 255 ? 255 : b);
-      od[d4 + 3] = 255;
+      od[d4+1] = g < 0 ? 0 : (g > 255 ? 255 : g);
+      od[d4+2] = b < 0 ? 0 : (b > 255 ? 255 : b);
+      od[d4+3] = 255;
     }
     octx2.putImageData(outImgData, 0, 0);
+    if(outTensor.dispose) outTensor.dispose();
 
-    // Sanity check: a correctly-decoded result should have roughly the
-    // same overall brightness as the photo we fed in (only a small region
-    // changed). If it came back drastically darker overall, something
-    // decoded wrong (wrong shape/dtype guess) — bail out to the fallback
-    // instead of ever showing a black hole again.
+    // Sanity check: result should be about as bright as the input (guards against a mis-decoded black hole).
     function sampledMean(arr, len){
       var sum = 0, n = 0, step = Math.max(1, Math.floor(len / 4000));
       for(var k = 0; k < len; k += step){ sum += arr[k]; n++; }
       return n ? sum / n : 0;
     }
-    var inputMean = sampledMean(imgArr, imgArr.length);
-    var outputMean = sampledMean(od, od.length);
-    if(inputMean > 20 && outputMean < inputMean * 0.2){
+    var inputMean = sampledMean(imgArr, imgArr.length), outputMean = sampledMean(od, od.length);
+    if(inputMean > 20 && outputMean < inputMean*0.2){
       throw new Error('AI output failed a sanity check (came back unexpectedly dark) — dims were ' + JSON.stringify(outTensor.dims) + ', type ' + outTensor.type);
     }
 
-    // upscale the AI result to full resolution, then composite it in
-    // where the user painted. Manual RGB blend in JS (not canvas alpha
-    // compositing) — same reasoning as the fallback fill: guarantees the
-    // filled hole is force-written fully opaque, so a stray alpha value
-    // can never let the page's dark background bleed through as black.
-    var upCanvas = document.createElement('canvas'); upCanvas.width = W; upCanvas.height = H;
-    var uctx = upCanvas.getContext('2d');
-    uctx.imageSmoothingEnabled = true; uctx.imageSmoothingQuality = 'high';
-    uctx.drawImage(outCanvas, 0, 0, W, H);
-    var fillData = uctx.getImageData(0, 0, W, H).data;
-
-    var featherCanvas = document.createElement('canvas'); featherCanvas.width = W; featherCanvas.height = H;
-    var fctx = featherCanvas.getContext('2d');
-    var featherPx = Math.max(3, Math.round(Math.min(W, H) * 0.009));
-    fctx.filter = 'blur(' + featherPx + 'px)';
-    fctx.drawImage(maskCanvas, 0, 0, W, H);
-    var featherData = fctx.getImageData(0, 0, W, H).data;
-
-    var baseData = ctx.getImageData(0, 0, W, H);
-    var bd2 = baseData.data;
-
-    // Seam color-match: MI-GAN's output covers the whole frame (not just the
-    // hole), but the down/upscale round trip can leave its reconstruction of
-    // the *untouched* context a shade off from the real photo — a tiny tint/
-    // brightness mismatch that's exactly what makes a fill read as "a patch"
-    // instead of a real removal. Sample a thin ring of pixels just outside
-    // the painted area, compare the real photo to the AI's own output there,
-    // and nudge the whole fill by that difference before compositing — the
-    // same tone-continuity trick real photo-editing tools use, done here
-    // with plain pixel math, fully client-side.
-    var ringCanvas = document.createElement('canvas'); ringCanvas.width = W; ringCanvas.height = H;
-    var rctx2 = ringCanvas.getContext('2d');
-    rctx2.filter = 'blur(' + (featherPx * 3) + 'px)';
-    rctx2.drawImage(maskCanvas, 0, 0, W, H);
-    var ringData = rctx2.getImageData(0, 0, W, H).data;
-    var diffR = 0, diffG = 0, diffB = 0, ringCount = 0;
-    for(var ri = 0; ri < W * H; ri++){
-      var r4a = ri * 4;
-      if(ringData[r4a + 3] > 15 && featherData[r4a + 3] < 15){
-        diffR += bd2[r4a] - fillData[r4a];
-        diffG += bd2[r4a + 1] - fillData[r4a + 1];
-        diffB += bd2[r4a + 2] - fillData[r4a + 2];
-        ringCount++;
+    // Seam colour-match, measured on a thin ring just outside the hole at the (small) working size.
+    var diffR = 0, diffG = 0, diffB = 0;
+    if(oW === ww && oH === wh){
+      var rR = Math.max(3, Math.round(0.02*Math.max(ww, wh)));
+      var outer = bgMorph(holeD, ww, wh, rR, true), cnt = 0;
+      for(i = 0; i < plane; i++){
+        if(outer[i] > 0.5 && holeD[i] < 0.5){
+          var q4 = i*4;
+          diffR += imgData[q4] - od[q4]; diffG += imgData[q4+1] - od[q4+1]; diffB += imgData[q4+2] - od[q4+2]; cnt++;
+        }
       }
+      if(cnt > 20){
+        diffR = Math.max(-22, Math.min(22, diffR/cnt));
+        diffG = Math.max(-22, Math.min(22, diffG/cnt));
+        diffB = Math.max(-22, Math.min(22, diffB/cnt));
+      } else { diffR = diffG = diffB = 0; }
     }
-    if(ringCount > 20){
-      diffR /= ringCount; diffG /= ringCount; diffB /= ringCount;
-      // Clamp hard — this should only erase a subtle tint mismatch; the
-      // sanity check earlier already guards against the AI output being
-      // badly wrong, so a correction bigger than this would mean something
-      // else is off and shouldn't be papered over.
-      diffR = Math.max(-22, Math.min(22, diffR));
-      diffG = Math.max(-22, Math.min(22, diffG));
-      diffB = Math.max(-22, Math.min(22, diffB));
-      for(var ci = 0; ci < W * H; ci++){
-        var c4 = ci * 4;
-        fillData[c4]     = Math.max(0, Math.min(255, fillData[c4]     + diffR));
-        fillData[c4 + 1] = Math.max(0, Math.min(255, fillData[c4 + 1] + diffG));
-        fillData[c4 + 2] = Math.max(0, Math.min(255, fillData[c4 + 2] + diffB));
-      }
-    }
+    imgArr = maskArr = imgData = mdW = null;
 
-    for(var qi = 0; qi < W * H; qi++){
-      var qa = featherData[qi * 4 + 3] / 255;
-      if(qa <= 0) continue;
-      var q4 = qi * 4;
-      bd2[q4]     = bd2[q4]     * (1 - qa) + fillData[q4]     * qa;
-      bd2[q4 + 1] = bd2[q4 + 1] * (1 - qa) + fillData[q4 + 1] * qa;
-      bd2[q4 + 2] = bd2[q4 + 2] * (1 - qa) + fillData[q4 + 2] * qa;
-      bd2[q4 + 3] = 255; // a filled hole must never end up transparent
+    // --- blend back, region only. Manual RGB blend, force-opaque inside the fill. ---
+    var upCanvas = document.createElement('canvas'); upCanvas.width = rw; upCanvas.height = rh;
+    var uctx = upCanvas.getContext('2d'); uctx.imageSmoothingEnabled = true; uctx.imageSmoothingQuality = 'high';
+    uctx.drawImage(outCanvas, 0, 0, rw, rh);
+    var fillData = uctx.getImageData(0, 0, rw, rh).data;
+    outCanvas.width = outCanvas.height = 1; upCanvas.width = upCanvas.height = 1;
+
+    // soft edge: upsample the grown hole, then feather with two box passes (~gaussian).
+    // Done in JS (not ctx.filter) so it also works on Safari/iOS, which lacks canvas filters.
+    var soft = bgResample(holeD, ww, wh, rw, rh), n2 = rw*rh;
+    var t = new Float32Array(n2), b2 = new Float32Array(n2);
+    bgBox(soft, rw, rh, f, b2, t); bgBox(b2, rw, rh, f, soft, t);
+    t = b2 = null; holeD = null;
+
+    var baseImg = ctx.getImageData(sx0, sy0, rw, rh), bd = baseImg.data;
+    for(i = 0; i < n2; i++){
+      var a = soft[i];
+      if(a <= 0.003) continue;
+      var k4 = i*4;
+      bd[k4]   = bd[k4]   * (1 - a) + (fillData[k4]   + diffR) * a;
+      bd[k4+1] = bd[k4+1] * (1 - a) + (fillData[k4+1] + diffG) * a;
+      bd[k4+2] = bd[k4+2] * (1 - a) + (fillData[k4+2] + diffB) * a;
+      bd[k4+3] = 255; // a filled hole must never end up transparent
     }
-    ctx.putImageData(baseData, 0, 0);
+    ctx.putImageData(baseImg, sx0, sy0);
   }
 
   document.getElementById('runObjRemove').addEventListener('click', function(){
     if(!originalImg) return;
-    var statusEl = document.getElementById('orStatus');
-    var maxAlpha = mctx.getImageData(0,0,maskCanvas.width,maskCanvas.height).data;
-    var painted = false;
-    for(var i=3;i<maxAlpha.length;i+=4){ if(maxAlpha[i] > 40){ painted = true; break; } }
-    if(!painted){ statusEl.textContent = 'Paint over the object first.'; return; }
+    var btn = this, statusEl = document.getElementById('orStatus');
+    if(!maskBox){ statusEl.textContent = 'Paint over the object first.'; return; }
+    var R = objRegion();
+    if(R.tooBig){ statusEl.textContent = 'That selection is too large for this device — please remove smaller areas one at a time.'; return; }
+    btn.disabled = true;
     statusEl.innerHTML = '<span class="spinner"></span> loading AI model…';
+    function clearMask(){ mctx.clearRect(0,0,maskCanvas.width,maskCanvas.height); maskBox = null; redrawOverlay(); }
     (async function(){
       try{
-        await aiInpaint(statusEl);
-        mctx.clearRect(0,0,maskCanvas.width,maskCanvas.height);
-        redrawOverlay();
+        await aiInpaint(statusEl, R);
+        clearMask();
         bakeToOriginal();
         statusEl.textContent = '✓ done (AI fill)';
+        btn.disabled = false;
       } catch(err){
         console.error('AI object removal failed, falling back to patch fill:', err);
         statusEl.innerHTML = '<span class="spinner"></span> AI engine unavailable — quick filling…';
         setTimeout(function(){
           try{
             patchFillInpaint();
-            mctx.clearRect(0,0,maskCanvas.width,maskCanvas.height);
-            redrawOverlay();
+            clearMask();
             bakeToOriginal();
             statusEl.textContent = '✓ done (quick fill — AI unavailable, check connection)';
           } catch(err2){
             console.error('Fallback patch fill failed too:', err2);
             statusEl.textContent = 'Remove failed — try a smaller selection.';
           }
+          btn.disabled = false;
         }, 30);
       }
     })();
@@ -2701,21 +2688,20 @@
 
   function bgYield(){ return new Promise(function(r){ setTimeout(r, 0); }); }
 
-  function bgIsLowEnd(){
-    var ua = navigator.userAgent || '';
-    return /Android|iPhone|iPad|iPod|Mobile/i.test(ua) || (navigator.deviceMemory && navigator.deviceMemory < 4);
-  }
+  function bgIsLowEnd(){ return deviceTier() !== 'desktop'; }
   (function initBgQuality(){
     var sel = document.getElementById('bgQuality');
-    if(sel) sel.value = bgIsLowEnd() ? 'fast' : 'max';
+    if(sel) sel.value = bgIsLowEnd() ? 'lite' : 'max';
   })();
 
   // Clean downscale (halve repeatedly, then final step) — avoids aliasing on big photos.
   function bgResizeCanvas(src, tw, th){
     var cur = src;
-    while(cur.width >= tw*2 && cur.height >= th*2){
+    function cw(o){ return o.naturalWidth || o.width; }
+    function ch(o){ return o.naturalHeight || o.height; }
+    while(cw(cur) >= tw*2 && ch(cur) >= th*2){
       var c = document.createElement('canvas');
-      c.width = Math.max(tw, Math.floor(cur.width/2)); c.height = Math.max(th, Math.floor(cur.height/2));
+      c.width = Math.max(tw, Math.floor(cw(cur)/2)); c.height = Math.max(th, Math.floor(ch(cur)/2));
       var cx = c.getContext('2d'); cx.imageSmoothingEnabled = true; cx.imageSmoothingQuality = 'high';
       cx.drawImage(cur, 0, 0, c.width, c.height); cur = c;
     }
@@ -2726,12 +2712,19 @@
   }
 
   // Run IS-Net: returns normalised 0..1 matte.
-  async function bgRunModel(session, flat){
-    var S = 1024, n = S*S, i;
+  async function bgRunModel(session, flat, cfg){
+    var S = cfg.size || 1024, n = S*S, i;
     var d = bgResizeCanvas(flat, S, S).getContext('2d').getImageData(0, 0, S, S).data;
     var input = new Float32Array(3*n);
-    for(i=0; i<n; i++){
-      input[i] = d[i*4]/255 - 0.5; input[n+i] = d[i*4+1]/255 - 0.5; input[2*n+i] = d[i*4+2]/255 - 0.5;
+    if(cfg.norm === 'u2'){                    // U2-Net: x / max(x), then ImageNet mean/std
+      var mxp = 1; for(i=0; i<n; i++){ var q = d[i*4]; if(d[i*4+1] > q) q = d[i*4+1]; if(d[i*4+2] > q) q = d[i*4+2]; if(q > mxp) mxp = q; }
+      for(i=0; i<n; i++){
+        input[i] = (d[i*4]/mxp - 0.485)/0.229; input[n+i] = (d[i*4+1]/mxp - 0.456)/0.224; input[2*n+i] = (d[i*4+2]/mxp - 0.406)/0.225;
+      }
+    } else {                                  // IS-Net: x/255 - 0.5
+      for(i=0; i<n; i++){
+        input[i] = d[i*4]/255 - 0.5; input[n+i] = d[i*4+1]/255 - 0.5; input[2*n+i] = d[i*4+2]/255 - 0.5;
+      }
     }
     var tensor = new ort.Tensor('float32', input, [1, 3, S, S]);
     var feeds = {}; feeds[session.inputNames[0]] = tensor;
@@ -2797,7 +2790,7 @@
       var fctx = flat.getContext('2d'); fctx.fillStyle = '#ffffff'; fctx.fillRect(0, 0, W, H); fctx.drawImage(canvas, 0, 0);
 
       // ---- 1) segmentation (best model first, graceful fallbacks) ----
-      var matte = null, tiers = (quality === 'max') ? ['max', 'fast'] : ['fast'];
+      var matte = null, tiers = (quality === 'max') ? ['max', 'fast', 'lite'] : (quality === 'fast' ? ['fast', 'lite'] : ['lite']);
       for(var ti=0; ti<tiers.length && !matte; ti++){
         var tier = tiers[ti], mb = window.__BG_MODELS[tier].mb;
         try{
@@ -2807,7 +2800,7 @@
           });
           statusEl.innerHTML = '<span class="spinner"></span> analysing image…';
           await bgYield();
-          matte = await bgRunModel(session, flat);
+          matte = await bgRunModel(session, flat, window.__BG_MODELS[tier]);
         } catch(modelErr){
           console.error('Remove BG model "' + tier + '" failed:', modelErr);
           delete window.__bgSessions[tier]; matte = null;
@@ -2822,7 +2815,7 @@
       // ---- 2) refine at a working resolution, then apply at full resolution ----
       statusEl.innerHTML = '<span class="spinner"></span> refining edges…';
       await bgYield();
-      var cap = bgIsLowEnd() ? 1280 : 2048, sc = Math.min(1, cap/Math.max(W, H));
+      var cap = deviceTier() === 'low' ? 1024 : (bgIsLowEnd() ? 1280 : 2048), sc = Math.min(1, cap/Math.max(W, H));
       var w = Math.max(1, Math.round(W*sc)), h = Math.max(1, Math.round(H*sc)), n = w*h, i;
       var wd = (sc === 1 ? flat : bgResizeCanvas(flat, w, h)).getContext('2d').getImageData(0, 0, w, h).data;
       var gray = new Float32Array(n);
