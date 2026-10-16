@@ -447,7 +447,7 @@
 
   /* image + controls always fill at least one full screen, so the site below is not visible */
   body.studio-active .studio-wrap{
-    padding:0 0 12px; min-height:calc(100vh - var(--apic-header)); min-height:calc(100svh - var(--apic-header));
+    padding:0 22px 12px; min-height:calc(100vh - var(--apic-header)); min-height:calc(100svh - var(--apic-header));
     display:flex; flex-direction:column;
   }
   /* image open: the tagline fades + slides up and its space collapses; image cleared: it comes back the same way */
@@ -656,6 +656,26 @@
   @keyframes bootfill{ to{ width:100%; } }
   .boot-log{font-family:var(--mono); font-size:11px; color:#5c6270; letter-spacing:0.5px; height:16px; text-align:center;}
   .boot-log b{color:var(--green);}
+
+  /* ---------- phones: drop the "window" box, use the full width ----------
+     Side gutters stay (22px above 600px, so tablets keep their margins);
+     on phones the studio loses its border/background/glow/radius and the
+     page gutter shrinks, so the photo and controls get every spare pixel. */
+  @media (max-width:600px){
+    .wrap{padding:0 12px;}
+    .studio-wrap{padding:16px 0 18px;}
+    body.studio-active .studio-wrap{padding:0 12px 12px;}
+    .studio:not(.maximized){
+      background:transparent; border:none; border-radius:0; box-shadow:none;
+    }
+    .studio:not(.maximized)::before{display:none;}
+    .studio:not(.maximized) .title-bar{padding:6px 0 10px;}
+    .studio:not(.maximized) .tb-dots{display:none;}
+    .studio:not(.maximized) .studio-body{padding:0;}
+    .studio.has-image:not(.maximized) .studio-body{padding:4px 0 12px;}
+    .drop{min-height:220px;}
+    .bench-tools{margin-top:12px;}
+  }
 
   @media (max-width:520px){
     .row label{width:100%; margin-bottom:4px;}
