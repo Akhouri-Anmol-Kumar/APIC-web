@@ -429,7 +429,37 @@
   .drop canvas{max-width:100%; max-height:340px; display:none; border-radius:3px; position:relative; z-index:1;}
   #overlay{position:absolute; z-index:2; pointer-events:none; display:none; max-width:100%; max-height:340px; border-radius:3px;}
 
-  /* Image loaded: no dotted frame, image shown much larger (display-only scaling, pixels untouched) */
+  /* ===== Image loaded: frameless, tight, full-screen workspace =====
+     --apic-img-max (below) caps the photo height so the whole image + first controls fit on screen. */
+  :root{
+    --apic-header:62px;
+    /* Max display height of the photo (portrait or landscape): never taller than 60% of the screen,
+       and always leaves ~330px (header + title bar + tool tabs + a few controls) so the WHOLE image
+       and the first controls are visible at the very top of the site. Tweak 60vh / 330px to taste. */
+    --apic-img-max:max(260px, min(60vh, calc(100vh - 330px)));
+  }
+  @supports (height:100svh){ :root{ --apic-img-max:max(260px, min(60svh, calc(100svh - 330px))); } }
+  .studio-wrap{min-height:0; transition:padding .5s var(--ease-out), min-height .5s var(--ease-out);}
+  .studio-wrap > .eyebrow{
+    max-height:40px; overflow:hidden; opacity:1; transform:none; visibility:visible;
+    transition:max-height .5s var(--ease-out), opacity .35s ease, transform .5s var(--ease-out), margin .5s var(--ease-out), visibility 0s linear 0s;
+  }
+
+  /* image + controls always fill at least one full screen, so the site below is not visible */
+  body.studio-active .studio-wrap{
+    padding:6px 0 12px; min-height:calc(100vh - var(--apic-header)); min-height:calc(100svh - var(--apic-header));
+    display:flex; flex-direction:column;
+  }
+  /* image open: the tagline fades + slides up and its space collapses; image cleared: it comes back the same way */
+  body.studio-active .studio-wrap > .eyebrow{
+    max-height:0; opacity:0; transform:translateY(-12px); margin-bottom:0 !important; visibility:hidden; pointer-events:none;
+    transition:max-height .5s var(--ease-out), opacity .35s ease, transform .5s var(--ease-out), margin .5s var(--ease-out), visibility 0s linear .5s;
+  }
+  body.studio-active .studio-wrap > .studio:not(.maximized){flex:1; display:flex; flex-direction:column;}
+  body.studio-active .studio:not(.maximized) .studio-body{flex:1;}
+
+  /* remove the dotted frame + extra space */
+  .studio.has-image .studio-body{padding:12px 14px 16px;}
   .studio.has-image .drop{
     border:none; border-radius:0; padding:0; min-height:0; gap:0; background:transparent;
     cursor:default; overflow:visible;
@@ -437,15 +467,24 @@
   .studio.has-image .drop:hover{border:none;}
   .studio.has-image .drop.drag{border:none; outline:2px solid var(--green); outline-offset:4px; background:transparent;}
   .studio.has-image .drop.has-alpha{background:transparent;}
+
+  /* big image (display scaling only: real pixels + export quality untouched) */
   .studio.has-image .drop canvas#canvas{
-    max-width:100%; max-height:min(78vh, 820px); width:auto; height:auto; border-radius:4px;
+    max-width:100%; width:auto; height:auto; border-radius:4px; flex:0 0 auto; align-self:center; object-fit:contain;
+    max-height:var(--apic-img-max);
+    animation:apicImgIn .55s var(--ease-out) both;
   }
+  .studio.has-image #overlay{max-height:var(--apic-img-max);}
   .studio.has-image .drop.has-alpha canvas#canvas{
     background-image:repeating-conic-gradient(#8a8a8a 0% 25%, #5c5c5c 0% 50%); background-size:18px 18px;
   }
-  .studio.has-image #overlay{max-height:min(78vh, 820px);}
-  .studio.has-image .studio-body{padding:14px;}
-  .studio.maximized.has-image .drop canvas#canvas{max-height:calc(100vh - 260px);}
+  .studio.maximized.has-image .drop canvas#canvas,
+  .studio.maximized.has-image #overlay{max-height:calc(100vh - 300px);}
+  @keyframes apicImgIn{from{opacity:0; transform:scale(.97) translateY(8px);} to{opacity:1; transform:none;}}
+  @media (prefers-reduced-motion:reduce){
+    .studio-wrap, .studio-wrap > .eyebrow{transition:none;}
+    .studio.has-image .drop canvas#canvas{animation:none;}
+  }
   #overlay.active{pointer-events:auto; cursor:crosshair;}
 
   .bench-tools{
@@ -1309,6 +1348,9 @@
     var rmBtn = document.getElementById('removeImgBtn');
     if(rmBtn) rmBtn.style.display = loaded ? 'inline-flex' : 'none';
     studio.classList.toggle('has-image', loaded);
+    document.body.classList.toggle('studio-active', loaded);
+    // layout animates for ~0.5s; re-align the tool overlay (crop/brush) once it settles
+    setTimeout(function(){ if(loaded && typeof syncOverlay === 'function') syncOverlay(); }, 650);
   }
 
   // Clear the current image and return the studio to its empty state
@@ -1565,7 +1607,7 @@
     overlay.classList.toggle('active', showOverlay);
     redrawOverlay();
   }
-  window.addEventListener('resize', function(){ if(overlay.style.display !== 'none'){ overlay.style.width = canvas.clientWidth+'px'; overlay.style.height = canvas.clientHeight+'px'; } });
+  window.addEventListener('resize', function(){ if(overlay.style.display !== 'none'){ overlay.style.left = canvas.offsetLeft+'px'; overlay.style.top = canvas.offsetTop+'px'; overlay.style.width = canvas.clientWidth+'px'; overlay.style.height = canvas.clientHeight+'px'; } });
 
   function redrawOverlay(){
     octx.clearRect(0,0,overlay.width,overlay.height);
