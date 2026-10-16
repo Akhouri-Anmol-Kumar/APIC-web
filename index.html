@@ -361,7 +361,14 @@
     content:""; position:absolute; inset:-1px; z-index:-1; border-radius:inherit;
     background:var(--grad-brand); opacity:0.28; filter:blur(18px);
     pointer-events:none;
+    transform:scale(1); transform-origin:50% 50%;
+    will-change:opacity, transform;
+    transition:opacity .9s var(--ease-out), transform 1.1s var(--ease-out);
   }
+  /* image loaded: glow dissolves + contracts away so the photo and text read cleanly;
+     image removed: it blooms back. Only opacity/transform animate (GPU-composited). */
+  .studio.has-image::before{opacity:0; transform:scale(0.94);}
+  @media (prefers-reduced-motion:reduce){ .studio::before{transition:none;} }
   .studio.maximized{
     position:fixed; inset:14px; z-index:150; max-width:none; margin:0;
     display:flex; flex-direction:column;
@@ -486,6 +493,7 @@
     color:var(--green); display:flex; align-items:center; gap:10px; margin-bottom:16px;
   }
   .eyebrow::before{content:""; width:26px; height:1px; background:var(--green);}
+  .eyebrow.no-line::before{display:none;}
   .section-head h2{
     font-family:var(--display); font-size:clamp(26px,3.2vw,40px); font-weight:700; margin:0 0 12px; letter-spacing:-0.3px;
   }
@@ -639,7 +647,7 @@
 <main>
   <!-- STUDIO — this IS the landing view -->
   <div class="wrap studio-wrap">
-    <div class="eyebrow" style="justify-content:center; margin-bottom:18px;">Studio-grade editing, zero upload</div>
+    <div class="eyebrow no-line" style="justify-content:center; margin-bottom:18px;">Studio-grade editing, zero upload</div>
     <div class="studio" id="studio">
       <div class="title-bar">
         <div class="tb-left">
@@ -807,6 +815,7 @@
         <div class="bench-footer">
           <span class="filesize" id="fileInfo">No image loaded</span>
           <span class="gate-note" id="gateNote">🔒 sign in to export</span>
+          <button class="btn btn-ghost btn-sm" id="removeImgBtn" style="display:none;">Remove image</button>
           <button class="btn btn-gold btn-sm" id="exportBtn" style="display:none;">Export image</button>
         </div>
       </div>
@@ -1279,7 +1288,35 @@
     toolBtns.forEach(function(b){ b.disabled = !loaded || !user; });
     gateNote.classList.toggle('show', loaded && !user);
     exportBtn.style.display = (loaded && user) ? 'inline-flex' : 'none';
+    var rmBtn = document.getElementById('removeImgBtn');
+    if(rmBtn) rmBtn.style.display = loaded ? 'inline-flex' : 'none';
+    studio.classList.toggle('has-image', loaded);
   }
+
+  // Clear the current image and return the studio to its empty state
+  // (the gradient glow blooms back via the .has-image class being removed).
+  function removeImage(){
+    if(!originalImg) return;
+    toolBtns[0].click();                       // back to the Edit tool while buttons are still enabled
+    originalImg = null; rotation = 0; flipH = 1; flipV = 1; hasAlpha = false;
+    document.getElementById('resetEdit').click();
+    document.getElementById('resetAdvanced').click();
+    cropRect = null; maskBox = null;
+    mctx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
+    maskCanvas.width = maskCanvas.height = 1;
+    canvas.style.display = 'none'; canvas.width = 1; canvas.height = 1;
+    dropEl.classList.remove('has-alpha');
+    dropEl.querySelector('svg').style.display = '';
+    dropEl.querySelector('p').style.display = '';
+    fileInput.value = '';
+    fileInfo.textContent = 'No image loaded';
+    var rs = document.getElementById('resizeStatus'); if(rs) rs.textContent = '';
+    history = []; histIndex = -1; updateHistoryButtons();
+    syncOverlay();
+    updateGate();
+    pruneUrls();
+  }
+  document.getElementById('removeImgBtn').addEventListener('click', removeImage);
 
   ['dragenter','dragover'].forEach(function(ev){ dropEl.addEventListener(ev, function(e){ e.preventDefault(); dropEl.classList.add('drag'); }); });
   ['dragleave','drop'].forEach(function(ev){ dropEl.addEventListener(ev, function(e){ e.preventDefault(); dropEl.classList.remove('drag'); }); });
