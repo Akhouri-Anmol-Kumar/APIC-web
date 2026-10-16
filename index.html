@@ -179,6 +179,78 @@
   };
 </script>
 
+<!-- On-device background-removal model (IS-Net "general use", DIS project, Apache-2.0).
+     Runs with the same onnxruntime-web already loaded above — fully client-side. -->
+<script>
+  window.__BG_MODELS = {
+    max:  { mb: 176, url: 'https://huggingface.co/onnx-community/ISNet-ONNX/resolve/main/onnx/model.onnx' },
+    fast: { mb: 44,  url: 'https://huggingface.co/onnx-community/ISNet-ONNX/resolve/main/onnx/model_quantized.onnx' }
+  };
+  window.__bgSessions = {};
+  window.__loadBgModel = function(tier, onProgress){
+    if(window.__bgSessions[tier]) return window.__bgSessions[tier];
+    var p = (async function(){
+      if(!window.ort){ throw new Error('onnxruntime-web did not load (offline or blocked?)'); }
+      ort.env.wasm.wasmPaths = 'https://cdnjs.cloudflare.com/ajax/libs/onnxruntime-web/1.23.2/';
+      ort.env.wasm.numThreads = 1;
+      ort.env.wasm.proxy = false;
+      var cfg = window.__BG_MODELS[tier];
+      var CACHE = 'apic-models-v1';
+
+      async function fromCache(){
+        try{
+          if(!window.caches) return null;
+          var c = await caches.open(CACHE), hit = await c.match(cfg.url);
+          return hit ? await hit.arrayBuffer() : null;
+        }catch(e){ return null; }
+      }
+      async function toCache(buf){
+        try{
+          if(!window.caches) return;
+          var c = await caches.open(CACHE);
+          await c.put(cfg.url, new Response(buf, { headers: { 'content-type': 'application/octet-stream' } }));
+        }catch(e){ /* quota/private mode: just skip caching */ }
+      }
+      // Stall-based timeout (aborts only if NO bytes arrive for 30s), so a big
+      // model on a slow link isn't killed, but a dead connection is.
+      function download(){
+        return new Promise(function(resolve, reject){
+          var ctl = (typeof AbortController !== 'undefined') ? new AbortController() : null, timer;
+          function arm(){ clearTimeout(timer); timer = setTimeout(function(){ if(ctl) ctl.abort(); reject(new Error('model download stalled')); }, 30000); }
+          arm();
+          fetch(cfg.url, { signal: ctl ? ctl.signal : undefined }).then(async function(res){
+            if(!res.ok) throw new Error('model fetch failed: HTTP ' + res.status);
+            var total = parseInt(res.headers.get('content-length') || '0', 10) || cfg.mb*1e6;
+            if(!res.body || !res.body.getReader){ var b = await res.arrayBuffer(); clearTimeout(timer); resolve(b); return; }
+            var reader = res.body.getReader(), got = 0, buf = new Uint8Array(total), extra = null;
+            while(true){
+              var ch = await reader.read(); if(ch.done) break; arm();
+              if(got + ch.value.length > buf.length){      // size header was an estimate/wrong: grow
+                var nb = new Uint8Array(Math.max(buf.length*2, got + ch.value.length)); nb.set(buf.subarray(0, got)); buf = nb;
+              }
+              buf.set(ch.value, got); got += ch.value.length;
+              if(onProgress) onProgress(Math.min(99, Math.round(got/total*100)));
+            }
+            clearTimeout(timer);
+            resolve(buf.buffer.slice(0, got));
+          }).catch(function(e){ clearTimeout(timer); reject(e); });
+        });
+      }
+
+      var buf = await fromCache();
+      if(!buf){
+        try{ buf = await download(); } catch(e){ buf = await download(); }  // one retry
+        await toCache(buf);
+      }
+      if(onProgress) onProgress(100);
+      return await ort.InferenceSession.create(buf, { executionProviders: ['wasm'] });
+    })();
+    window.__bgSessions[tier] = p;
+    p.catch(function(){ delete window.__bgSessions[tier]; });
+    return p;
+  };
+</script>
+
 <style>
   :root{
     --bg:#07070a;
@@ -757,7 +829,13 @@
 
         <!-- BG REMOVE -->
         <div class="bench-panel" id="panel-bgremove">
-          <p class="hint" style="margin-top:0;">On-device AI segmentation — best on photos with one clear subject (portraits, products, pets). Nothing is uploaded to any server.</p>
+          <p class="hint" style="margin-top:0;">On-device AI cut-out for people, products, pets and objects, with edge refinement and colour-fringe removal. Output keeps your full resolution. Nothing is uploaded to any server.</p>
+          <div class="row"><label>Quality</label>
+            <select id="bgQuality">
+              <option value="max">Maximum accuracy — 176 MB first download, slower</option>
+              <option value="fast">Fast — 44 MB first download</option>
+            </select>
+          </div>
           <button class="btn btn-gold btn-sm" id="runBgRemove">Remove background</button>
           <span class="filesize" id="bgStatus" style="margin-left:10px;"></span>
         </div>
@@ -2415,140 +2493,386 @@
     exportBtn.disabled = false; exportBtn.textContent = origText;
   });
 
-  /* -------- background removal --------
-     Old version used a hard categoryMask (each pixel forced to 0 or 1),
-     which is exactly why the previous output had a visible stair-stepped
-     line around hair/shoulders — a binary mask has zero anti-aliasing.
-     This version reads the model's soft confidence masks (0..1 per pixel),
-     uses that directly as an alpha matte (giving natural soft edges),
-     then runs erosion + feather + a small decontamination pass to kill
-     the leftover background-colour halo/fringe around the subject. */
+  /* -------- background removal (v2) --------
+     Why the old version was bad: it used a 256x256 *selfie-only* model (so it
+     only understood people and ignored products/pets/objects), and then shrank
+     the whole canvas to 256x256 to write the result — which is the tiny blurry
+     output users were seeing.
+     New pipeline (all on-device, nothing uploaded):
+       1. IS-Net (DIS) general-purpose salient-object model at 1024x1024 — works on
+          people, products, animals, objects, logos.
+       2. Mask is cleaned (noise specks / pinholes), then snapped onto the real
+          edges of the photo with a guided filter, limited to a narrow band around
+          the model's edge so it can sharpen but never invent regions.
+       3. Blur-Fusion foreground estimation removes background colour bleeding
+          into edge pixels (no coloured halo on any new backdrop).
+       4. Output keeps the ORIGINAL resolution and original pixels in the interior.
+     If the AI model can't be loaded (offline/blocked), it falls back to the
+     previous MediaPipe person segmenter, now also at full resolution. */
   var segmenter = null;
 
-  function boxBlurAlpha(alpha, w, h, radius){
-    // separable box blur on the alpha channel only — fast edge feathering
-    if(radius <= 0) return alpha;
-    var tmp = new Float32Array(w*h);
-    var out = new Float32Array(w*h);
-    var r = radius;
-    for(var y=0; y<h; y++){
-      var rowOff = y*w, sum = 0;
-      for(var x=-r; x<=r; x++){ sum += alpha[rowOff + Math.min(w-1, Math.max(0, x))]; }
-      for(var x=0; x<w; x++){
-        tmp[rowOff+x] = sum / (2*r+1);
-        var addX = Math.min(w-1, x+r+1), subX = Math.max(0, x-r);
-        sum += alpha[rowOff+addX] - alpha[rowOff+subX];
+  /* ---- Background-removal core (pure functions, no DOM) ---- */
+
+  // Separable box filter with a window that shrinks at borders (exact mean).
+  function bgBox(src, w, h, r, dst, tmp){
+    var x, y, off, sum, lo, hi;
+    for(y=0; y<h; y++){
+      off = y*w; sum = 0;
+      for(x=0; x<=Math.min(r, w-1); x++) sum += src[off+x];
+      for(x=0; x<w; x++){
+        lo = x-r < 0 ? 0 : x-r; hi = x+r > w-1 ? w-1 : x+r;
+        tmp[off+x] = sum/(hi-lo+1);
+        if(x+r+1 <= w-1) sum += src[off+x+r+1];
+        if(x-r >= 0) sum -= src[off+x-r];
       }
     }
-    for(var x=0; x<w; x++){
-      var sum2 = 0;
-      for(var y=-r; y<=r; y++){ sum2 += tmp[Math.min(h-1, Math.max(0,y))*w + x]; }
-      for(var y=0; y<h; y++){
-        out[y*w+x] = sum2 / (2*r+1);
-        var addY = Math.min(h-1, y+r+1), subY = Math.max(0, y-r);
-        sum2 += tmp[addY*w+x] - tmp[subY*w+x];
+    var col = new Float64Array(w), a, b, inv, o;
+    for(y=0; y<=Math.min(r, h-1); y++){ off = y*w; for(x=0; x<w; x++) col[x] += tmp[off+x]; }
+    for(y=0; y<h; y++){
+      lo = y-r < 0 ? 0 : y-r; hi = y+r > h-1 ? h-1 : y+r;
+      inv = 1/(hi-lo+1); o = y*w;
+      for(x=0; x<w; x++) dst[o+x] = col[x]*inv;
+      if(y+r+1 <= h-1){ a = (y+r+1)*w; for(x=0; x<w; x++) col[x] += tmp[a+x]; }
+      if(y-r >= 0){ b = (y-r)*w; for(x=0; x<w; x++) col[x] -= tmp[b+x]; }
+    }
+    return dst;
+  }
+
+  // Bilinear resample of a single-channel float map.
+  function bgResample(src, sw, sh, dw, dh){
+    var out = new Float32Array(dw*dh);
+    if(sw === dw && sh === dh){ out.set(src); return out; }
+    var xs = new Int32Array(dw), xf = new Float32Array(dw), x, y;
+    for(x=0; x<dw; x++){
+      var fx = (x+0.5)*sw/dw - 0.5; if(fx < 0) fx = 0; if(fx > sw-1) fx = sw-1;
+      var x0 = Math.floor(fx); xs[x] = x0; xf[x] = fx - x0;
+    }
+    for(y=0; y<dh; y++){
+      var fy = (y+0.5)*sh/dh - 0.5; if(fy < 0) fy = 0; if(fy > sh-1) fy = sh-1;
+      var y0 = Math.floor(fy), y1 = y0+1 > sh-1 ? sh-1 : y0+1, wy = fy - y0;
+      var r0 = y0*sw, r1 = y1*sw, o = y*dw;
+      for(x=0; x<dw; x++){
+        var a0 = xs[x], a1 = a0+1 > sw-1 ? sw-1 : a0+1, wx = xf[x];
+        var top = src[r0+a0]*(1-wx) + src[r0+a1]*wx;
+        var bot = src[r1+a0]*(1-wx) + src[r1+a1]*wx;
+        out[o+x] = top*(1-wy) + bot*wy;
       }
     }
     return out;
+  }
+
+  // Guided filter (He et al.): snaps a soft mask p onto the real edges in guide I.
+  function bgGuided(I, p, w, h, r, eps){
+    var n = w*h, tmp = new Float32Array(n), buf = new Float32Array(n);
+    var mI = new Float32Array(n), mp = new Float32Array(n);
+    var cI = new Float32Array(n), cIp = new Float32Array(n), i;
+    bgBox(I, w, h, r, mI, tmp);
+    bgBox(p, w, h, r, mp, tmp);
+    for(i=0; i<n; i++) buf[i] = I[i]*I[i];
+    bgBox(buf, w, h, r, cI, tmp);
+    for(i=0; i<n; i++) buf[i] = I[i]*p[i];
+    bgBox(buf, w, h, r, cIp, tmp);
+    for(i=0; i<n; i++){
+      var varI = cI[i] - mI[i]*mI[i];
+      var cov = cIp[i] - mI[i]*mp[i];
+      var a = cov/(varI + eps);
+      cI[i] = a;                       // a
+      cIp[i] = mp[i] - a*mI[i];        // b
+    }
+    bgBox(cI, w, h, r, mI, tmp);       // mean a
+    bgBox(cIp, w, h, r, mp, tmp);      // mean b
+    var q = buf;
+    for(i=0; i<n; i++) q[i] = mI[i]*I[i] + mp[i];
+    return q;
+  }
+
+  // Grey erode (isMax=false) / dilate (isMax=true) with a square window.
+  function bgMorph(src, w, h, r, isMax){
+    var n = w*h, tmp = new Float32Array(n), out = new Float32Array(n), x, y, k, v, m;
+    for(y=0; y<h; y++){
+      var off = y*w;
+      for(x=0; x<w; x++){
+        var lo = x-r < 0 ? 0 : x-r, hi = x+r > w-1 ? w-1 : x+r;
+        m = src[off+lo];
+        for(k=lo+1; k<=hi; k++){ v = src[off+k]; if(isMax ? v > m : v < m) m = v; }
+        tmp[off+x] = m;
+      }
+    }
+    for(y=0; y<h; y++){
+      var ylo = y-r < 0 ? 0 : y-r, yhi = y+r > h-1 ? h-1 : y+r, o = y*w;
+      for(x=0; x<w; x++) out[o+x] = tmp[ylo*w+x];
+      for(k=ylo+1; k<=yhi; k++){
+        var ro = k*w;
+        if(isMax){ for(x=0; x<w; x++){ v = tmp[ro+x]; if(v > out[o+x]) out[o+x] = v; } }
+        else     { for(x=0; x<w; x++){ v = tmp[ro+x]; if(v < out[o+x]) out[o+x] = v; } }
+      }
+    }
+    return out;
+  }
+
+  // Remove tiny isolated blobs and fill tiny enclosed holes (model noise).
+  function bgCleanSpecks(a, w, h, minFrac){
+    var n = w*h, minArea = Math.max(16, Math.round(n*minFrac));
+    var bin = new Uint8Array(n), seen = new Uint8Array(n), queue = new Int32Array(n), i;
+    for(i=0; i<n; i++) bin[i] = a[i] >= 0.5 ? 1 : 0;
+    for(var s=0; s<n; s++){
+      if(seen[s]) continue;
+      var v = bin[s], qh = 0, qt = 0, touches = false;
+      queue[qt++] = s; seen[s] = 1;
+      while(qh < qt){
+        var idx = queue[qh++], x = idx % w, y = (idx - x)/w;
+        if(x === 0 || y === 0 || x === w-1 || y === h-1) touches = true;
+        if(x > 0   && !seen[idx-1] && bin[idx-1] === v){ seen[idx-1] = 1; queue[qt++] = idx-1; }
+        if(x < w-1 && !seen[idx+1] && bin[idx+1] === v){ seen[idx+1] = 1; queue[qt++] = idx+1; }
+        if(y > 0   && !seen[idx-w] && bin[idx-w] === v){ seen[idx-w] = 1; queue[qt++] = idx-w; }
+        if(y < h-1 && !seen[idx+w] && bin[idx+w] === v){ seen[idx+w] = 1; queue[qt++] = idx+w; }
+      }
+      if(qt < minArea && !touches){
+        for(var k=0; k<qt; k++){
+          var p = queue[k], px = p % w, py = (p - px)/w;
+          a[p] = v === 1 ? 0 : 1;
+          // also clean the soft ramp around the blob (up to 3px) so no ghost/dip remains
+          for(var dy=-3; dy<=3; dy++){ for(var dx=-3; dx<=3; dx++){
+            var nx = px+dx, ny = py+dy;
+            if(nx<0||ny<0||nx>=w||ny>=h) continue;
+            var q = ny*w+nx;
+            if(v === 1){ if(a[q] < 0.5) a[q] = 0; } else { if(a[q] >= 0.5) a[q] = 1; }
+          } }
+        }
+      }
+    }
+    return a;
+  }
+
+  // Blur-Fusion foreground estimation (Forte & Pitie; same idea BiRefNet uses to
+  // "refine_foreground"): replaces background-contaminated edge colours with the
+  // true foreground colour so cut-outs have no coloured halo on any new backdrop.
+  // Works one colour channel at a time to keep memory low.
+  function bgFusionChannel(Ic, a, bA1, bA2, w, h, R1, R2, scratch){
+    var n = w*h, i, prod = scratch.prod, bx = scratch.bx, tmp = scratch.tmp;
+    var bF = scratch.bF, bB = scratch.bB, F1 = scratch.F1, out = new Float32Array(n);
+    // pass 1 (large radius)
+    for(i=0; i<n; i++) prod[i] = Ic[i]*a[i];
+    bgBox(prod, w, h, R1, bF, tmp);
+    for(i=0; i<n; i++) bF[i] = bF[i]/(bA1[i] + 1e-5);
+    for(i=0; i<n; i++) prod[i] = Ic[i]*(1 - a[i]);
+    bgBox(prod, w, h, R1, bB, tmp);
+    for(i=0; i<n; i++) bB[i] = bB[i]/((1 - bA1[i]) + 1e-5);
+    for(i=0; i<n; i++){
+      var f = bF[i] + a[i]*(Ic[i] - a[i]*bF[i] - (1 - a[i])*bB[i]);
+      F1[i] = f < 0 ? 0 : (f > 1 ? 1 : f);
+    }
+    // pass 2 (small radius, on the pass-1 result)
+    for(i=0; i<n; i++) prod[i] = F1[i]*a[i];
+    bgBox(prod, w, h, R2, bx, tmp);
+    for(i=0; i<n; i++) bF[i] = bx[i]/(bA2[i] + 1e-5);
+    for(i=0; i<n; i++) prod[i] = bB[i]*(1 - a[i]);
+    bgBox(prod, w, h, R2, bx, tmp);
+    for(i=0; i<n; i++) bB[i] = bx[i]/((1 - bA2[i]) + 1e-5);
+    for(i=0; i<n; i++){
+      var g = bF[i] + a[i]*(Ic[i] - a[i]*bF[i] - (1 - a[i])*bB[i]);
+      out[i] = g < 0 ? 0 : (g > 1 ? 1 : g);
+    }
+    return out;
+  }
+
+  // Turn raw model output into a clean, edge-aligned alpha matte at w x h.
+  // matte: Float32 0..1 at (mw x mh). gray: Float32 0..1 luminance at (w x h).
+  function bgBuildAlpha(matte, mw, mh, gray, w, h){
+    var longSide = Math.max(w, h), i, n = w*h;
+    var a0 = bgResample(matte, mw, mh, w, h);
+    for(i=0; i<n; i++){ var t = a0[i]; a0[i] = t < 0 ? 0 : (t > 1 ? 1 : t); }
+    bgCleanSpecks(a0, w, h, 0.00015);
+    var rGF = Math.max(3, Math.round(longSide*0.004));
+    var q = bgGuided(gray, a0, w, h, rGF, 4e-4);
+    // keep the refinement inside a narrow band around the model's own edge so the
+    // filter can sharpen the boundary but can never invent or delete real regions
+    var rb = Math.max(3, Math.round(longSide*0.004));
+    var lo = bgMorph(a0, w, h, rb, false), hi = bgMorph(a0, w, h, rb, true);
+    var LO = 0.03, HI = 0.97, span = HI - LO;
+    for(i=0; i<n; i++){
+      var v = q[i];
+      if(v < lo[i]) v = lo[i]; else if(v > hi[i]) v = hi[i];
+      v = (v - LO)/span;               // kill faint haze, make interior fully opaque
+      q[i] = v < 0 ? 0 : (v > 1 ? 1 : v);
+    }
+    return q;
+  }
+
+  function bgYield(){ return new Promise(function(r){ setTimeout(r, 0); }); }
+
+  function bgIsLowEnd(){
+    var ua = navigator.userAgent || '';
+    return /Android|iPhone|iPad|iPod|Mobile/i.test(ua) || (navigator.deviceMemory && navigator.deviceMemory < 4);
+  }
+  (function initBgQuality(){
+    var sel = document.getElementById('bgQuality');
+    if(sel) sel.value = bgIsLowEnd() ? 'fast' : 'max';
+  })();
+
+  // Clean downscale (halve repeatedly, then final step) — avoids aliasing on big photos.
+  function bgResizeCanvas(src, tw, th){
+    var cur = src;
+    while(cur.width >= tw*2 && cur.height >= th*2){
+      var c = document.createElement('canvas');
+      c.width = Math.max(tw, Math.floor(cur.width/2)); c.height = Math.max(th, Math.floor(cur.height/2));
+      var cx = c.getContext('2d'); cx.imageSmoothingEnabled = true; cx.imageSmoothingQuality = 'high';
+      cx.drawImage(cur, 0, 0, c.width, c.height); cur = c;
+    }
+    var out = document.createElement('canvas'); out.width = tw; out.height = th;
+    var ox = out.getContext('2d', { willReadFrequently: true }); ox.imageSmoothingEnabled = true; ox.imageSmoothingQuality = 'high';
+    ox.drawImage(cur, 0, 0, tw, th);
+    return out;
+  }
+
+  // Run IS-Net: returns normalised 0..1 matte.
+  async function bgRunModel(session, flat){
+    var S = 1024, n = S*S, i;
+    var d = bgResizeCanvas(flat, S, S).getContext('2d').getImageData(0, 0, S, S).data;
+    var input = new Float32Array(3*n);
+    for(i=0; i<n; i++){
+      input[i] = d[i*4]/255 - 0.5; input[n+i] = d[i*4+1]/255 - 0.5; input[2*n+i] = d[i*4+2]/255 - 0.5;
+    }
+    var tensor = new ort.Tensor('float32', input, [1, 3, S, S]);
+    var feeds = {}; feeds[session.inputNames[0]] = tensor;
+    var outName = session.outputNames.indexOf('output_image') >= 0 ? 'output_image' : session.outputNames[0];
+    var res = await session.run(feeds, [outName]);
+    var o = res[outName], dims = o.dims;
+    var mh = dims[dims.length-2], mw = dims[dims.length-1];
+    var m = Float32Array.from(o.data);
+    if(o.dispose) o.dispose(); if(tensor.dispose) tensor.dispose();
+    var mn = Infinity, mx = -Infinity;
+    for(i=0; i<m.length; i++){ var v = m[i]; if(v < mn) mn = v; if(v > mx) mx = v; }
+    if(mn < -0.01 || mx > 1.01){            // logits -> probabilities
+      mn = Infinity; mx = -Infinity;
+      for(i=0; i<m.length; i++){ m[i] = 1/(1+Math.exp(-m[i])); if(m[i] < mn) mn = m[i]; if(m[i] > mx) mx = m[i]; }
+    }
+    if(!(mx - mn > 0.05)) throw new Error('model produced an empty mask');
+    var inv = 1/(mx - mn);
+    for(i=0; i<m.length; i++) m[i] = (m[i] - mn)*inv;
+    return { data: m, w: mw, h: mh };
+  }
+
+  // Old person-only segmenter, kept only as an offline/blocked-model fallback.
+  async function bgRunMediaPipe(flat){
+    if(!segmenter){
+      try{ segmenter = await window.__loadSegmenter(true); }
+      catch(loadErr){ segmenter = await window.__loadSegmenter(false); }
+    }
+    var result = segmenter.segment(flat), w, h, fg;
+    if(result.confidenceMasks && result.confidenceMasks.length){
+      var cm = result.confidenceMasks; w = cm[0].width; h = cm[0].height;
+      var m0 = cm[0].getAsFloat32Array();
+      if(cm.length >= 2){
+        var m1 = cm[1].getAsFloat32Array(), s0 = 0, s1 = 0, k;
+        for(k=0; k<w; k++){ s0 += m0[k] + m0[(h-1)*w+k]; s1 += m1[k] + m1[(h-1)*w+k]; }
+        for(k=0; k<h; k++){ s0 += m0[k*w] + m0[k*w+w-1]; s1 += m1[k*w] + m1[k*w+w-1]; }
+        fg = (s0 > s1) ? m1 : m0;
+      } else { fg = m0; }
+      fg = Float32Array.from(fg);
+      cm.forEach(function(m){ m.close(); }); if(result.categoryMask) result.categoryMask.close();
+    } else if(result.categoryMask){
+      var cmk = result.categoryMask, md = cmk.getAsUint8Array(); w = cmk.width; h = cmk.height;
+      var votes = {}, bgc = 0, best = -1, t;
+      function vt(ix){ var v = md[ix]; votes[v] = (votes[v]||0) + 1; }
+      for(t=0; t<w; t++){ vt(t); vt((h-1)*w+t); } for(t=0; t<h; t++){ vt(t*w); vt(t*w+w-1); }
+      for(var key in votes){ if(votes[key] > best){ best = votes[key]; bgc = parseInt(key, 10); } }
+      fg = new Float32Array(w*h); for(t=0; t<w*h; t++) fg[t] = md[t] === bgc ? 0 : 1;
+      cmk.close();
+    } else { throw new Error('Model returned no mask data.'); }
+    return { data: fg, w: w, h: h };
   }
 
   document.getElementById('runBgRemove').addEventListener('click', async function(){
     if(!originalImg) return;
     var statusEl = document.getElementById('bgStatus');
     var btn = this; btn.disabled = true;
-    statusEl.innerHTML = '<span class="spinner"></span> loading model…';
+    var qSel = document.getElementById('bgQuality');
+    var quality = qSel ? qSel.value : 'fast';
     try{
-      if(!segmenter){
-        try{ segmenter = await window.__loadSegmenter(true); }
-        catch(loadErr){ console.error('GPU load failed, retrying on CPU:', loadErr); segmenter = await window.__loadSegmenter(false); }
-      }
-      statusEl.innerHTML = '<span class="spinner"></span> segmenting…';
-      var result = segmenter.segment(canvas);
-      var w, h, alpha;
+      var W = canvas.width, H = canvas.height;
+      // Snapshot current pixels (keeps any earlier transparency + current edits)
+      var orig = ctx.getImageData(0, 0, W, H);
+      var flat = document.createElement('canvas'); flat.width = W; flat.height = H;
+      var fctx = flat.getContext('2d'); fctx.fillStyle = '#ffffff'; fctx.fillRect(0, 0, W, H); fctx.drawImage(canvas, 0, 0);
 
-      if(result.confidenceMasks && result.confidenceMasks.length){
-        var confMasks = result.confidenceMasks; // 1 or 2 soft probability channels
-        w = confMasks[0].width; h = confMasks[0].height;
-        var m0 = confMasks[0].getAsFloat32Array();
-        var fgMask;
-        if(confMasks.length >= 2){
-          var m1 = confMasks[1].getAsFloat32Array();
-          // Figure out which channel is BACKGROUND by sampling the outer
-          // border (background almost always dominates the frame edges) —
-          // self-corrects regardless of model class ordering.
-          var sum0=0,sum1=0,nB=0;
-          for(var x=0;x<w;x++){ sum0+=m0[x]; sum1+=m1[x]; sum0+=m0[(h-1)*w+x]; sum1+=m1[(h-1)*w+x]; nB+=2; }
-          for(var y=0;y<h;y++){ sum0+=m0[y*w]; sum1+=m1[y*w]; sum0+=m0[y*w+w-1]; sum1+=m1[y*w+w-1]; nB+=2; }
-          fgMask = (sum0/nB > sum1/nB) ? m1 : m0;
-        } else {
-          fgMask = m0; // single-channel model: index 0 already IS the person/foreground confidence
+      // ---- 1) segmentation (best model first, graceful fallbacks) ----
+      var matte = null, tiers = (quality === 'max') ? ['max', 'fast'] : ['fast'];
+      for(var ti=0; ti<tiers.length && !matte; ti++){
+        var tier = tiers[ti], mb = window.__BG_MODELS[tier].mb;
+        try{
+          statusEl.innerHTML = '<span class="spinner"></span> loading AI model (' + mb + ' MB, first time only)…';
+          var session = await window.__loadBgModel(tier, function(pct){
+            statusEl.innerHTML = '<span class="spinner"></span> downloading AI model ' + pct + '% (' + mb + ' MB, cached afterwards)';
+          });
+          statusEl.innerHTML = '<span class="spinner"></span> analysing image…';
+          await bgYield();
+          matte = await bgRunModel(session, flat);
+        } catch(modelErr){
+          console.error('Remove BG model "' + tier + '" failed:', modelErr);
+          delete window.__bgSessions[tier]; matte = null;
         }
-        alpha = new Float32Array(w*h);
-        for(var i=0;i<w*h;i++){ alpha[i] = Math.max(0, Math.min(1, fgMask[i])) * 255; }
-        confMasks.forEach(function(m){ m.close(); });
-        if(result.categoryMask) result.categoryMask.close();
-      } else if(result.categoryMask){
-        // Fallback: hard mask only — still self-correct which class is
-        // background, then feed it through the same smoothstep/erode/
-        // feather pipeline below so the edge is still soft, not a hard line.
-        var mask = result.categoryMask;
-        var maskData = mask.getAsUint8Array();
-        w = mask.width; h = mask.height;
-        var votes = {};
-        function vote(idx){ var v = maskData[idx]; votes[v] = (votes[v]||0) + 1; }
-        for(var vx=0; vx<w; vx++){ vote(vx); vote((h-1)*w + vx); }
-        for(var vy=0; vy<h; vy++){ vote(vy*w); vote(vy*w + (w-1)); }
-        var backgroundClass = 0, bestVotes = -1;
-        for(var k in votes){ if(votes[k] > bestVotes){ bestVotes = votes[k]; backgroundClass = parseInt(k,10); } }
-        alpha = new Float32Array(w*h);
-        for(var mi=0; mi<w*h; mi++){ alpha[mi] = (maskData[mi] === backgroundClass) ? 0 : 255; }
-        mask.close();
-      } else {
-        throw new Error('Model returned no mask data.');
+      }
+      if(!matte){
+        statusEl.innerHTML = '<span class="spinner"></span> AI model unavailable — using fallback (people only)…';
+        await bgYield();
+        matte = await bgRunMediaPipe(flat);
       }
 
-      // 1) Push mid-tones toward pure 0/255 so the *interior* of the subject
-      //    is fully opaque (no ghostly semi-transparent skin), while leaving
-      //    the transition band around 0.5 soft — this is what produces a
-      //    clean, non-jagged edge instead of a hard binary line.
-      for(var j=0;j<w*h;j++){
-        var v = alpha[j]/255;
-        var s = v*v*(3-2*v); // smoothstep contrast curve
-        alpha[j] = s*255;
+      // ---- 2) refine at a working resolution, then apply at full resolution ----
+      statusEl.innerHTML = '<span class="spinner"></span> refining edges…';
+      await bgYield();
+      var cap = bgIsLowEnd() ? 1280 : 2048, sc = Math.min(1, cap/Math.max(W, H));
+      var w = Math.max(1, Math.round(W*sc)), h = Math.max(1, Math.round(H*sc)), n = w*h, i;
+      var wd = (sc === 1 ? flat : bgResizeCanvas(flat, w, h)).getContext('2d').getImageData(0, 0, w, h).data;
+      var gray = new Float32Array(n);
+      for(i=0; i<n; i++) gray[i] = (0.299*wd[i*4] + 0.587*wd[i*4+1] + 0.114*wd[i*4+2])/255;
+      var alphaW = bgBuildAlpha(matte.data, matte.w, matte.h, gray, w, h);
+      matte = null; gray = null;
+
+      statusEl.innerHTML = '<span class="spinner"></span> removing edge colour fringe…';
+      await bgYield();
+      var longSide = Math.max(w, h), R1 = Math.max(8, Math.round(0.044*longSide)), R2 = Math.max(2, Math.round(0.003*longSide));
+      var tmp = new Float32Array(n), bA1 = new Float32Array(n), bA2 = new Float32Array(n);
+      bgBox(alphaW, w, h, R1, bA1, tmp); bgBox(alphaW, w, h, R2, bA2, tmp);
+      var scratch = { prod: new Float32Array(n), bx: new Float32Array(n), tmp: tmp,
+                      bF: new Float32Array(n), bB: new Float32Array(n), F1: new Float32Array(n) };
+      var Fw = new Uint8ClampedArray(n*4), Ic = new Float32Array(n);
+      for(var c=0; c<3; c++){
+        for(i=0; i<n; i++) Ic[i] = wd[i*4+c]/255;
+        var Fc = bgFusionChannel(Ic, alphaW, bA1, bA2, w, h, R1, R2, scratch);
+        for(i=0; i<n; i++) Fw[i*4+c] = Math.round(Fc[i]*255);
+        await bgYield();
       }
-      // 2) Erode ~1px inward so background-colour fringing around hair/edges
-      //    doesn't survive as a visible halo.
-      var eroded = new Float32Array(w*h);
-      for(var y=0;y<h;y++){
-        for(var x=0;x<w;x++){
-          var idx = y*w+x, minV = alpha[idx];
-          for(var dy=-1; dy<=1; dy++){
-            for(var dx=-1; dx<=1; dx++){
-              var nx = x+dx, ny = y+dy;
-              if(nx<0||nx>=w||ny<0||ny>=h) continue;
-              var nv = alpha[ny*w+nx];
-              if(nv < minV) minV = nv;
+      scratch = null; bA1 = bA2 = tmp = Ic = null;
+
+      // ---- 3) compose at ORIGINAL resolution ----
+      statusEl.innerHTML = '<span class="spinner"></span> finishing…';
+      await bgYield();
+      var od = orig.data, xs = new Int32Array(W), xf = new Float32Array(W), x, y;
+      for(x=0; x<W; x++){
+        var fx = (x+0.5)*w/W - 0.5; if(fx < 0) fx = 0; if(fx > w-1) fx = w-1;
+        xs[x] = Math.floor(fx); xf[x] = fx - xs[x];
+      }
+      for(y=0; y<H; y++){
+        var fy = (y+0.5)*h/H - 0.5; if(fy < 0) fy = 0; if(fy > h-1) fy = h-1;
+        var y0 = Math.floor(fy), y1 = y0+1 > h-1 ? h-1 : y0+1, wy = fy - y0;
+        for(x=0; x<W; x++){
+          var x0 = xs[x], x1 = x0+1 > w-1 ? w-1 : x0+1, wx = xf[x], p = (y*W + x)*4;
+          var a = (alphaW[y0*w+x0]*(1-wx) + alphaW[y0*w+x1]*wx)*(1-wy) + (alphaW[y1*w+x0]*(1-wx) + alphaW[y1*w+x1]*wx)*wy;
+          var ea = od[p+3]/255;                 // keep any transparency from an earlier run
+          var fa = a*ea;
+          if(fa < 0.004){ od[p] = od[p+1] = od[p+2] = 0; od[p+3] = 0; continue; }
+          if(a < 0.99 && ea >= 0.99){           // edge pixel: use decontaminated foreground colour
+            for(var cc=0; cc<3; cc++){
+              var f = (Fw[(y0*w+x0)*4+cc]*(1-wx) + Fw[(y0*w+x1)*4+cc]*wx)*(1-wy) + (Fw[(y1*w+x0)*4+cc]*(1-wx) + Fw[(y1*w+x1)*4+cc]*wx)*wy;
+              od[p+cc] = f;
             }
           }
-          eroded[idx] = minV;
+          od[p+3] = Math.round(fa*255);
         }
       }
-      // 3) Feather with a small box blur so the eroded edge is smooth, not
-      //    stair-stepped — this is the actual fix for the visible line.
-      var feathered = boxBlurAlpha(eroded, w, h, 2);
-
-      var work = document.createElement('canvas'); work.width = w; work.height = h;
-      var wctx = work.getContext('2d');
-      wctx.drawImage(canvas, 0, 0, w, h);
-      var imgData = wctx.getImageData(0,0,w,h);
-      for(var p=0;p<w*h;p++){
-        imgData.data[p*4+3] = Math.round(Math.max(0, Math.min(255, feathered[p])));
-      }
-      wctx.putImageData(imgData, 0, 0);
-
-      canvas.width = w; canvas.height = h;
-      ctx.clearRect(0,0,w,h);
-      ctx.drawImage(work, 0, 0);
+      ctx.putImageData(orig, 0, 0);
       hasAlpha = true;
       dropEl.classList.add('has-alpha');
       bakeToOriginal(); // so later filter/edit tweaks build on this result, not the pristine source
@@ -2662,9 +2986,10 @@ Welcome email fires automatically on first sign-in. The update broadcast is
 manual by design — you write it and click send, nothing goes out under your
 name without you personally triggering it.
 
-BACKGROUND REMOVAL runs Google's MediaPipe selfie-segmenter fully on-device
-via WebAssembly — first use downloads a small model (a few MB, cached by the
-browser after that), no config needed, works out of the box.
+BACKGROUND REMOVAL runs the IS-Net (DIS, Apache-2.0) segmentation model fully
+on-device via onnxruntime-web (WebAssembly) — first use downloads the model
+(44 MB fast / 176 MB maximum, cached in the browser after that), no config
+needed. Google's MediaPipe person segmenter is kept only as an offline fallback.
 
 A NOTE ON "EXPORT GATED TO SIGNED-IN USERS" — this is a business-logic
 nudge, not a security boundary, and can't be made into one: the image the
