@@ -347,7 +347,7 @@
   .user-pill span{font-size:12px; font-family:var(--mono); font-weight:600;}
 
   /* ---------- studio (the landing hero) ---------- */
-  .studio-wrap{padding:34px 0 26px;}
+  .studio-wrap{padding:34px 22px 26px;}
   .studio{
     background:var(--bg-2);
     border:1px solid var(--line);
@@ -674,7 +674,7 @@
      page gutter shrinks, so the photo and controls get every spare pixel. */
   @media (max-width:600px){
     .wrap{padding:0 12px;}
-    .studio-wrap{padding:16px 0 18px;}
+    .studio-wrap{padding:16px 12px 18px;}
     body.studio-active .studio-wrap{padding:0 12px 12px;}
     .studio:not(.maximized){
       background:transparent; border:none; border-radius:0; box-shadow:none;
@@ -686,6 +686,12 @@
     .studio.has-image:not(.maximized) .studio-body{padding:4px 0 12px;}
     .drop{min-height:220px;}
     .bench-tools{margin-top:12px;}
+  }
+
+  /* desktop/tablet only: breathing room above the editor box while an image is open.
+     Phones (<=600px) are frameless and keep their tight layout. */
+  @media (min-width:601px){
+    body.studio-active .studio-wrap > .studio:not(.maximized){margin-top:20px;}
   }
 
   @media (max-width:520px){
