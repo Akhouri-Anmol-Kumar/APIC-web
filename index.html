@@ -428,6 +428,24 @@
   }
   .drop canvas{max-width:100%; max-height:340px; display:none; border-radius:3px; position:relative; z-index:1;}
   #overlay{position:absolute; z-index:2; pointer-events:none; display:none; max-width:100%; max-height:340px; border-radius:3px;}
+
+  /* Image loaded: no dotted frame, image shown much larger (display-only scaling, pixels untouched) */
+  .studio.has-image .drop{
+    border:none; border-radius:0; padding:0; min-height:0; gap:0; background:transparent;
+    cursor:default; overflow:visible;
+  }
+  .studio.has-image .drop:hover{border:none;}
+  .studio.has-image .drop.drag{border:none; outline:2px solid var(--green); outline-offset:4px; background:transparent;}
+  .studio.has-image .drop.has-alpha{background:transparent;}
+  .studio.has-image .drop canvas#canvas{
+    max-width:100%; max-height:min(78vh, 820px); width:auto; height:auto; border-radius:4px;
+  }
+  .studio.has-image .drop.has-alpha canvas#canvas{
+    background-image:repeating-conic-gradient(#8a8a8a 0% 25%, #5c5c5c 0% 50%); background-size:18px 18px;
+  }
+  .studio.has-image #overlay{max-height:min(78vh, 820px);}
+  .studio.has-image .studio-body{padding:14px;}
+  .studio.maximized.has-image .drop canvas#canvas{max-height:calc(100vh - 260px);}
   #overlay.active{pointer-events:auto; cursor:crosshair;}
 
   .bench-tools{
