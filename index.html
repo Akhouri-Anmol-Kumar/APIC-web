@@ -121,6 +121,82 @@
   // way Photoshop's Generative Fill or Galaxy AI's eraser do, and it
   // still runs 100% client-side (WASM), so nothing is uploaded anywhere.
   // On first use the browser downloads the ~28MB model once and caches it.
+  // ---- Background inference worker -------------------------------------------------
+  // Parsing a model and running it is one long synchronous WebAssembly call. On the page's main
+  // thread that freezes EVERYTHING (scrolling, buttons, the spinner). Here the model lives in a
+  // Web Worker, so the page stays fully responsive while it works. Same models, same maths,
+  // same output — only the thread changes. If a worker can't start, callers fall back to the
+  // old main-thread path automatically.
+  (function(){
+    var worker = null, seq = 0, cbs = {}, broken = false;
+    var SRC = [
+      'var ready = false, sessions = {};',
+      'function loadOrt(th){ if(ready) return;',
+      '  importScripts("https://cdnjs.cloudflare.com/ajax/libs/onnxruntime-web/1.23.2/ort.min.js");',
+      '  ort.env.wasm.wasmPaths = "https://cdnjs.cloudflare.com/ajax/libs/onnxruntime-web/1.23.2/";',
+      '  ort.env.wasm.numThreads = th || 1; ort.env.wasm.proxy = false; ready = true; }',
+      'self.onmessage = async function(e){',
+      '  var d = e.data;',
+      '  try{',
+      '    if(d.type === "load"){',
+      '      loadOrt(d.threads);',
+      '      if(!sessions[d.key]) sessions[d.key] = await ort.InferenceSession.create(d.buf, d.opts);',
+      '      self.postMessage({ id: d.id, ok: true, inputNames: sessions[d.key].inputNames, outputNames: sessions[d.key].outputNames });',
+      '    } else if(d.type === "run"){',
+      '      var ses = sessions[d.key], feeds = {}, k;',
+      '      for(k in d.feeds){ var t = d.feeds[k]; feeds[k] = new ort.Tensor(t.type, t.data, t.dims); }',
+      '      var res = await ses.run(feeds), out = {}, tr = [];',
+      '      for(k in res){ var o = res[k]; var data = o.data; out[k] = { type: o.type, dims: o.dims, data: data }; if(data && data.buffer) tr.push(data.buffer); }',
+      '      self.postMessage({ id: d.id, ok: true, out: out }, tr);',
+      '    }',
+      '  } catch(err){ self.postMessage({ id: d.id, ok: false, error: String(err && err.message || err) }); }',
+      '};'
+    ].join('\n');
+    function get(){
+      if(worker || broken) return worker;
+      try{
+        worker = new Worker(URL.createObjectURL(new Blob([SRC], { type: 'application/javascript' })));
+        worker.onmessage = function(e){
+          var cb = cbs[e.data.id]; if(!cb) return; delete cbs[e.data.id];
+          if(e.data.ok) cb.resolve(e.data); else cb.reject(new Error(e.data.error || 'worker error'));
+        };
+        worker.onerror = function(ev){
+          var err = new Error('inpaint worker crashed' + (ev && ev.message ? ': ' + ev.message : ''));
+          for(var k in cbs){ cbs[k].reject(err); } cbs = {};
+          try{ worker.terminate(); }catch(x){} worker = null; broken = true;
+          window.__miganSessionPromise = null; window.__lamaSessionPromise = null;   // next attempt uses the main-thread path
+        };
+      } catch(e){ worker = null; broken = true; }
+      return worker;
+    }
+    function call(msg, transfer){
+      return new Promise(function(resolve, reject){
+        var wk = get(); if(!wk){ reject(new Error('no worker')); return; }
+        msg.id = ++seq; cbs[msg.id] = { resolve: resolve, reject: reject };
+        try{ wk.postMessage(msg, transfer || []); }catch(e){ delete cbs[msg.id]; reject(e); }
+      });
+    }
+    // Resolves to an object shaped like an onnxruntime InferenceSession (inputNames, outputNames, run).
+    window.__apicWorkerSession = async function(key, buf, opts){
+      if(!get()) throw new Error('no worker');
+      var th = (self.crossOriginIsolated && navigator.hardwareConcurrency) ? Math.min(4, navigator.hardwareConcurrency) : 1;
+      var info = await call({ type: 'load', key: key, buf: buf, opts: opts, threads: th }, [buf]);
+      return {
+        inputNames: info.inputNames, outputNames: info.outputNames,
+        run: async function(feeds){
+          var msgFeeds = {}, tr = [];
+          Object.keys(feeds).forEach(function(k){
+            var t = feeds[k]; msgFeeds[k] = { type: t.type, dims: t.dims, data: t.data };
+            if(t.data && t.data.buffer) tr.push(t.data.buffer);
+          });
+          var r = await call({ type: 'run', key: key, feeds: msgFeeds }, tr), out = {};
+          Object.keys(r.out).forEach(function(k){ var o = r.out[k]; out[k] = { type: o.type, dims: o.dims, data: o.data, dispose: function(){} }; });
+          return out;
+        }
+      };
+    };
+  })();
+
   window.__loadMigan = function(onProgress){
     if(window.__miganSessionPromise) return window.__miganSessionPromise;
     window.__miganSessionPromise = (async function(){
@@ -143,7 +219,13 @@
       // allowed to finish), one retry, and browser Cache Storage so it's a one-time
       // download. Lean-memory session options so phones don't run out of WASM heap.
       var modelBuffer = await window.__apicFetchModel(modelUrl, 28e6, onProgress);
-      return await ort.InferenceSession.create(modelBuffer, { executionProviders: ['wasm'], enableCpuMemArena: false, enableMemPattern: false });
+      var migOpts = { executionProviders: ['wasm'], enableCpuMemArena: false, enableMemPattern: false };
+      try{ return await window.__apicWorkerSession('migan', modelBuffer, migOpts); }
+      catch(eW){
+        console.warn('Inpaint worker unavailable, running on main thread:', eW);
+        modelBuffer = await window.__apicFetchModel(modelUrl, 28e6, onProgress);   // buffer was handed to the worker; re-read from cache
+      }
+      return await ort.InferenceSession.create(modelBuffer, migOpts);
     })();
     window.__miganSessionPromise.catch(function(){ window.__miganSessionPromise = null; }); // let a retry re-attempt after a real failure
     return window.__miganSessionPromise;
@@ -164,8 +246,15 @@
         var th = (self.crossOriginIsolated && navigator.hardwareConcurrency) ? Math.min(4, navigator.hardwareConcurrency) : 1;
         ort.env.wasm.numThreads = th; ort.env.wasm.proxy = false;
       }
-      var buf = await window.__apicFetchModel('https://huggingface.co/Carve/LaMa-ONNX/resolve/main/lama_fp32.onnx', 208e6, onProgress);
-      return await ort.InferenceSession.create(buf, { executionProviders: ['wasm'], graphOptimizationLevel: 'all', enableCpuMemArena: false, enableMemPattern: false });
+      var lamaUrl = 'https://huggingface.co/Carve/LaMa-ONNX/resolve/main/lama_fp32.onnx';
+      var buf = await window.__apicFetchModel(lamaUrl, 208e6, onProgress);
+      var lamaOpts = { executionProviders: ['wasm'], graphOptimizationLevel: 'all', enableCpuMemArena: false, enableMemPattern: false };
+      try{ return await window.__apicWorkerSession('lama', buf, lamaOpts); }
+      catch(eW){
+        console.warn('Inpaint worker unavailable, running on main thread:', eW);
+        buf = await window.__apicFetchModel(lamaUrl, 208e6, onProgress);
+      }
+      return await ort.InferenceSession.create(buf, lamaOpts);
     })();
     window.__lamaSessionPromise.catch(function(){ window.__lamaSessionPromise = null; });
     return window.__lamaSessionPromise;
@@ -733,6 +822,44 @@
     .top-inner{padding:10px 14px;}
     .brand-word{font-size:16px;}
   }
+
+  /* ================= Mobile scroll motion (lightweight; GPU-only: transform + opacity) =================
+     Everything below is gated behind classes that JS only adds on phones/tablets (small or touch screens),
+     so desktop looks and behaves exactly as before.
+       .apic-fast   -> removes the things that make scrolling janky on weak GPUs (fixed background,
+                       full-screen blend-mode grain, live backdrop blur). Applies even with reduced-motion.
+       .apic-motion -> the scroll animations. Skipped when the person asked the OS for reduced motion.
+       .apic-lite   -> shorter / simpler variants for low-memory devices (e.g. 2GB phones like Galaxy A10). */
+  html.apic-fast body{background-attachment:scroll;}
+  html.apic-fast .grain{display:none;}
+  html.apic-fast header.top{backdrop-filter:none; -webkit-backdrop-filter:none; background:var(--bg);}
+  html.apic-fast .modal-bg{backdrop-filter:none; -webkit-backdrop-filter:none; background:rgba(2,2,4,0.86);}
+
+  #apicProg{position:fixed; top:0; left:0; right:0; height:2px; z-index:61; background:var(--grad-brand);
+    transform:scaleX(0); transform-origin:0 50%; pointer-events:none; display:none;}
+  html.apic-motion #apicProg{display:block; will-change:transform;}
+
+  html.apic-motion header.top{transition:transform .28s cubic-bezier(.2,.7,.2,1), box-shadow .3s var(--ease-out), border-color .3s;}
+  html.apic-motion header.top.apic-hide{transform:translate3d(0,-100%,0);}
+
+  html.apic-motion .reveal{opacity:0; transform:translate3d(0,26px,0) scale(.985);
+    transition:opacity .5s cubic-bezier(.2,.7,.2,1), transform .55s cubic-bezier(.2,.7,.2,1); transition-delay:var(--rd,0ms);}
+  html.apic-motion .reveal.rv-l{transform:translate3d(-26px,8px,0) scale(.985);}
+  html.apic-motion .reveal.rv-r{transform:translate3d(26px,8px,0) scale(.985);}
+  html.apic-motion .reveal.in{opacity:1; transform:translate3d(0,0,0) scale(1);}
+  html.apic-motion.apic-lite .reveal{transform:translate3d(0,14px,0); transition-duration:.32s,.36s;}
+  html.apic-motion.apic-lite .reveal.rv-l, html.apic-motion.apic-lite .reveal.rv-r{transform:translate3d(0,14px,0);}
+  html.apic-motion.apic-lite .reveal.in{transform:translate3d(0,0,0);}
+
+  #apicTop{position:fixed; right:16px; bottom:calc(18px + env(safe-area-inset-bottom, 0px)); z-index:70;
+    width:42px; height:42px; border-radius:50%; border:1px solid var(--line); background:var(--bg-2); color:var(--green);
+    display:none; align-items:center; justify-content:center; padding:0; cursor:pointer;
+    opacity:0; transform:translate3d(0,12px,0) scale(.9); pointer-events:none;
+    transition:opacity .25s ease, transform .25s cubic-bezier(.2,.7,.2,1); -webkit-tap-highlight-color:transparent;}
+  html.apic-motion #apicTop{display:flex;}
+  #apicTop.show{opacity:1; transform:translate3d(0,0,0) scale(1); pointer-events:auto;}
+  #apicTop:active{transform:translate3d(0,0,0) scale(.92);}
+  #apicTop svg{width:18px; height:18px;}
 </style>
 </head>
 <body>
@@ -2239,12 +2366,14 @@
       return wx.getImageData(0, 0, ww, wh).data;
     }
     var imgData = workData(canvas, true);
+    await new Promise(function(r){ setTimeout(r, 0); });
     var mdW = workData(maskCanvas, false);
     var hole = new Float32Array(plane), x, y;
     for(y = 0; y < vh; y++){ for(x = 0; x < vw; x++){ i = y*ww + x; hole[i] = mdW[i*4+3] > 8 ? 1 : 0; } }
     // grow the hole so the object's anti-aliased fringe / halo is also replaced
     var f = Math.max(2, Math.min(8, Math.round(0.01*Math.max(rw, rh))));       // feather radius (region px)
     var dW = Math.max(1, Math.ceil((2*f + (isLama ? 4 : 2))*sxs));
+    await new Promise(function(r){ setTimeout(r, 0); });
     var holeD = bgMorph(hole, ww, wh, dW, true);
     hole = null;
     if(vw < ww || vh < wh){ for(i = 0; i < plane; i++){ if(i % ww >= vw || ((i/ww)|0) >= vh) holeD[i] = 0; } }
@@ -2330,11 +2459,13 @@
       throw new Error('AI output failed a sanity check (came back unexpectedly dark) — dims were ' + JSON.stringify(outTensor.dims) + ', type ' + outTensor.type);
     }
 
+    await new Promise(function(r){ setTimeout(r, 0); });
     // Spatially-varying seam colour match (computed at the small working size).
     var seam = null;
     if(oW === ww && oH === wh){ try{ seam = seamOffsetField(imgData, od, holeD, ww, vw, vh); } catch(eS){ seam = null; } }
     imgData = mdW = null;
 
+    await new Promise(function(r){ setTimeout(r, 0); });
     // --- bring the fill back to full region resolution ---
     var upCanvas = document.createElement('canvas'); upCanvas.width = rw; upCanvas.height = rh;
     var uctx = upCanvas.getContext('2d'); uctx.imageSmoothingEnabled = true; uctx.imageSmoothingQuality = 'high';
@@ -2355,6 +2486,7 @@
     bgBox(soft, rw, rh, f, b2, t); bgBox(b2, rw, rh, f, soft, t);
     holeD = holeValid = null;
 
+    await new Promise(function(r){ setTimeout(r, 0); });
     var baseImg = ctx.getImageData(sx0, sy0, rw, rh), bd = baseImg.data;
 
     // Float channels of the fill, then: seam colour field -> detail recovery -> grain match.
@@ -2370,6 +2502,7 @@
         for(i = 0; i < n2; i++) ch[i] += up[i];
       }
     }
+    await new Promise(function(r){ setTimeout(r, 0); });
     if(n2 <= 6e6){
       // (a) the network ran at <=512px, so an upscaled fill is softer than the photo: gentle unsharp mask
       var upF = rw/vw;
@@ -2383,6 +2516,7 @@
         }
         ub1 = ub2 = null;
       }
+      await new Promise(function(r){ setTimeout(r, 0); });
       // (b) grain match: add noise so the fill has the same fine-grain level as the pixels around it
       var Lb = new Float32Array(n2), Lf = lumaOf(fR, fG, fB, n2), Lbl = new Float32Array(n2), Lfl = new Float32Array(n2);
       for(i = 0; i < n2; i++){ var z4 = i*4; Lb[i] = 0.299*bd[z4] + 0.587*bd[z4+1] + 0.114*bd[z4+2]; }
@@ -2415,6 +2549,7 @@
     }
     t = b2 = null;
 
+    await new Promise(function(r){ setTimeout(r, 0); });
     // --- blend back, region only. Manual RGB blend, force-opaque inside the fill. ---
     for(i = 0; i < n2; i++){
       var a = soft[i];
@@ -2437,8 +2572,11 @@
     var qEl = document.getElementById('orQuality');
     var useUltra = !!qEl && qEl.value === 'ultra' && deviceTier() === 'desktop';
     btn.disabled = true;
+    painting = false; lastPaintPt = null;
+    overlay.style.pointerEvents = 'none';   // while working, the photo must not capture touch/scroll gestures
     statusEl.innerHTML = '<span class="spinner"></span> loading AI model…';
     function clearMask(){ mctx.clearRect(0,0,maskCanvas.width,maskCanvas.height); maskBox = null; redrawOverlay(); }
+    function releaseOverlay(){ overlay.style.pointerEvents = ''; }
     (async function(){
       var label = 'AI fill';
       try{
@@ -2456,7 +2594,7 @@
         clearMask();
         bakeToOriginal();
         statusEl.textContent = '✓ done (' + label + ')';
-        btn.disabled = false;
+        btn.disabled = false; releaseOverlay();
       } catch(err){
         console.error('AI object removal failed, falling back to patch fill:', err);
         statusEl.innerHTML = '<span class="spinner"></span> AI engine unavailable — quick filling…';
@@ -2470,11 +2608,29 @@
             console.error('Fallback patch fill failed too:', err2);
             statusEl.textContent = 'Remove failed — try a smaller selection.';
           }
-          btn.disabled = false;
+          btn.disabled = false; releaseOverlay();
         }, 30);
       }
     })();
   });
+
+  // Pre-warm (zero extra data use): when the Remove Object tool opens and the chosen model is ALREADY in
+  // the browser cache, parse it in the background worker now, so the first Remove click starts instantly.
+  // Never downloads anything by itself — a first-time model download still waits for the click.
+  window.prewarmInpaint = function(){
+    try{
+      if(!window.caches || !window.ort) return;
+      var q = document.getElementById('orQuality');
+      var ultra = !!q && q.value === 'ultra' && deviceTier() === 'desktop';
+      var url = ultra ? 'https://huggingface.co/Carve/LaMa-ONNX/resolve/main/lama_fp32.onnx'
+                      : 'https://huggingface.co/andraniksargsyan/migan/resolve/main/migan_pipeline_v2.onnx';
+      caches.open('apic-models-v1').then(function(c){ return c.match(url); }).then(function(hit){
+        if(!hit) return;
+        var loader = ultra ? window.__loadLama : window.__loadMigan;
+        if(loader) loader(function(){}).catch(function(){});
+      }).catch(function(){});
+    } catch(e){}
+  };
 
   // Ultra (LaMa) is a ~208MB model: offer it only on desktop-class devices; phones keep MI-GAN.
   (function(){
@@ -2579,6 +2735,7 @@
       Object.keys(panels).forEach(function(k){ document.getElementById(panels[k]).classList.toggle('show', k === activeTool); });
       toolTitle.textContent = titles[activeTool];
       if(activeTool === 'resize') syncResizeFields();
+      if(activeTool === 'objremove' && window.prewarmInpaint) window.prewarmInpaint();
       syncOverlay();
     });
   });
@@ -3990,5 +4147,93 @@ COSTS AT SMALL SCALE: $0 across all of the above.
 })();
 </script>
 
+
+<script>
+/* Mobile scroll motion — tiny, passive, rAF-throttled. Reads scroll position only (no layout reads per
+   frame) and writes transform/opacity only, so it stays smooth on low-end phones. */
+(function(){
+  try{
+    var de = document.documentElement;
+    var mq = window.matchMedia ? window.matchMedia('(max-width: 820px), (pointer: coarse)') : null;
+    var rm = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
+    var mem = navigator.deviceMemory || 0, cores = navigator.hardwareConcurrency || 8;
+    var lite = (mem && mem <= 4) || cores <= 4 || (navigator.connection && navigator.connection.saveData);
+    if(lite) de.classList.add('apic-lite');
+
+    // progress bar + back-to-top button (created once, hidden by CSS on desktop)
+    var bar = document.createElement('div'); bar.id = 'apicProg'; bar.setAttribute('aria-hidden', 'true');
+    var top = document.createElement('button'); top.id = 'apicTop'; top.type = 'button'; top.setAttribute('aria-label', 'Back to top');
+    top.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>';
+    document.body.appendChild(bar); document.body.appendChild(top);
+    top.addEventListener('click', function(){ window.scrollTo({ top: 0, behavior: 'smooth' }); });
+
+    var header = document.querySelector('header.top');
+    var active = false, ticking = false, lastY = window.pageYOffset || 0, maxScroll = 1;
+    var hidden = false, topShown = false, lastBar = -1;
+
+    function measure(){ maxScroll = Math.max(1, de.scrollHeight - window.innerHeight); }
+    function frame(){
+      ticking = false;
+      if(!active) return;
+      var y = window.pageYOffset || 0;
+      var p = y / maxScroll; p = p < 0 ? 0 : (p > 1 ? 1 : p);
+      if(Math.abs(p - lastBar) > 0.002){ bar.style.transform = 'scaleX(' + p.toFixed(4) + ')'; lastBar = p; }
+      var dy = y - lastY;
+      if(header){
+        if(y < 80){ if(hidden){ header.classList.remove('apic-hide'); hidden = false; } }
+        else if(dy > 10 && !hidden){ header.classList.add('apic-hide'); hidden = true; }
+        else if(dy < -6 && hidden){ header.classList.remove('apic-hide'); hidden = false; }
+      }
+      if(Math.abs(dy) > 6) lastY = y;
+      var wantTop = y > 700 && dy < 0 || (topShown && y > 700);   // appears when scrolling up, stays while away from the top
+      if(wantTop !== topShown){ topShown = wantTop; top.classList.toggle('show', topShown); }
+    }
+    function onScroll(){ if(!ticking){ ticking = true; requestAnimationFrame(frame); } }
+
+    // staggered, alternating reveals (only elements that aren't already .reveal get observed here;
+    // the page's own observer keeps handling the Features cards)
+    var extra = [];
+    function tag(list, dir){
+      list.forEach(function(el, idx){
+        if(!el) return;
+        if(!el.classList.contains('reveal')){ el.classList.add('reveal'); extra.push(el); }
+        if(dir) el.classList.add(idx % 2 ? 'rv-r' : 'rv-l');
+        el.style.setProperty('--rd', Math.min(idx, 4) * 70 + 'ms');
+        el.addEventListener('transitionend', function once(ev){
+          if(ev.propertyName !== 'transform') return;
+          el.style.setProperty('--rd', '0ms'); el.removeEventListener('transitionend', once);   // don't delay later hover/press effects
+        });
+      });
+    }
+    tag([].slice.call(document.querySelectorAll('.frame-grid .frame')), true);
+    tag([].slice.call(document.querySelectorAll('.features .section-head, .counter-section .counter-inner > *, .download-card, footer .footer-inner')), false);
+    if(extra.length){
+      if('IntersectionObserver' in window){
+        var io2 = new IntersectionObserver(function(es){
+          es.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('in'); io2.unobserve(e.target); } });
+        }, { threshold: 0.12 });
+        extra.forEach(function(el){ io2.observe(el); });
+      } else { extra.forEach(function(el){ el.classList.add('in'); }); }
+    }
+
+    function evaluate(){
+      var fast = !!(mq && mq.matches);
+      de.classList.toggle('apic-fast', fast);
+      var on = fast && !(rm && rm.matches);
+      de.classList.toggle('apic-motion', on);
+      active = on;
+      if(!on){ header && header.classList.remove('apic-hide'); hidden = false; top.classList.remove('show'); topShown = false; }
+      else { measure(); lastY = window.pageYOffset || 0; frame(); }
+    }
+    evaluate();
+    if(mq && mq.addEventListener){ mq.addEventListener('change', evaluate); if(rm) rm.addEventListener('change', evaluate); }
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', function(){ measure(); onScroll(); }, { passive: true });
+    window.addEventListener('orientationchange', function(){ setTimeout(function(){ measure(); onScroll(); }, 250); });
+    window.addEventListener('load', function(){ measure(); onScroll(); });
+    if('ResizeObserver' in window){ new ResizeObserver(function(){ measure(); }).observe(document.body); }
+  } catch(e){ /* motion is purely cosmetic — never let it break the app */ }
+})();
+</script>
 </body>
 </html>
