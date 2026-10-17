@@ -59,6 +59,7 @@
   },
   "featureList": [
     "Image editing (filters, brightness, contrast, saturation, blur, rotate, flip)",
+    "Pro colour tools: live histogram, RGB curves, HSL colour mixer, 3-way colour grading, clarity, grain and 3D LUT (.cube) export",
     "Format conversion between PNG, JPEG, WebP, BMP, ICO and PDF",
     "Smart image compression to a target file size",
     "On-device AI background removal",
@@ -753,6 +754,35 @@
   .quick-btn:hover{border-color:var(--cyan); color:var(--cyan);}
   .hint{font-family:var(--sans); font-size:11.5px; color:var(--text-muted); margin:6px 0 0; line-height:1.5;}
 
+  /* ---------- Advanced: pro colour suite ---------- */
+  .adv-top{display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:10px 0 12px;}
+  .adv-top select{flex:1; min-width:120px; background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:4px; padding:8px 10px; font-family:var(--mono); font-size:12px;}
+  .adv-sec{border:1px solid var(--line); border-radius:8px; margin-bottom:8px; background:color-mix(in srgb, var(--bg) 55%, transparent);}
+  .adv-sec > summary{cursor:pointer; list-style:none; padding:10px 12px; font-family:var(--mono); font-size:11px; letter-spacing:1.2px; text-transform:uppercase; color:var(--text-muted); display:flex; align-items:center; justify-content:space-between; user-select:none;}
+  .adv-sec > summary::-webkit-details-marker{display:none;}
+  .adv-sec > summary::after{content:"+"; color:var(--green); font-size:14px;}
+  .adv-sec[open] > summary{color:var(--text); border-bottom:1px solid var(--line);}
+  .adv-sec[open] > summary::after{content:"\2212";}
+  .adv-body{padding:12px 12px 4px;}
+  .adv-body .row:last-child{margin-bottom:8px;}
+  .adv-hist{width:100%; height:90px; display:block; border-radius:4px; background:var(--bg); border:1px solid var(--line);}
+  .hist-stats{display:flex; justify-content:space-between; gap:8px; margin:6px 0 8px; font-family:var(--mono); font-size:10.5px; color:var(--text-muted); flex-wrap:wrap;}
+  .hist-stats b{color:var(--text); font-weight:600;}
+  .curve-tabs, .hsl-tabs{display:flex; gap:6px; margin-bottom:10px;}
+  .curve-tabs button, .hsl-tabs button{flex:1; padding:7px 4px; border:1px solid var(--line); border-radius:4px; background:transparent; color:var(--text-muted); font-family:var(--mono); font-size:11px; cursor:pointer; transition:all .15s;}
+  .curve-tabs button.on, .hsl-tabs button.on{border-color:var(--green); color:var(--green); background:color-mix(in srgb, var(--green) 10%, transparent);}
+  #curveCanvas{width:100%; max-width:300px; aspect-ratio:1/1; display:block; margin:0 auto 10px; touch-action:none; border-radius:4px; cursor:crosshair;}
+  .hsl-grp{display:none;} .hsl-grp.show{display:block;}
+  .dot{display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:6px; vertical-align:baseline;}
+  .grade-grp{margin-bottom:10px; padding-bottom:4px; border-bottom:1px dashed var(--line);}
+  .grade-head{display:flex; align-items:center; justify-content:space-between; font-family:var(--mono); font-size:10.5px; letter-spacing:1px; text-transform:uppercase; color:var(--text); margin-bottom:8px;}
+  .grade-head .swatch{width:16px; height:16px; border-radius:50%; border:1px solid var(--line); background:#808080;}
+  .row input[type=range].grad{-webkit-appearance:none; appearance:none; height:8px; border-radius:4px; background:var(--g); outline:none; padding:0;}
+  .row input[type=range].grad::-webkit-slider-thumb{-webkit-appearance:none; appearance:none; width:15px; height:15px; border-radius:50%; background:#fff; border:2px solid #222; cursor:pointer;}
+  .row input[type=range].grad::-moz-range-thumb{width:11px; height:11px; border-radius:50%; background:#fff; border:2px solid #222; cursor:pointer;}
+  .row input[type=range].grad::-moz-range-track{background:transparent;}
+  .row .val{min-width:56px;}
+
   .bench-footer{display:flex; justify-content:space-between; align-items:center; margin-top:18px; gap:10px; flex-wrap:wrap;}
   .filesize{font-family:var(--mono); font-size:10.5px; color:var(--text-muted);}
   .gate-note{
@@ -1090,17 +1120,51 @@
 
         <!-- ADVANCED -->
         <div class="bench-panel" id="panel-advanced">
-          <p class="hint" style="margin-top:0;">Manual, pixel-level controls — the same building blocks Photoshop's Curves/Levels/Sharpen tools use, running live in-browser.</p>
-          <div class="row"><label>Black point</label><input type="range" id="advBlack" min="0" max="120" value="0"><span class="val" id="advBlackVal">0</span></div>
-          <div class="row"><label>White point</label><input type="range" id="advWhite" min="135" max="255" value="255"><span class="val" id="advWhiteVal">255</span></div>
-          <div class="row"><label>Gamma</label><input type="range" id="advGamma" min="40" max="250" value="100"><span class="val" id="advGammaVal">1.00</span></div>
-          <div class="row"><label>Sharpen</label><input type="range" id="advSharpen" min="0" max="100" value="0"><span class="val" id="advSharpenVal">0</span></div>
-          <div class="row"><label>Temperature</label><input type="range" id="advTemp" min="-60" max="60" value="0"><span class="val" id="advTempVal">0</span></div>
-          <div class="row"><label>Vignette</label><input type="range" id="advVignette" min="0" max="100" value="0"><span class="val" id="advVignetteVal">0</span></div>
-          <div class="row"><label>Hue</label><input type="range" id="advHue" min="0" max="360" value="0"><span class="val" id="advHueVal">0°</span></div>
-          <button class="btn btn-ghost btn-sm" id="resetAdvanced">Reset advanced</button>
-          <p class="hint">Crop — drag directly on the image above to draw a selection, then apply.</p>
-          <div class="row"><button class="btn btn-ghost btn-sm" id="applyCrop" style="flex:1;">Apply crop</button><button class="btn btn-ghost btn-sm" id="clearCrop" style="flex:1;">Clear selection</button></div>
+          <p class="hint" style="margin-top:0;">Pro colour suite — live histogram, RGB curves, 8-band HSL mixer, 3-way colour grading, tone and detail controls. Double-click any slider to reset it. Everything runs on-device.</p>
+          <div class="adv-top">
+            <select id="advPreset" aria-label="Looks"></select>
+            <button class="btn btn-ghost btn-sm" id="advCompare" title="Hold to see the original (shortcut: \)">Hold: before</button>
+            <button class="btn btn-ghost btn-sm" id="resetAdvanced">Reset advanced</button>
+          </div>
+
+          <details class="adv-sec" open id="secHist"><summary>Histogram</summary><div class="adv-body">
+            <canvas id="advHist" class="adv-hist" width="256" height="90"></canvas>
+            <div class="hist-stats" id="advHistStats"><span>Shadow clip <b>–</b></span><span>Highlight clip <b>–</b></span></div>
+          </div></details>
+
+          <details class="adv-sec" open><summary>Light</summary><div class="adv-body" id="advSecLight"></div></details>
+
+          <details class="adv-sec"><summary>Curves</summary><div class="adv-body">
+            <div class="curve-tabs" id="curveTabs">
+              <button data-ch="rgb" class="on">RGB</button><button data-ch="r">R</button><button data-ch="g">G</button><button data-ch="b">B</button>
+            </div>
+            <canvas id="curveCanvas" width="276" height="276"></canvas>
+            <div class="row"><button class="btn btn-ghost btn-sm" id="curveDel" style="flex:1;">Remove point</button><button class="btn btn-ghost btn-sm" id="curveReset" style="flex:1;">Reset curves</button></div>
+            <p class="hint" style="margin-top:0;">Click the curve to add a point, drag to shape it, double-click a point (or use Remove point) to delete it.</p>
+          </div></details>
+
+          <details class="adv-sec"><summary>White balance &amp; colour</summary><div class="adv-body" id="advSecColor"></div></details>
+
+          <details class="adv-sec"><summary>Colour mixer (HSL)</summary><div class="adv-body">
+            <div class="hsl-tabs" id="hslTabs"><button data-mode="H" class="on">Hue</button><button data-mode="S">Saturation</button><button data-mode="L">Luminance</button></div>
+            <div id="advHsl"></div>
+          </div></details>
+
+          <details class="adv-sec"><summary>Colour grading</summary><div class="adv-body" id="advGrade"></div></details>
+
+          <details class="adv-sec"><summary>Detail</summary><div class="adv-body" id="advSecDetail"></div></details>
+
+          <details class="adv-sec"><summary>Effects</summary><div class="adv-body" id="advSecFx"></div></details>
+
+          <details class="adv-sec"><summary>Crop</summary><div class="adv-body">
+            <p class="hint" style="margin-top:0;">Drag directly on the image above to draw a selection, then apply.</p>
+            <div class="row"><button class="btn btn-ghost btn-sm" id="applyCrop" style="flex:1;">Apply crop</button><button class="btn btn-ghost btn-sm" id="clearCrop" style="flex:1;">Clear selection</button></div>
+          </div></details>
+
+          <details class="adv-sec"><summary>Export grade</summary><div class="adv-body">
+            <div class="row"><button class="btn btn-ghost btn-sm" id="advExportLut" style="flex:1;">Download .cube LUT</button></div>
+            <p class="hint" style="margin-top:0;">A 33&times;33&times;33 3D LUT of your colour grade (light, curves, white balance, vibrance, HSL mixer, grading, fade) for DaVinci Resolve, Premiere, Photoshop and more. Spatial effects (clarity, sharpen, vignette, grain) aren't colour-only, so they're not included.</p>
+          </div></details>
         </div>
 
         <!-- OBJECT REMOVE -->
@@ -1840,7 +1904,7 @@
     canvas.width = rotated ? h : w;
     canvas.height = rotated ? w : h;
     ctx.save();
-    ctx.filter = currentFilterString();
+    ctx.filter = comparing ? 'none' : currentFilterString();
     ctx.translate(canvas.width/2, canvas.height/2);
     ctx.rotate(rotation * Math.PI/180);
     ctx.scale(flipH, flipV);
@@ -1892,6 +1956,7 @@
   function captureFields(){
     var o = {};
     HIST_FIELD_IDS.forEach(function(id){ var el = document.getElementById(id); if(el) o[id] = el.value; });
+    o.__curves = JSON.stringify(curves);
     return o;
   }
   function applyFields(o){
@@ -1902,6 +1967,9 @@
         el.dispatchEvent(new Event('input', {bubbles:true}));
       }
     });
+    if(o.__curves !== undefined && JSON.stringify(curves) !== o.__curves){
+      curves = JSON.parse(o.__curves); curveSel = -1; rebuildSplines(); drawCurves();
+    }
   }
   function updateHistoryButtons(){
     if(undoBtn) undoBtn.disabled = histIndex <= 0;
@@ -2771,94 +2839,693 @@
     else { q.value = 'ultra'; }
   })();
 
-  /* ---------------- advanced pixel FX (levels / gamma / sharpen / temp / vignette) ---------------- */
-  ['advBlack','advWhite','advGamma','advSharpen','advTemp','advVignette','advHue'].forEach(function(id){
-    document.getElementById(id).addEventListener('input', function(){
-      document.getElementById('advBlackVal').textContent = document.getElementById('advBlack').value;
-      document.getElementById('advWhiteVal').textContent = document.getElementById('advWhite').value;
-      document.getElementById('advGammaVal').textContent = (document.getElementById('advGamma').value/100).toFixed(2);
-      document.getElementById('advSharpenVal').textContent = document.getElementById('advSharpen').value;
-      document.getElementById('advTempVal').textContent = document.getElementById('advTemp').value;
-      document.getElementById('advVignetteVal').textContent = document.getElementById('advVignette').value;
-      document.getElementById('advHueVal').textContent = document.getElementById('advHue').value + '°';
-      render();
+/* ======================= ADVANCED: PRO COLOUR SUITE =======================
+     One pixel pipeline, applied after the Edit-tab filters:
+       exposure (linear light) -> black/white point -> gamma -> RGB curve -> per-channel curves
+       -> white balance (temp/tint) -> shadows/highlights -> vibrance -> HSL mixer (8 bands)
+       -> 3-way colour grading -> fade -> clarity -> sharpen -> vignette -> grain
+     Hue rotate still runs through the canvas filter chain. ====================== */
+  var RAINBOW = 'linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)';
+  var BANDS = [['Red','#ef4444'],['Orange','#f97316'],['Yellow','#eab308'],['Green','#22c55e'],
+               ['Aqua','#06b6d4'],['Blue','#3b82f6'],['Purple','#8b5cf6'],['Magenta','#d946ef']];
+  var BAND_CENTERS = [0,30,60,120,180,240,270,300,360];
+  var GRADE_RANGES = [['Sh','Shadows'],['Mi','Midtones'],['Hi','Highlights'],['Gl','Global']];
+  var ADV_DEFS = [], ADV_MAP = {};
+  function addDef(d){ ADV_DEFS.push(d); ADV_MAP[d.id] = d; return d; }
+
+  var LIGHT_DEFS = [
+    {id:'advExposure', label:'Exposure', min:-300, max:300, val:0, step:5, fmt:'ev'},
+    {id:'advHighlights', label:'Highlights', min:-100, max:100, val:0},
+    {id:'advShadows', label:'Shadows', min:-100, max:100, val:0},
+    {id:'advBlack', label:'Black point', min:0, max:120, val:0},
+    {id:'advWhite', label:'White point', min:135, max:255, val:255},
+    {id:'advGamma', label:'Gamma', min:40, max:250, val:100, fmt:'gamma'},
+    {id:'advFade', label:'Fade', min:0, max:100, val:0}
+  ];
+  var COLOR_DEFS = [
+    {id:'advTemp', label:'Temperature', min:-60, max:60, val:0, grad:'linear-gradient(90deg,#3b82f6,#e5e7eb,#f59e0b)'},
+    {id:'advTint', label:'Tint', min:-60, max:60, val:0, grad:'linear-gradient(90deg,#22c55e,#e5e7eb,#d946ef)'},
+    {id:'advVibrance', label:'Vibrance', min:-100, max:100, val:0},
+    {id:'advHue', label:'Hue', min:0, max:360, val:0, fmt:'deg', grad:RAINBOW}
+  ];
+  var DETAIL_DEFS = [
+    {id:'advSharpen', label:'Sharpen', min:0, max:100, val:0},
+    {id:'advClarity', label:'Clarity', min:-100, max:100, val:0}
+  ];
+  var FX_DEFS = [
+    {id:'advVignette', label:'Vignette', min:-100, max:100, val:0},
+    {id:'advVigMid', label:'Midpoint', min:0, max:100, val:50},
+    {id:'advGrain', label:'Grain', min:0, max:100, val:0},
+    {id:'advGrainSize', label:'Grain size', min:1, max:5, val:1}
+  ];
+
+  function fmtVal(d, v){
+    v = Number(v);
+    if(d.fmt === 'ev') return (v > 0 ? '+' : '') + (v/100).toFixed(2);
+    if(d.fmt === 'gamma') return (v/100).toFixed(2);
+    if(d.fmt === 'deg') return v + '\u00B0';
+    if(d.min < 0 && v > 0) return '+' + v;
+    return String(v);
+  }
+  function rowHTML(d){
+    var lab = (d.dot ? '<i class="dot" style="background:'+d.dot+'"></i>' : '') + d.label;
+    return '<div class="row"><label for="'+d.id+'">'+lab+'</label>' +
+      '<input type="range" id="'+d.id+'" min="'+d.min+'" max="'+d.max+'" value="'+d.val+'" step="'+(d.step||1)+'"' +
+      (d.grad ? ' class="grad" style="--g:'+d.grad+'"' : '') + '>' +
+      '<span class="val" id="'+d.id+'Val">'+fmtVal(d, d.val)+'</span></div>';
+  }
+  function buildSection(containerId, defs){
+    defs.forEach(addDef);
+    document.getElementById(containerId).innerHTML = defs.map(rowHTML).join('');
+  }
+  buildSection('advSecLight', LIGHT_DEFS);
+  buildSection('advSecColor', COLOR_DEFS);
+  buildSection('advSecDetail', DETAIL_DEFS);
+  buildSection('advSecFx', FX_DEFS);
+
+  // HSL mixer: 3 modes x 8 bands
+  (function(){
+    var html = '';
+    ['H','S','L'].forEach(function(m, mi){
+      html += '<div class="hsl-grp'+(mi === 0 ? ' show' : '')+'" data-mode="'+m+'">';
+      BANDS.forEach(function(b, i){
+        var d = addDef({id:'hsl'+m+i, label:b[0], min:-100, max:100, val:0, dot:b[1]});
+        html += rowHTML(d);
+      });
+      html += '</div>';
+    });
+    document.getElementById('advHsl').innerHTML = html;
+    document.getElementById('hslTabs').addEventListener('click', function(e){
+      var btn = e.target.closest('button'); if(!btn) return;
+      var mode = btn.dataset.mode;
+      Array.prototype.forEach.call(this.children, function(x){ x.classList.toggle('on', x === btn); });
+      Array.prototype.forEach.call(document.querySelectorAll('#advHsl .hsl-grp'), function(g){ g.classList.toggle('show', g.dataset.mode === mode); });
+    });
+  })();
+
+  // 3-way colour grading
+  (function(){
+    var html = '';
+    GRADE_RANGES.forEach(function(g){
+      var k = g[0];
+      html += '<div class="grade-grp"><div class="grade-head"><span>'+g[1]+'</span><i class="swatch" id="grade'+k+'Sw"></i></div>';
+      html += rowHTML(addDef({id:'grade'+k+'Hue', label:'Hue', min:0, max:360, val:0, fmt:'deg', grad:RAINBOW}));
+      html += rowHTML(addDef({id:'grade'+k+'Sat', label:'Saturation', min:0, max:100, val:0}));
+      html += rowHTML(addDef({id:'grade'+k+'Lum', label:'Luminance', min:-100, max:100, val:0}));
+      html += '</div>';
+    });
+    html += rowHTML(addDef({id:'gradeBlend', label:'Blending', min:0, max:100, val:50}));
+    html += rowHTML(addDef({id:'gradeBal', label:'Balance', min:-100, max:100, val:0}));
+    document.getElementById('advGrade').innerHTML = html;
+  })();
+  function refreshGradeUI(){
+    GRADE_RANGES.forEach(function(g){
+      var k = g[0];
+      var hue = document.getElementById('grade'+k+'Hue').value;
+      var sat = document.getElementById('grade'+k+'Sat').value;
+      document.getElementById('grade'+k+'Sw').style.background = 'hsl('+hue+','+sat+'%,50%)';
+      document.getElementById('grade'+k+'Sat').className = 'grad';
+      document.getElementById('grade'+k+'Sat').style.setProperty('--g', 'linear-gradient(90deg,hsl('+hue+',0%,50%),hsl('+hue+',100%,50%))');
+    });
+  }
+  refreshGradeUI();
+
+  // history must remember every new control + the curves
+  ADV_DEFS.forEach(function(d){ if(HIST_FIELD_IDS.indexOf(d.id) < 0) HIST_FIELD_IDS.push(d.id); });
+
+  /* ---- curves ---- */
+  var CURVE_COLORS = {rgb:null, r:'#ff5a5a', g:'#4cd964', b:'#4aa3ff'};
+  function defaultCurves(){ return {rgb:[[0,0],[255,255]], r:[[0,0],[255,255]], g:[[0,0],[255,255]], b:[[0,0],[255,255]]}; }
+  var curves = defaultCurves();
+  var splines = {rgb:null, r:null, g:null, b:null};
+  var curveCh = 'rgb', curveSel = -1, curveDrag = -1;
+
+  function isIdentityPts(p){ return p.length === 2 && p[0][0] === 0 && p[0][1] === 0 && p[1][0] === 255 && p[1][1] === 255; }
+  // Fritsch-Carlson monotone cubic: smooth, never overshoots between points
+  function buildSpline(pts){
+    if(isIdentityPts(pts)) return null;
+    var n = pts.length, xs = [], ys = [], dk = [], t = [], i;
+    for(i=0;i<n;i++){ xs.push(pts[i][0]); ys.push(pts[i][1]); }
+    for(i=0;i<n-1;i++) dk.push((ys[i+1]-ys[i])/(xs[i+1]-xs[i]));
+    t[0] = dk[0]; t[n-1] = dk[n-2];
+    for(i=1;i<n-1;i++) t[i] = (dk[i-1]*dk[i] <= 0) ? 0 : (dk[i-1]+dk[i])/2;
+    for(i=0;i<n-1;i++){
+      if(dk[i] === 0){ t[i] = 0; t[i+1] = 0; continue; }
+      var a = t[i]/dk[i], b = t[i+1]/dk[i], s = a*a + b*b;
+      if(s > 9){ var tau = 3/Math.sqrt(s); t[i] = tau*a*dk[i]; t[i+1] = tau*b*dk[i]; }
+    }
+    return {xs:xs, ys:ys, t:t};
+  }
+  function evalSpline(sp, x){
+    if(!sp) return x;
+    var xs = sp.xs, n = xs.length;
+    if(x <= xs[0]) return sp.ys[0];
+    if(x >= xs[n-1]) return sp.ys[n-1];
+    var i = 0; while(i < n-2 && x > xs[i+1]) i++;
+    var h = xs[i+1]-xs[i], tt = (x-xs[i])/h, t2 = tt*tt, t3 = t2*tt;
+    var y = (2*t3-3*t2+1)*sp.ys[i] + (t3-2*t2+tt)*h*sp.t[i] + (-2*t3+3*t2)*sp.ys[i+1] + (t3-t2)*h*sp.t[i+1];
+    return y < 0 ? 0 : (y > 255 ? 255 : y);
+  }
+  function rebuildSplines(){ ['rgb','r','g','b'].forEach(function(k){ splines[k] = buildSpline(curves[k]); }); }
+  function curvesActive(){ return !!(splines.rgb || splines.r || splines.g || splines.b); }
+
+  var curveCanvas = document.getElementById('curveCanvas');
+  var cctx = curveCanvas.getContext('2d');
+  var CPAD = 10, CPLOT = 256;
+  function cx2px(x){ return CPAD + x/255*CPLOT; }
+  function cy2px(y){ return CPAD + CPLOT - y/255*CPLOT; }
+  function cssVar(n, fb){ var v = getComputedStyle(document.documentElement).getPropertyValue(n); return (v && v.trim()) || fb; }
+
+  function drawCurves(){
+    var W = curveCanvas.width, H = curveCanvas.height;
+    var bg = cssVar('--bg','#07070a'), line = cssVar('--line','rgba(150,255,210,0.2)'), txt = cssVar('--text','#eee');
+    cctx.clearRect(0,0,W,H);
+    cctx.fillStyle = bg; cctx.fillRect(CPAD, CPAD, CPLOT, CPLOT);
+    // faint histogram behind the curve
+    if(lastHist){
+      var hk = curveCh === 'rgb' ? 'l' : curveCh;
+      var hv = lastHist[hk], mx = lastHist.max[hk] || 1;
+      cctx.fillStyle = curveCh === 'rgb' ? 'rgba(160,160,170,0.28)' : (CURVE_COLORS[curveCh] + '44');
+      for(var i=0;i<256;i++){
+        var bh = Math.min(1, hv[i]/mx) * CPLOT;
+        cctx.fillRect(cx2px(i), CPAD + CPLOT - bh, Math.max(1, CPLOT/255), bh);
+      }
+    }
+    cctx.strokeStyle = line; cctx.lineWidth = 1;
+    for(var g=0; g<=4; g++){
+      var gp = CPAD + g*CPLOT/4;
+      cctx.beginPath(); cctx.moveTo(gp, CPAD); cctx.lineTo(gp, CPAD+CPLOT); cctx.stroke();
+      cctx.beginPath(); cctx.moveTo(CPAD, gp); cctx.lineTo(CPAD+CPLOT, gp); cctx.stroke();
+    }
+    cctx.beginPath(); cctx.moveTo(cx2px(0), cy2px(0)); cctx.lineTo(cx2px(255), cy2px(255));
+    cctx.setLineDash([4,4]); cctx.stroke(); cctx.setLineDash([]);
+    function strokeCurve(key, color, width){
+      var sp = splines[key];
+      if(!sp && key !== curveCh) return;
+      cctx.beginPath();
+      for(var x=0; x<=255; x++){
+        var y = evalSpline(sp, x);
+        if(x === 0) cctx.moveTo(cx2px(x), cy2px(y)); else cctx.lineTo(cx2px(x), cy2px(y));
+      }
+      cctx.strokeStyle = color; cctx.lineWidth = width; cctx.stroke();
+    }
+    ['r','g','b'].forEach(function(k){ if(k !== curveCh) strokeCurve(k, CURVE_COLORS[k] + '88', 1.2); });
+    if(curveCh !== 'rgb') strokeCurve('rgb', txt, 1.2);
+    strokeCurve(curveCh, curveCh === 'rgb' ? txt : CURVE_COLORS[curveCh], 2);
+    var pts = curves[curveCh];
+    for(var p=0;p<pts.length;p++){
+      cctx.beginPath(); cctx.arc(cx2px(pts[p][0]), cy2px(pts[p][1]), p === curveSel ? 6 : 4.5, 0, Math.PI*2);
+      cctx.fillStyle = p === curveSel ? (curveCh === 'rgb' ? txt : CURVE_COLORS[curveCh]) : bg;
+      cctx.fill(); cctx.lineWidth = 2; cctx.strokeStyle = curveCh === 'rgb' ? txt : CURVE_COLORS[curveCh]; cctx.stroke();
+    }
+  }
+  function curvePointer(e){
+    var r = curveCanvas.getBoundingClientRect();
+    var px = (e.clientX - r.left) * curveCanvas.width / r.width;
+    var py = (e.clientY - r.top) * curveCanvas.height / r.height;
+    return {px:px, py:py, x:Math.round((px-CPAD)/CPLOT*255), y:Math.round((CPAD+CPLOT-py)/CPLOT*255)};
+  }
+  function curveChanged(){ rebuildSplines(); drawCurves(); scheduleRender(); }
+  curveCanvas.addEventListener('pointerdown', function(e){
+    if(!originalImg) return;
+    e.preventDefault();
+    var m = curvePointer(e), pts = curves[curveCh], hit = -1, best = 14*14;
+    for(var i=0;i<pts.length;i++){
+      var dx = cx2px(pts[i][0]) - m.px, dy = cy2px(pts[i][1]) - m.py, dd = dx*dx + dy*dy;
+      if(dd < best){ best = dd; hit = i; }
+    }
+    if(hit < 0){
+      if(m.x < 0 || m.x > 255) return;
+      for(var j=0;j<pts.length;j++) if(Math.abs(pts[j][0]-m.x) < 3) return; // too close to a neighbour
+      var yOn = Math.round(evalSpline(splines[curveCh], m.x));
+      pts.push([m.x, yOn]);
+      pts.sort(function(a,b){ return a[0]-b[0]; });
+      for(var k=0;k<pts.length;k++) if(pts[k][0] === m.x && pts[k][1] === yOn){ hit = k; break; }
+    }
+    curveSel = hit; curveDrag = hit;
+    try{ curveCanvas.setPointerCapture(e.pointerId); }catch(err){}
+    curveChanged();
+  });
+  curveCanvas.addEventListener('pointermove', function(e){
+    if(curveDrag < 0) return;
+    var m = curvePointer(e), pts = curves[curveCh], i = curveDrag;
+    var lo = i === 0 ? 0 : pts[i-1][0] + 2, hi = i === pts.length-1 ? 255 : pts[i+1][0] - 2;
+    pts[i][0] = Math.max(lo, Math.min(hi, m.x));
+    pts[i][1] = Math.max(0, Math.min(255, m.y));
+    curveChanged();
+  });
+  function endCurveDrag(){ if(curveDrag >= 0){ curveDrag = -1; commitHistory(); } }
+  curveCanvas.addEventListener('pointerup', endCurveDrag);
+  curveCanvas.addEventListener('pointercancel', endCurveDrag);
+  function removeCurvePoint(i){
+    var pts = curves[curveCh];
+    if(i < 0 || pts.length <= 2) return;
+    pts.splice(i, 1); curveSel = -1; curveChanged(); commitHistory();
+  }
+  curveCanvas.addEventListener('dblclick', function(e){
+    var m = curvePointer(e), pts = curves[curveCh];
+    for(var i=0;i<pts.length;i++){
+      var dx = cx2px(pts[i][0]) - m.px, dy = cy2px(pts[i][1]) - m.py;
+      if(dx*dx + dy*dy < 14*14){ removeCurvePoint(i); return; }
+    }
+  });
+  document.getElementById('curveDel').addEventListener('click', function(){ removeCurvePoint(curveSel); });
+  document.getElementById('curveReset').addEventListener('click', function(){
+    curves = defaultCurves(); curveSel = -1; curveChanged(); commitHistory();
+  });
+  document.getElementById('curveTabs').addEventListener('click', function(e){
+    var btn = e.target.closest('button'); if(!btn) return;
+    curveCh = btn.dataset.ch; curveSel = -1;
+    Array.prototype.forEach.call(this.children, function(x){ x.classList.toggle('on', x === btn); });
+    drawCurves();
+  });
+
+  /* ---- histogram ---- */
+  var lastHist = null, histRaf = 0;
+  var histCanvas = document.getElementById('advHist');
+  var hctx = histCanvas.getContext('2d');
+  var histTmp = document.createElement('canvas');
+  function scheduleHist(){
+    if(histRaf || activeTool !== 'advanced') return;
+    histRaf = requestAnimationFrame(function(){ histRaf = 0; updateHist(); });
+  }
+  function updateHist(){
+    if(!originalImg || canvas.width < 2) return;
+    var tw = Math.min(canvas.width, 220), th = Math.max(1, Math.round(canvas.height * tw / canvas.width));
+    histTmp.width = tw; histTmp.height = th;
+    var tctx = histTmp.getContext('2d');
+    tctx.imageSmoothingEnabled = true; tctx.imageSmoothingQuality = 'high';
+    tctx.drawImage(canvas, 0, 0, tw, th);
+    var px = tctx.getImageData(0,0,tw,th).data;
+    var R = new Float32Array(256), G = new Float32Array(256), B = new Float32Array(256), L = new Float32Array(256);
+    var total = 0, sc = 0, hc = 0;
+    for(var i=0;i<px.length;i+=4){
+      if(px[i+3] < 8) continue;
+      var r = px[i], g = px[i+1], b = px[i+2];
+      R[r]++; G[g]++; B[b]++;
+      L[Math.round(0.2126*r + 0.7152*g + 0.0722*b)]++;
+      total++;
+      if(r <= 1 || g <= 1 || b <= 1) sc++;
+      if(r >= 254 || g >= 254 || b >= 254) hc++;
+    }
+    function peak(a){ var m = 0; for(var k=1;k<255;k++) if(a[k] > m) m = a[k]; return m || Math.max.apply(null, a) || 1; }
+    lastHist = {r:R, g:G, b:B, l:L, max:{r:peak(R), g:peak(G), b:peak(B), l:peak(L)}};
+    lastHist.max.all = Math.max(lastHist.max.r, lastHist.max.g, lastHist.max.b);
+    var W = histCanvas.width, H = histCanvas.height, mx = lastHist.max.all;
+    hctx.clearRect(0,0,W,H);
+    function fillCh(a, col){
+      hctx.beginPath(); hctx.moveTo(0, H);
+      for(var k=0;k<256;k++) hctx.lineTo(k, H - Math.min(1, a[k]/mx) * (H-4));
+      hctx.lineTo(255, H); hctx.closePath(); hctx.fillStyle = col; hctx.fill();
+    }
+    fillCh(R, 'rgba(255,70,70,0.42)'); fillCh(G, 'rgba(60,220,90,0.42)'); fillCh(B, 'rgba(70,140,255,0.42)');
+    hctx.beginPath();
+    var lm = lastHist.max.l;
+    for(var q=0;q<256;q++){ var yy = H - Math.min(1, L[q]/lm) * (H-4); if(q === 0) hctx.moveTo(q, yy); else hctx.lineTo(q, yy); }
+    hctx.strokeStyle = cssVar('--text-muted','#999'); hctx.lineWidth = 1; hctx.stroke();
+    var pc = function(n){ return total ? (n/total*100).toFixed(1) + '%' : '0%'; };
+    document.getElementById('advHistStats').innerHTML = '<span>Shadow clip <b>'+pc(sc)+'</b></span><span>Highlight clip <b>'+pc(hc)+'</b></span>';
+    if(curveCanvas) drawCurves();
+  }
+
+  /* ---- slider wiring ---- */
+  var rafPending = false;
+  function scheduleRender(){
+    if(rafPending) return;
+    rafPending = true;
+    requestAnimationFrame(function(){ rafPending = false; render(); });
+  }
+  var presetSel = document.getElementById('advPreset');
+  function setSlider(id, v){
+    var el = document.getElementById(id); if(!el) return;
+    el.value = v;
+    document.getElementById(id + 'Val').textContent = fmtVal(ADV_MAP[id], el.value);
+  }
+  ADV_DEFS.forEach(function(d){
+    var el = document.getElementById(d.id);
+    el.addEventListener('input', function(){
+      document.getElementById(d.id + 'Val').textContent = fmtVal(d, el.value);
+      if(d.id.indexOf('grade') === 0) refreshGradeUI();
+      if(!applyingPreset) presetSel.value = '';
+      scheduleRender();
+    });
+    el.addEventListener('change', function(){ commitHistory(); });
+    el.addEventListener('dblclick', function(){
+      el.value = d.val;
+      el.dispatchEvent(new Event('input', {bubbles:true}));
+      commitHistory();
     });
   });
+  var applyingPreset = false;
+
   function resetAdvancedUI(){
-    var d = {advBlack:0, advWhite:255, advGamma:100, advSharpen:0, advTemp:0, advVignette:0, advHue:0};
-    Object.keys(d).forEach(function(id){ document.getElementById(id).value = d[id]; });
-    document.getElementById('advBlackVal').textContent = '0';
-    document.getElementById('advWhiteVal').textContent = '255';
-    document.getElementById('advGammaVal').textContent = '1.00';
-    document.getElementById('advSharpenVal').textContent = '0';
-    document.getElementById('advTempVal').textContent = '0';
-    document.getElementById('advVignetteVal').textContent = '0';
-    document.getElementById('advHueVal').textContent = '0°';
+    ADV_DEFS.forEach(function(d){ setSlider(d.id, d.val); });
+    curves = defaultCurves(); curveSel = -1; rebuildSplines(); drawCurves();
+    refreshGradeUI();
+    if(presetSel) presetSel.value = '';
   }
-  ['advBlack','advWhite','advGamma','advSharpen','advTemp','advVignette','advHue'].forEach(function(id){
-    document.getElementById(id).addEventListener('change', function(){ commitHistory(); });
-  });
   document.getElementById('resetAdvanced').addEventListener('click', function(){ resetAdvancedUI(); render(); commitHistory(); });
 
-  function applyAdvancedFx(){
-    var black = parseInt(document.getElementById('advBlack').value,10);
-    var white = parseInt(document.getElementById('advWhite').value,10);
-    var gamma = parseInt(document.getElementById('advGamma').value,10)/100;
-    var sharpen = parseInt(document.getElementById('advSharpen').value,10);
-    var temp = parseInt(document.getElementById('advTemp').value,10);
-    var vignette = parseInt(document.getElementById('advVignette').value,10);
-    var needsLevels = (black !== 0 || white !== 255 || gamma !== 1 || temp !== 0);
-    var w = canvas.width, h = canvas.height;
+  /* ---- looks (presets) ---- */
+  function hslAll(mode, v){ var o = {}; for(var i=0;i<8;i++) o['hsl'+mode+i] = v; return o; }
+  function merge(){ var o = {}; for(var i=0;i<arguments.length;i++) for(var k in arguments[i]) o[k] = arguments[i][k]; return o; }
+  var PRESETS = {
+    tealorange: {name:'Teal & Orange', f:{gradeShHue:195, gradeShSat:38, gradeHiHue:35, gradeHiSat:34, gradeBlend:55, advVibrance:14, advClarity:10},
+      c:{rgb:[[0,0],[64,54],[192,204],[255,255]]}},
+    cinematic: {name:'Cinematic', f:{advExposure:-10, gradeShHue:205, gradeShSat:32, gradeMiHue:30, gradeMiSat:8, gradeHiHue:45, gradeHiSat:22, advVignette:22, advClarity:12, advFade:8},
+      c:{rgb:[[0,6],[70,58],[190,200],[255,250]]}},
+    filmfade: {name:'Film Fade', f:{advFade:32, gradeShHue:210, gradeShSat:16, gradeHiHue:40, gradeHiSat:16, advGrain:28, advVibrance:-10},
+      c:{rgb:[[0,0],[70,62],[185,196],[255,255]]}},
+    golden: {name:'Golden Hour', f:merge({advTemp:26, advTint:6, advShadows:14, advHighlights:-22, gradeHiHue:40, gradeHiSat:26, advVibrance:12, hslS1:18, hslS2:10}, {})},
+    moody: {name:'Cool Moody', f:{advTemp:-22, advExposure:-20, advShadows:-8, gradeShHue:220, gradeShSat:32, advVignette:32, advVibrance:-16, advClarity:16, advGrain:12}},
+    matte: {name:'Matte Portrait', f:{advFade:24, advHighlights:-16, advShadows:20, advVibrance:10, advTemp:6, hslS1:-10, hslL1:12, hslL0:8}},
+    bleach: {name:'Bleach Bypass', f:{advClarity:34, advVibrance:-42, advGrain:16, advVignette:14},
+      c:{rgb:[[0,0],[60,40],[195,218],[255,255]]}},
+    vivid: {name:'Vivid Landscape', f:{advVibrance:40, advClarity:24, advHighlights:-16, advShadows:20, hslS3:16, hslS4:14, hslS5:20, hslL5:-8},
+      c:{rgb:[[0,0],[64,58],[192,200],[255,255]]}},
+    bw: {name:'B&W High Contrast', f:merge(hslAll('S', -100), {advClarity:26, advGrain:20, advVignette:18, hslL0:-10, hslL1:-6, hslL5:-18}),
+      c:{rgb:[[0,0],[58,38],[198,222],[255,255]]}}
+  };
+  presetSel.innerHTML = '<option value="">Looks\u2026</option>' + Object.keys(PRESETS).map(function(k){ return '<option value="'+k+'">'+PRESETS[k].name+'</option>'; }).join('');
+  presetSel.addEventListener('change', function(){
+    var p = PRESETS[presetSel.value]; if(!p || !originalImg) return;
+    var key = presetSel.value;
+    applyingPreset = true;
+    resetAdvancedUI();
+    Object.keys(p.f).forEach(function(id){ setSlider(id, p.f[id]); });
+    if(p.c){ Object.keys(p.c).forEach(function(ch){ curves[ch] = p.c[ch].map(function(q){ return [q[0], q[1]]; }); }); }
+    rebuildSplines(); drawCurves(); refreshGradeUI();
+    applyingPreset = false;
+    presetSel.value = key;
+    render(); commitHistory();
+  });
 
-    if(needsLevels){
-      var id = ctx.getImageData(0,0,w,h);
-      var d = id.data;
-      var range = Math.max(1, white - black);
-      var lut = new Uint8ClampedArray(256);
+  /* ---- hold to compare with original ---- */
+  var comparing = false;
+  function setCompare(on){ if(comparing === on || !originalImg) return; comparing = on; render(); }
+  var cmpBtn = document.getElementById('advCompare');
+  cmpBtn.addEventListener('pointerdown', function(e){ e.preventDefault(); setCompare(true); });
+  ['pointerup','pointercancel','pointerleave'].forEach(function(ev){ cmpBtn.addEventListener(ev, function(){ setCompare(false); }); });
+  window.addEventListener('pointerup', function(){ setCompare(false); });
+  cmpBtn.addEventListener('contextmenu', function(e){ e.preventDefault(); });
+  window.addEventListener('keydown', function(e){
+    var tag = (e.target && e.target.tagName) || '';
+    if(e.key === '\\' && tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT' && activeTool === 'advanced'){ e.preventDefault(); setCompare(true); }
+  });
+  window.addEventListener('keyup', function(e){ if(e.key === '\\') setCompare(false); });
+
+  /* ---- the pixel engine ---- */
+  function rd(id){ return parseInt(document.getElementById(id).value, 10) || 0; }
+  function hue2rgb(p, q, t){
+    if(t < 0) t += 1; if(t > 1) t -= 1;
+    if(t < 1/6) return p + (q-p)*6*t;
+    if(t < 1/2) return q;
+    if(t < 2/3) return p + (q-p)*(2/3 - t)*6;
+    return p;
+  }
+  function sstep(e0, e1, x){
+    var t = (x - e0)/(e1 - e0);
+    if(t <= 0) return 0; if(t >= 1) return 1;
+    return t*t*(3 - 2*t);
+  }
+  function buildCfg(){
+    var c = {};
+    var ev = rd('advExposure')/100, black = rd('advBlack'), white = rd('advWhite'), gamma = rd('advGamma')/100;
+    c.useLut = (ev !== 0 || black !== 0 || white !== 255 || gamma !== 1 || curvesActive());
+    c.lutR = c.lutG = c.lutB = null;
+    if(c.useLut){
+      var range = Math.max(1, white - black), base = new Float32Array(256);
       for(var v=0; v<256; v++){
-        var nv = (v - black) / range;
-        nv = Math.max(0, Math.min(1, nv));
-        nv = Math.pow(nv, 1/gamma);
-        lut[v] = nv*255;
+        var x = v/255;
+        if(ev !== 0){
+          var lin = x <= 0.04045 ? x/12.92 : Math.pow((x + 0.055)/1.055, 2.4);
+          lin *= Math.pow(2, ev);
+          x = lin <= 0.0031308 ? lin*12.92 : 1.055*Math.pow(lin, 1/2.4) - 0.055;
+          if(x > 1) x = 1;
+        }
+        x = (x*255 - black)/range;
+        x = x < 0 ? 0 : (x > 1 ? 1 : x);
+        x = Math.pow(x, 1/gamma);
+        base[v] = x*255;
       }
-      for(var p=0; p<d.length; p+=4){
-        d[p] = Math.min(255, Math.max(0, lut[d[p]] + temp*0.6));
-        d[p+1] = lut[d[p+1]];
-        d[p+2] = Math.min(255, Math.max(0, lut[d[p+2]] - temp*0.6));
+      c.lutR = new Float32Array(256); c.lutG = new Float32Array(256); c.lutB = new Float32Array(256);
+      for(var u=0; u<256; u++){
+        var m = evalSpline(splines.rgb, base[u]);
+        c.lutR[u] = evalSpline(splines.r, m)/255;
+        c.lutG[u] = evalSpline(splines.g, m)/255;
+        c.lutB[u] = evalSpline(splines.b, m)/255;
       }
-      ctx.putImageData(id,0,0);
     }
+    var temp = rd('advTemp'), tint = rd('advTint');
+    c.wb = (temp !== 0 || tint !== 0);
+    c.wbR = (temp*0.6 + tint*0.2)/255; c.wbG = (-tint*0.6)/255; c.wbB = (-temp*0.6 + tint*0.2)/255;
+    c.sh = rd('advShadows')/100; c.hi = rd('advHighlights')/100; c.tone = (c.sh !== 0 || c.hi !== 0);
+    c.vib = rd('advVibrance')/100;
+    c.fade = rd('advFade')/100;
+    c.clarity = rd('advClarity')/100*0.9;
+    var hH = [], hS = [], hL = [];
+    c.hsl = false;
+    for(var i=0;i<8;i++){
+      hH.push(rd('hslH'+i)/100); hS.push(rd('hslS'+i)/100); hL.push(rd('hslL'+i)/100);
+      if(hH[i] || hS[i] || hL[i]) c.hsl = true;
+    }
+    // hue -> (hue shift, sat, lum) adjustment table at 0.5 degree steps (smooth blend between band centres)
+    c.hTab = null;
+    if(c.hsl){
+      c.hTab = new Float32Array(720*3);
+      for(var k=0;k<720;k++){
+        var hd = k/2, bi = 0;
+        while(bi < 7 && hd >= BAND_CENTERS[bi+1]) bi++;
+        var tt = (hd - BAND_CENTERS[bi])/(BAND_CENTERS[bi+1] - BAND_CENTERS[bi]); tt = tt*tt*(3 - 2*tt);
+        var bj = (bi + 1) % 8;
+        c.hTab[k*3]   = (hH[bi] + (hH[bj] - hH[bi])*tt)*30;
+        c.hTab[k*3+1] = hS[bi] + (hS[bj] - hS[bi])*tt;
+        c.hTab[k*3+2] = hL[bi] + (hL[bj] - hL[bi])*tt;
+      }
+    }
+    // colour grading: per-range tint offsets (zero-luma) + luminance shift
+    c.grade = false; c.gr = {};
+    GRADE_RANGES.forEach(function(g){
+      var k = g[0], hue = rd('grade'+k+'Hue'), sat = rd('grade'+k+'Sat')/100, lum = rd('grade'+k+'Lum')/100;
+      var o = {r:0, g:0, b:0, l:lum*0.3};
+      if(sat > 0){
+        var q = 0.5 + 0.5*1, p2 = 2*0.5 - q, h = hue/360;
+        var tr = hue2rgb(p2, q, h + 1/3), tg = hue2rgb(p2, q, h), tb = hue2rgb(p2, q, h - 1/3);
+        var ty = 0.2126*tr + 0.7152*tg + 0.0722*tb;
+        o.r = (tr - ty)*sat*0.35; o.g = (tg - ty)*sat*0.35; o.b = (tb - ty)*sat*0.35;
+      }
+      c.gr[k] = o;
+      if(sat > 0 || lum !== 0) c.grade = true;
+    });
+    var bal = rd('gradeBal')/100, blend = rd('gradeBlend')/100;
+    c.gk = 0.05 + 0.3*blend; c.g1 = 0.33 - 0.2*bal; c.g2 = 0.66 - 0.2*bal;
+    // luma-indexed weight tables (1024 steps) so the per-pixel loop does no smoothstep maths
+    c.toneT = null; c.wsT = null; c.whT = null;
+    if(c.tone){
+      c.toneT = new Float32Array(1024);
+      for(var ti=0;ti<1024;ti++){ var ty2 = ti/1023; c.toneT[ti] = c.sh*0.35*(1 - sstep(0, 0.6, ty2)) + c.hi*0.35*sstep(0.4, 1, ty2); }
+    }
+    if(c.grade){
+      c.wsT = new Float32Array(1024); c.whT = new Float32Array(1024);
+      for(var gi=0;gi<1024;gi++){ var gy = gi/1023; c.wsT[gi] = 1 - sstep(c.g1 - c.gk, c.g1 + c.gk, gy); c.whT[gi] = sstep(c.g2 - c.gk, c.g2 + c.gk, gy); }
+      c.gv = new Float32Array([c.gr.Sh.r,c.gr.Sh.g,c.gr.Sh.b,c.gr.Sh.l, c.gr.Mi.r,c.gr.Mi.g,c.gr.Mi.b,c.gr.Mi.l, c.gr.Hi.r,c.gr.Hi.g,c.gr.Hi.b,c.gr.Hi.l, c.gr.Gl.r,c.gr.Gl.g,c.gr.Gl.b,c.gr.Gl.l]);
+    }
+    c.pixel = !!(c.useLut || c.wb || c.tone || c.vib || c.hsl || c.grade || c.fade || c.clarity);
+    c.sharpen = rd('advSharpen')/100;
+    c.vig = rd('advVignette'); c.vigMid = rd('advVigMid'); c.grain = rd('advGrain'); c.grainSize = rd('advGrainSize');
+    c.post = (c.vig !== 0 || c.grain > 0);
+    c.any = !!(c.pixel || c.sharpen || c.post);
+    return c;
+  }
 
-    if(sharpen > 0){
-      var amt = sharpen/100;
-      var src = ctx.getImageData(0,0,w,h);
-      var s = src.data;
-      var out = new Uint8ClampedArray(s);
-      for(var y=1; y<h-1; y++){
-        for(var x=1; x<w-1; x++){
-          var i2 = (y*w+x)*4;
-          for(var c=0;c<3;c++){
-            var center = s[i2+c];
-            var neigh = s[i2-4+c] + s[i2+4+c] + s[i2-w*4+c] + s[i2+w*4+c];
-            var lap = center*4 - neigh;
-            out[i2+c] = center + lap*amt*0.5;
+  function processPixels(d, c, blurD){
+    var n = d.length, p, r, g, b, Y, ti;
+    var lr = c.lutR, lg = c.lutG, lb = c.lutB, useLut = c.useLut;
+    var wb = c.wb, wbR = c.wbR, wbG = c.wbG, wbB = c.wbB;
+    var toneT = c.toneT, vib = c.vib, hTab = c.hTab;
+    var grade = c.grade, wsT = c.wsT, whT = c.whT, gv = c.gv;
+    var fade = c.fade, fa = 0.25*fade, fb = 0.225*fade;
+    var clar = blurD ? c.clarity : 0;
+    var needClamp = wb || toneT || vib !== 0 || hTab || grade;
+    var sR, sG, sB, sL, mR, mG, mB, mL, hR, hG, hB, hL2, gR, gG, gB, gL;
+    if(grade){
+      sR = gv[0]; sG = gv[1]; sB = gv[2]; sL = gv[3]; mR = gv[4]; mG = gv[5]; mB = gv[6]; mL = gv[7];
+      hR = gv[8]; hG = gv[9]; hB = gv[10]; hL2 = gv[11]; gR = gv[12]; gG = gv[13]; gB = gv[14]; gL = gv[15];
+    }
+    for(p=0; p<n; p+=4){
+      var r0 = d[p], g0 = d[p+1], b0 = d[p+2];
+      if(useLut){ r = lr[r0]; g = lg[g0]; b = lb[b0]; } else { r = r0*0.00392156862745098; g = g0*0.00392156862745098; b = b0*0.00392156862745098; }
+      if(wb){ r += wbR; g += wbG; b += wbB; }
+      if(needClamp){ r = r<0?0:(r>1?1:r); g = g<0?0:(g>1?1:g); b = b<0?0:(b>1?1:b); }
+      if(toneT){
+        ti = ((0.2126*r + 0.7152*g + 0.0722*b)*1023 + 0.5)|0;
+        var dl = toneT[ti];
+        r += dl; g += dl; b += dl;
+        r = r<0?0:(r>1?1:r); g = g<0?0:(g>1?1:g); b = b<0?0:(b>1?1:b);
+      }
+      if(vib !== 0){
+        Y = 0.2126*r + 0.7152*g + 0.0722*b;
+        var mx = r > g ? (r > b ? r : b) : (g > b ? g : b);
+        var mn = r < g ? (r < b ? r : b) : (g < b ? g : b);
+        var f = 1 + vib*(1 - (mx > 0 ? (mx - mn)/mx : 0));
+        r = Y + (r - Y)*f; g = Y + (g - Y)*f; b = Y + (b - Y)*f;
+        r = r<0?0:(r>1?1:r); g = g<0?0:(g>1?1:g); b = b<0?0:(b>1?1:b);
+      }
+      if(hTab){
+        var hmx = r > g ? (r > b ? r : b) : (g > b ? g : b);
+        var hmn = r < g ? (r < b ? r : b) : (g < b ? g : b);
+        var dd = hmx - hmn;
+        if(dd > 0.004){
+          var l = (hmx + hmn)*0.5;
+          var s = l > 0.5 ? dd/(2 - hmx - hmn) : dd/(hmx + hmn);
+          var h;
+          if(hmx === r) h = ((g - b)/dd) % 6; else if(hmx === g) h = (b - r)/dd + 2; else h = (r - g)/dd + 4;
+          h *= 60; if(h < 0) h += 360;
+          var hi3 = ((h*2)|0)*3;
+          var hA = hTab[hi3], sA = hTab[hi3+1], lA = hTab[hi3+2];
+          if(hA !== 0 || sA !== 0 || lA !== 0){
+            var yOld = 0.2126*r + 0.7152*g + 0.0722*b, s0 = s;
+            h += hA; if(h < 0) h += 360; else if(h >= 360) h -= 360;
+            if(sA > 0) s += (1 - s)*sA; else s *= (1 + sA);
+            var q = l < 0.5 ? l*(1 + s) : l + s - l*s, p2 = 2*l - q, hh = h/360;
+            r = hue2rgb(p2, q, hh + 0.3333333333); g = hue2rgb(p2, q, hh); b = hue2rgb(p2, q, hh - 0.3333333333);
+            if(sA < 0){ // keep perceived brightness when desaturating (true luma-based B&W)
+              var cmp = (yOld - (0.2126*r + 0.7152*g + 0.0722*b))*(-sA);
+              r += cmp; g += cmp; b += cmp;
+            }
+            if(lA !== 0){ // luminance of this colour band, weighted by how colourful the pixel was
+              var sw = s0*2.5; if(sw > 1) sw = 1;
+              var yN = 0.2126*r + 0.7152*g + 0.0722*b; yN = yN<0?0:(yN>1?1:yN);
+              var dL = (lA > 0 ? (1 - yN) : yN)*lA*0.5*sw;
+              r += dL; g += dL; b += dL;
+            }
+            r = r<0?0:(r>1?1:r); g = g<0?0:(g>1?1:g); b = b<0?0:(b>1?1:b);
           }
         }
       }
-      var outData = new ImageData(out, w, h);
-      ctx.putImageData(outData, 0, 0);
-    }
-
-    if(vignette > 0){
-      var grad = ctx.createRadialGradient(w/2,h/2, Math.min(w,h)*0.3, w/2,h/2, Math.max(w,h)*0.7);
-      grad.addColorStop(0, 'rgba(0,0,0,0)');
-      grad.addColorStop(1, 'rgba(0,0,0,'+(vignette/100*0.85)+')');
-      ctx.save();
-      ctx.fillStyle = grad;
-      ctx.fillRect(0,0,w,h);
-      ctx.restore();
+      if(grade){
+        ti = ((0.2126*r + 0.7152*g + 0.0722*b)*1023 + 0.5)|0; if(ti < 0) ti = 0; else if(ti > 1023) ti = 1023;
+        var wS = wsT[ti], wH = whT[ti], wM = 1 - wS - wH; if(wM < 0) wM = 0;
+        var lumSh = wS*sL + wM*mL + wH*hL2 + gL;
+        r += wS*sR + wM*mR + wH*hR + gR + lumSh;
+        g += wS*sG + wM*mG + wH*hG + gG + lumSh;
+        b += wS*sB + wM*mB + wH*hB + gB + lumSh;
+      }
+      if(fade > 0){ r = r*(1 - fa) + fb; g = g*(1 - fa) + fb; b = b*(1 - fa) + fb; }
+      if(clar !== 0){
+        var ys = (0.2126*r0 + 0.7152*g0 + 0.0722*b0)*0.00392156862745098;
+        var yb = (0.2126*blurD[p] + 0.7152*blurD[p+1] + 0.0722*blurD[p+2])*0.00392156862745098;
+        var yc = 0.2126*r + 0.7152*g + 0.0722*b; yc = yc<0?0:(yc>1?1:yc);
+        var add = (ys - yb)*clar*(1 - (2*yc - 1)*(2*yc - 1))*1.6;
+        r += add; g += add; b += add;
+      }
+      d[p] = r*255; d[p+1] = g*255; d[p+2] = b*255;
     }
   }
+
+  function sharpenBuf(d, w, h, amt){
+    var s = new Uint8ClampedArray(d), y, x, i2, ch;
+    for(y=1; y<h-1; y++){
+      for(x=1; x<w-1; x++){
+        i2 = (y*w + x)*4;
+        for(ch=0; ch<3; ch++){
+          var center = s[i2+ch];
+          var neigh = s[i2-4+ch] + s[i2+4+ch] + s[i2-w*4+ch] + s[i2+w*4+ch];
+          d[i2+ch] = center + (center*4 - neigh)*amt*0.5;
+        }
+      }
+    }
+  }
+
+  function hash2(x, y){
+    var h = (Math.imul(x, 374761393) + Math.imul(y, 668265263)) | 0;
+    h = Math.imul(h ^ (h >>> 13), 1274126177);
+    h ^= h >>> 16;
+    return (h >>> 0)/4294967296;
+  }
+  function postPixels(d, w, h, c){
+    var x, y, p;
+    var vig = c.vig, A = Math.abs(vig)/100*0.85, tgt = vig > 0 ? 0 : 255;
+    var r0 = Math.min(w, h)*(0.1 + 0.4*c.vigMid/100), r1 = Math.max(w, h)*0.7;
+    if(r1 < r0 + 1) r1 = r0 + 1;
+    var cxm = w/2, cym = h/2;
+    var gr = c.grain > 0, bs = Math.max(1, Math.round(c.grainSize*Math.max(1, Math.max(w, h)/1500)));
+    var gAmp = c.grain/100*0.2*255, nz = 0;
+    for(y=0; y<h; y++){
+      var dy = y - cym, dy2 = dy*dy, by = (y/bs)|0;
+      for(x=0; x<w; x++){
+        p = (y*w + x)*4;
+        if(vig !== 0){
+          var dx = x - cxm, t = (Math.sqrt(dx*dx + dy2) - r0)/(r1 - r0);
+          if(t > 0){
+            var a = A*(t > 1 ? 1 : t);
+            d[p] = d[p]*(1 - a) + tgt*a; d[p+1] = d[p+1]*(1 - a) + tgt*a; d[p+2] = d[p+2]*(1 - a) + tgt*a;
+          }
+        }
+        if(gr){
+          if(x % bs === 0){ var bx = (x/bs)|0; nz = hash2(bx, by) + hash2(bx + 9973, by + 7919) - 1; }
+          var yy = (0.2126*d[p] + 0.7152*d[p+1] + 0.0722*d[p+2])/255;
+          var mw = 1 - 0.75*(2*yy - 1)*(2*yy - 1);
+          var gn = nz*gAmp*mw;
+          d[p] += gn; d[p+1] += gn; d[p+2] += gn;
+        }
+      }
+    }
+  }
+
+  var blurSmall = document.createElement('canvas'), blurBig = document.createElement('canvas');
+  function blurData(w, h){
+    var sc = Math.min(1, 192/Math.max(w, h));
+    var sw = Math.max(1, Math.round(w*sc)), sh = Math.max(1, Math.round(h*sc));
+    blurSmall.width = sw; blurSmall.height = sh;
+    var sctx = blurSmall.getContext('2d');
+    sctx.imageSmoothingEnabled = true; sctx.imageSmoothingQuality = 'high';
+    sctx.drawImage(canvas, 0, 0, sw, sh);
+    blurBig.width = w; blurBig.height = h;
+    var bctx = blurBig.getContext('2d');
+    bctx.imageSmoothingEnabled = true; bctx.imageSmoothingQuality = 'high';
+    bctx.drawImage(blurSmall, 0, 0, w, h);
+    return bctx.getImageData(0, 0, w, h).data;
+  }
+
+  function applyAdvancedFx(){
+    if(!comparing){
+      var c = buildCfg();
+      if(c.any){
+        var w = canvas.width, h = canvas.height;
+        var blurD = c.clarity !== 0 ? blurData(w, h) : null;
+        var id = ctx.getImageData(0, 0, w, h), d = id.data;
+        if(c.pixel) processPixels(d, c, blurD);
+        if(c.sharpen > 0) sharpenBuf(d, w, h, c.sharpen);
+        if(c.post) postPixels(d, w, h, c);
+        ctx.putImageData(id, 0, 0);
+      }
+    }
+    scheduleHist();
+  }
+
+  /* ---- .cube 3D LUT export (colour-only part of the grade) ---- */
+  document.getElementById('advExportLut').addEventListener('click', function(){
+    var N = 33, c = buildCfg(), buf = new Uint8ClampedArray(N*N*N*4), i = 0, rr, gg, bb;
+    for(bb=0; bb<N; bb++) for(gg=0; gg<N; gg++) for(rr=0; rr<N; rr++){
+      buf[i++] = Math.round(rr/(N-1)*255); buf[i++] = Math.round(gg/(N-1)*255); buf[i++] = Math.round(bb/(N-1)*255); buf[i++] = 255;
+    }
+    var c2 = {}; for(var k in c) c2[k] = c[k];
+    c2.clarity = 0;
+    if(c2.pixel || c2.useLut) processPixels(buf, c2, null);
+    var lines = ['TITLE "APIC grade"', 'LUT_3D_SIZE ' + N, 'DOMAIN_MIN 0.0 0.0 0.0', 'DOMAIN_MAX 1.0 1.0 1.0', ''];
+    for(var j=0; j<buf.length; j+=4) lines.push((buf[j]/255).toFixed(6) + ' ' + (buf[j+1]/255).toFixed(6) + ' ' + (buf[j+2]/255).toFixed(6));
+    var url = URL.createObjectURL(new Blob([lines.join('\n')], {type:'text/plain'}));
+    var a = document.createElement('a'); a.href = url; a.download = 'apic-grade.cube';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+  });
+
+  rebuildSplines(); drawCurves();
+  Array.prototype.forEach.call(toolBtns, function(b){
+    b.addEventListener('click', function(){ if(b.dataset.tool === 'advanced') setTimeout(function(){ scheduleHist(); drawCurves(); }, 0); });
+  });
+  document.getElementById('secHist').addEventListener('toggle', function(){ if(this.open) scheduleHist(); });
 
   toolBtns.forEach(function(b){
     b.addEventListener('click', function(){
