@@ -148,6 +148,28 @@
     window.__miganSessionPromise.catch(function(){ window.__miganSessionPromise = null; }); // let a retry re-attempt after a real failure
     return window.__miganSessionPromise;
   };
+
+  // LaMa "big-lama" (Samsung AI Center, Apache-2.0) via Carve/LaMa-ONNX — a much larger
+  // Fourier-convolution inpainting network than MI-GAN. It understands whole-image structure,
+  // so large or complex objects (people, signs, wires over sky, objects on textured floors)
+  // get filled with believable continuation instead of smears. Still 100% on-device (WASM):
+  // the ~208MB model is a one-time download cached in the browser; photos never leave the device.
+  window.__loadLama = function(onProgress){
+    if(window.__lamaSessionPromise) return window.__lamaSessionPromise;
+    window.__lamaSessionPromise = (async function(){
+      if(!window.ort){ throw new Error('onnxruntime-web did not load (offline or blocked?)'); }
+      ort.env.wasm.wasmPaths = 'https://cdnjs.cloudflare.com/ajax/libs/onnxruntime-web/1.23.2/';
+      if(!window.__miganSessionPromise){
+        // Threads need SharedArrayBuffer (cross-origin isolation); otherwise stay single-threaded.
+        var th = (self.crossOriginIsolated && navigator.hardwareConcurrency) ? Math.min(4, navigator.hardwareConcurrency) : 1;
+        ort.env.wasm.numThreads = th; ort.env.wasm.proxy = false;
+      }
+      var buf = await window.__apicFetchModel('https://huggingface.co/Carve/LaMa-ONNX/resolve/main/lama_fp32.onnx', 208e6, onProgress);
+      return await ort.InferenceSession.create(buf, { executionProviders: ['wasm'], graphOptimizationLevel: 'all', enableCpuMemArena: false, enableMemPattern: false });
+    })();
+    window.__lamaSessionPromise.catch(function(){ window.__lamaSessionPromise = null; });
+    return window.__lamaSessionPromise;
+  };
 </script>
 
 <!-- Shared on-device model downloader + Remove Background models.
@@ -845,12 +867,13 @@
 
         <!-- OBJECT REMOVE -->
         <div class="bench-panel" id="panel-objremove">
-          <p class="hint" style="margin-top:0;">Paint over the object you want gone, then run Remove. Uses a real AI inpainting model (MI-GAN) running fully on-device via WebAssembly — no upload, nothing leaves your browser. Only the area around your brush is processed, so it stays fast and light on phones. The first run downloads the ~28MB model once (cached after that); if the AI model can't load (offline / unsupported browser) it automatically falls back to a quick on-device patch fill instead.</p>
+          <p class="hint" style="margin-top:0;">Paint over the object you want gone, then run Remove. <b>Ultra</b> uses LaMa, a large Fourier-convolution inpainting network, for the most accurate fill of big or complex objects; <b>Best/Fast</b> use the lighter MI-GAN (works on phones). Everything runs fully on-device via WebAssembly — no upload, nothing leaves your browser. Only the area around your brush is processed, and the fill is colour-matched to its surroundings and re-grained to match your photo. First Ultra run downloads a ~208MB model once (cached after that; MI-GAN is ~28MB). If a model can't load it steps down automatically: Ultra → MI-GAN → quick patch fill. Tip: paint slightly outside the object (shadows, reflections) for the cleanest result.</p>
           <div class="row"><label>Brush size</label><input type="range" id="orBrush" min="6" max="120" value="30"><span class="val" id="orBrushVal">30</span></div>
           <div class="row"><label>Quality</label>
             <select id="orQuality">
-              <option value="fast">Fast</option>
-              <option value="best" selected>Best (AI fill)</option>
+              <option value="fast">Fast (MI-GAN)</option>
+              <option value="best">Best (MI-GAN, full detail)</option>
+              <option value="ultra" selected>Ultra (LaMa — highest accuracy, desktop)</option>
             </select>
           </div>
           <div class="row"><button class="btn btn-ghost btn-sm" id="orClear" style="flex:1;">Clear mask</button></div>
@@ -2052,7 +2075,7 @@
     ctx.putImageData(baseData, sx0, sy0);
   }
 
-  /* ---------------- object removal: real AI fill (MI-GAN, on-device) ----------------
+  /* ---------------- object removal: real AI fill (LaMa Ultra / MI-GAN, on-device) ----------------
      MI-GAN is a genuinely trained generative inpainting network (Picsart AI
      Research, ICCV 2023, MIT licensed) that runs fully on-device via WebAssembly.
      MOBILE-SAFE DESIGN: only the area around the painted object (plus context) is
@@ -2111,48 +2134,151 @@
     return r;
   }
 
-  async function aiInpaint(statusEl, R){
+  // LaMa works on a fixed 512x512 window. Use a square-ish region around the mask that is at least
+  // 512 native pixels wide when the photo allows, so small objects are filled at full resolution
+  // (no resample blur) with generous context; bigger objects are downscaled into the window.
+  function lamaRegion(R0){
+    var W = canvas.width, H = canvas.height;
+    var side = Math.max(R0.w, R0.h, 512);
+    var w = Math.min(W, side), h = Math.min(H, side);
+    var cx = (maskBox.x0 + maskBox.x1)/2, cy = (maskBox.y0 + maskBox.y1)/2;
+    var x0 = Math.max(0, Math.min(W - w, Math.round(cx - w/2)));
+    var y0 = Math.max(0, Math.min(H - h, Math.round(cy - h/2)));
+    return { x0: x0, y0: y0, x1: x0 + w, y1: y0 + h, w: w, h: h };
+  }
+
+  // Spatially-varying colour match. Compares the photo just OUTSIDE the hole with the fill just
+  // INSIDE it on a coarse grid, then diffuses those differences across the hole (Laplace solve),
+  // so gradients (sky, walls, bokeh) continue smoothly instead of a flat tint shift at the seam.
+  function seamOffsetField(imgD, outD, hole, stride, vw, vh){
+    var Hh = Math.round(hole.length/stride);
+    var rR = Math.max(3, Math.round(0.02*Math.max(vw, vh)));
+    var outer = bgMorph(hole, stride, Hh, rR, true), inner = bgMorph(hole, stride, Hh, rR, false);
+    var gw = Math.max(2, Math.min(48, Math.ceil(vw/6))), gh = Math.max(2, Math.min(48, Math.ceil(vh/6)));
+    var nC = gw*gh, sIn = new Float64Array(nC*3), nIn = new Float64Array(nC), sOut = new Float64Array(nC*3), nOut = new Float64Array(nC);
+    var x, y, i, c, i4, k;
+    for(y = 0; y < vh; y++){
+      var cyy = Math.min(gh-1, Math.floor(y*gh/vh));
+      for(x = 0; x < vw; x++){
+        i = y*stride + x; i4 = i*4;
+        var inHole = hole[i] > 0.5;
+        if(!inHole && outer[i] > 0.5){
+          c = cyy*gw + Math.min(gw-1, Math.floor(x*gw/vw));
+          sIn[c*3] += imgD[i4]; sIn[c*3+1] += imgD[i4+1]; sIn[c*3+2] += imgD[i4+2]; nIn[c]++;
+        } else if(inHole && inner[i] < 0.5){
+          c = cyy*gw + Math.min(gw-1, Math.floor(x*gw/vw));
+          sOut[c*3] += outD[i4]; sOut[c*3+1] += outD[i4+1]; sOut[c*3+2] += outD[i4+2]; nOut[c]++;
+        }
+      }
+    }
+    var v = new Float32Array(nC*3), known = new Uint8Array(nC), nKnown = 0, mean = [0,0,0];
+    for(c = 0; c < nC; c++){
+      if(nIn[c] >= 3 && nOut[c] >= 3){
+        known[c] = 1; nKnown++;
+        for(k = 0; k < 3; k++){
+          var d = sIn[c*3+k]/nIn[c] - sOut[c*3+k]/nOut[c];
+          d = d < -45 ? -45 : (d > 45 ? 45 : d);
+          v[c*3+k] = d; mean[k] += d;
+        }
+      }
+    }
+    if(!nKnown) return null;
+    for(k = 0; k < 3; k++) mean[k] /= nKnown;
+    for(c = 0; c < nC; c++){ if(!known[c]){ v[c*3] = mean[0]; v[c*3+1] = mean[1]; v[c*3+2] = mean[2]; } }
+    for(var it = 0; it < 600; it++){
+      for(var gy = 0; gy < gh; gy++){
+        for(var gx = 0; gx < gw; gx++){
+          c = gy*gw + gx; if(known[c]) continue;
+          var l = gx > 0 ? c-1 : c, r = gx < gw-1 ? c+1 : c, u = gy > 0 ? c-gw : c, dn = gy < gh-1 ? c+gw : c;
+          for(k = 0; k < 3; k++) v[c*3+k] = (v[l*3+k] + v[r*3+k] + v[u*3+k] + v[dn*3+k]) * 0.25;
+        }
+      }
+    }
+    return { gw: gw, gh: gh, v: v };
+  }
+
+  function lumaOf(r, g, b, n){
+    var L = new Float32Array(n);
+    for(var i = 0; i < n; i++) L[i] = 0.299*r[i] + 0.587*g[i] + 0.114*b[i];
+    return L;
+  }
+
+  async function aiInpaint(statusEl, R0, engine){
     var tier = deviceTier(), mobile = tier !== 'desktop';
-    var session = await window.__loadMigan(function(pct){
-      if(statusEl) statusEl.innerHTML = '<span class="spinner"></span> downloading AI model… ' + pct + '% (one-time)';
+    var isLama = engine === 'lama';
+    var session = await (isLama ? window.__loadLama : window.__loadMigan)(function(pct){
+      if(statusEl) statusEl.innerHTML = '<span class="spinner"></span> downloading ' + (isLama ? 'Ultra AI model (~208MB)' : 'AI model') + '… ' + pct + '% (one-time)';
     });
     var qualityEl = document.getElementById('orQuality');
     var fast = (qualityEl ? qualityEl.value : 'best') === 'fast';
-    var maxSide = tier === 'low' ? (fast ? 384 : 512) : (tier === 'mobile' ? (fast ? 448 : 640) : (fast ? 900 : 1600));
-    var sx0 = R.x0, sy0 = R.y0, rw = R.w, rh = R.h;
-    var s = Math.min(1, maxSide / Math.max(rw, rh));
-    var ww = round8(rw*s), wh = round8(rh*s), plane = ww*wh, i;
-    var sxs = ww/rw;                       // effective horizontal scale (after rounding)
+    var R = isLama ? lamaRegion(R0) : R0;
+    var sx0 = R.x0, sy0 = R.y0, rw = R.w, rh = R.h, i;
+    var ww, wh, vw, vh;
+    if(isLama){
+      var sL = Math.min(1, 512/Math.max(rw, rh));
+      vw = Math.max(8, Math.round(rw*sL)); vh = Math.max(8, Math.round(rh*sL));
+      ww = 512; wh = 512;
+    } else {
+      var maxSide = tier === 'low' ? (fast ? 384 : 512) : (tier === 'mobile' ? (fast ? 448 : 640) : (fast ? 900 : 1600));
+      var s = Math.min(1, maxSide / Math.max(rw, rh));
+      ww = round8(rw*s); wh = round8(rh*s); vw = ww; vh = wh;
+    }
+    var plane = ww*wh;
+    var sxs = vw/rw;                       // effective horizontal scale (after rounding)
 
-    // --- model input: just the cropped region ---
-    var imgData = cropScaled(canvas, sx0, sy0, rw, rh, ww, wh).getContext('2d').getImageData(0, 0, ww, wh).data;
-    var mdW = cropScaled(maskCanvas, sx0, sy0, rw, rh, ww, wh).getContext('2d').getImageData(0, 0, ww, wh).data;
-    var hole = new Float32Array(plane);
-    for(i = 0; i < plane; i++) hole[i] = mdW[i*4+3] > 8 ? 1 : 0;
-    // grow the hole a little so the object's anti-aliased fringe is also replaced
+    // --- model input: just the cropped region (letterboxed to 512x512 for LaMa) ---
+    function workData(src, stretchEdges){
+      var sc = cropScaled(src, sx0, sy0, rw, rh, vw, vh);
+      if(vw === ww && vh === wh) return sc.getContext('2d').getImageData(0, 0, ww, wh).data;
+      var wc = document.createElement('canvas'); wc.width = ww; wc.height = wh;
+      var wx = wc.getContext('2d'); wx.drawImage(sc, 0, 0);
+      if(stretchEdges){
+        if(vw < ww) wx.drawImage(sc, vw-1, 0, 1, vh, vw, 0, ww-vw, vh);
+        if(vh < wh) wx.drawImage(wc, 0, vh-1, ww, 1, 0, vh, ww, wh-vh);
+      }
+      return wx.getImageData(0, 0, ww, wh).data;
+    }
+    var imgData = workData(canvas, true);
+    var mdW = workData(maskCanvas, false);
+    var hole = new Float32Array(plane), x, y;
+    for(y = 0; y < vh; y++){ for(x = 0; x < vw; x++){ i = y*ww + x; hole[i] = mdW[i*4+3] > 8 ? 1 : 0; } }
+    // grow the hole so the object's anti-aliased fringe / halo is also replaced
     var f = Math.max(2, Math.min(8, Math.round(0.01*Math.max(rw, rh))));       // feather radius (region px)
-    var dW = Math.max(1, Math.ceil((2*f + 2)*sxs));
+    var dW = Math.max(1, Math.ceil((2*f + (isLama ? 4 : 2))*sxs));
     var holeD = bgMorph(hole, ww, wh, dW, true);
     hole = null;
-
-    var imgArr = new Uint8Array(3*plane), maskArr = new Uint8Array(plane); // MI-GAN: 255 = keep, 0 = fill
-    for(i = 0; i < plane; i++){
-      var i4 = i*4;
-      imgArr[i] = imgData[i4]; imgArr[plane + i] = imgData[i4+1]; imgArr[2*plane + i] = imgData[i4+2];
-      maskArr[i] = holeD[i] > 0.5 ? 0 : 255;
-    }
+    if(vw < ww || vh < wh){ for(i = 0; i < plane; i++){ if(i % ww >= vw || ((i/ww)|0) >= vh) holeD[i] = 0; } }
 
     function pickName(names, want, idx){ var p = names.indexOf(want); return p !== -1 ? names[p] : names[idx]; }
     var imageInputName = pickName(session.inputNames, 'image', 0);
     var maskInputName  = pickName(session.inputNames, 'mask', 1);
     var outputName     = pickName(session.outputNames, 'result', 0);
-
-    if(statusEl) statusEl.innerHTML = '<span class="spinner"></span> AI removing object…';
-    await new Promise(function(r){ setTimeout(r, 30); });   // let the status paint before the heavy step
     var feeds = {};
-    feeds[imageInputName] = new ort.Tensor('uint8', imgArr, [1, 3, wh, ww]);
-    feeds[maskInputName]  = new ort.Tensor('uint8', maskArr, [1, 1, wh, ww]);
-    var results = await withTimeout(session.run(feeds), mobile ? 150000 : 60000, 'AI inference timed out');
+    if(isLama){
+      // LaMa: image float32 RGB /255, mask float32 (1 = erase)
+      var lImg = new Float32Array(3*plane), lMask = new Float32Array(plane);
+      for(i = 0; i < plane; i++){
+        var j4 = i*4;
+        lImg[i] = imgData[j4]/255; lImg[plane + i] = imgData[j4+1]/255; lImg[2*plane + i] = imgData[j4+2]/255;
+        lMask[i] = holeD[i] > 0.5 ? 1 : 0;
+      }
+      feeds[imageInputName] = new ort.Tensor('float32', lImg, [1, 3, wh, ww]);
+      feeds[maskInputName]  = new ort.Tensor('float32', lMask, [1, 1, wh, ww]);
+    } else {
+      var imgArr = new Uint8Array(3*plane), maskArr = new Uint8Array(plane); // MI-GAN: 255 = keep, 0 = fill
+      for(i = 0; i < plane; i++){
+        var i4 = i*4;
+        imgArr[i] = imgData[i4]; imgArr[plane + i] = imgData[i4+1]; imgArr[2*plane + i] = imgData[i4+2];
+        maskArr[i] = holeD[i] > 0.5 ? 0 : 255;
+      }
+      feeds[imageInputName] = new ort.Tensor('uint8', imgArr, [1, 3, wh, ww]);
+      feeds[maskInputName]  = new ort.Tensor('uint8', maskArr, [1, 1, wh, ww]);
+    }
+
+    if(statusEl) statusEl.innerHTML = '<span class="spinner"></span> ' + (isLama ? 'Ultra AI removing object… (can take 10–60 s, nothing leaves your device)' : 'AI removing object…');
+    await new Promise(function(r){ setTimeout(r, 30); });   // let the status paint before the heavy step
+    var results = await withTimeout(session.run(feeds), isLama ? 300000 : (mobile ? 150000 : 60000), 'AI inference timed out');
+    feeds = null;
     var outTensor = results[outputName];
     if(!outTensor || !outTensor.data || !outTensor.dims){
       throw new Error('AI model returned no usable output tensor');
@@ -2199,52 +2325,104 @@
       for(var k = 0; k < len; k += step){ sum += arr[k]; n++; }
       return n ? sum / n : 0;
     }
-    var inputMean = sampledMean(imgArr, imgArr.length), outputMean = sampledMean(od, od.length);
+    var inputMean = sampledMean(imgData, imgData.length), outputMean = sampledMean(od, od.length);
     if(inputMean > 20 && outputMean < inputMean*0.2){
       throw new Error('AI output failed a sanity check (came back unexpectedly dark) — dims were ' + JSON.stringify(outTensor.dims) + ', type ' + outTensor.type);
     }
 
-    // Seam colour-match, measured on a thin ring just outside the hole at the (small) working size.
-    var diffR = 0, diffG = 0, diffB = 0;
-    if(oW === ww && oH === wh){
-      var rR = Math.max(3, Math.round(0.02*Math.max(ww, wh)));
-      var outer = bgMorph(holeD, ww, wh, rR, true), cnt = 0;
-      for(i = 0; i < plane; i++){
-        if(outer[i] > 0.5 && holeD[i] < 0.5){
-          var q4 = i*4;
-          diffR += imgData[q4] - od[q4]; diffG += imgData[q4+1] - od[q4+1]; diffB += imgData[q4+2] - od[q4+2]; cnt++;
-        }
-      }
-      if(cnt > 20){
-        diffR = Math.max(-22, Math.min(22, diffR/cnt));
-        diffG = Math.max(-22, Math.min(22, diffG/cnt));
-        diffB = Math.max(-22, Math.min(22, diffB/cnt));
-      } else { diffR = diffG = diffB = 0; }
-    }
-    imgArr = maskArr = imgData = mdW = null;
+    // Spatially-varying seam colour match (computed at the small working size).
+    var seam = null;
+    if(oW === ww && oH === wh){ try{ seam = seamOffsetField(imgData, od, holeD, ww, vw, vh); } catch(eS){ seam = null; } }
+    imgData = mdW = null;
 
-    // --- blend back, region only. Manual RGB blend, force-opaque inside the fill. ---
+    // --- bring the fill back to full region resolution ---
     var upCanvas = document.createElement('canvas'); upCanvas.width = rw; upCanvas.height = rh;
     var uctx = upCanvas.getContext('2d'); uctx.imageSmoothingEnabled = true; uctx.imageSmoothingQuality = 'high';
-    uctx.drawImage(outCanvas, 0, 0, rw, rh);
+    var srcW = isLama ? vw : oW, srcH = isLama ? vh : oH;
+    uctx.drawImage(outCanvas, 0, 0, srcW, srcH, 0, 0, rw, rh);
     var fillData = uctx.getImageData(0, 0, rw, rh).data;
     outCanvas.width = outCanvas.height = 1; upCanvas.width = upCanvas.height = 1;
 
-    // soft edge: upsample the grown hole, then feather with two box passes (~gaussian).
+    // soft edge: upsample the grown hole (cropping off any letterbox), then feather with two box passes.
     // Done in JS (not ctx.filter) so it also works on Safari/iOS, which lacks canvas filters.
-    var soft = bgResample(holeD, ww, wh, rw, rh), n2 = rw*rh;
+    var holeValid = holeD;
+    if(ww !== vw || wh !== vh){
+      holeValid = new Float32Array(vw*vh);
+      for(y = 0; y < vh; y++){ for(x = 0; x < vw; x++){ holeValid[y*vw + x] = holeD[y*ww + x]; } }
+    }
+    var soft = bgResample(holeValid, vw, vh, rw, rh), n2 = rw*rh;
     var t = new Float32Array(n2), b2 = new Float32Array(n2);
     bgBox(soft, rw, rh, f, b2, t); bgBox(b2, rw, rh, f, soft, t);
-    t = b2 = null; holeD = null;
+    holeD = holeValid = null;
 
     var baseImg = ctx.getImageData(sx0, sy0, rw, rh), bd = baseImg.data;
+
+    // Float channels of the fill, then: seam colour field -> detail recovery -> grain match.
+    var fR = new Float32Array(n2), fG = new Float32Array(n2), fB = new Float32Array(n2);
+    for(i = 0; i < n2; i++){ var q4 = i*4; fR[i] = fillData[q4]; fG[i] = fillData[q4+1]; fB[i] = fillData[q4+2]; }
+    fillData = null;
+    if(seam){
+      var chs = [fR, fG, fB];
+      for(var kk = 0; kk < 3; kk++){
+        var gArr = new Float32Array(seam.gw*seam.gh);
+        for(var cc = 0; cc < gArr.length; cc++) gArr[cc] = seam.v[cc*3+kk];
+        var up = bgResample(gArr, seam.gw, seam.gh, rw, rh), ch = chs[kk];
+        for(i = 0; i < n2; i++) ch[i] += up[i];
+      }
+    }
+    if(n2 <= 6e6){
+      // (a) the network ran at <=512px, so an upscaled fill is softer than the photo: gentle unsharp mask
+      var upF = rw/vw;
+      if(upF > 1.15){
+        var ur = Math.max(1, Math.round(upF*0.7)), amt = Math.min(0.9, 0.35 + (upF - 1)*0.25);
+        var uchs = [fR, fG, fB], ub1 = new Float32Array(n2), ub2 = new Float32Array(n2);
+        for(var uk = 0; uk < 3; uk++){
+          var uc = uchs[uk];
+          bgBox(uc, rw, rh, ur, ub1, t); bgBox(ub1, rw, rh, ur, ub2, t);
+          for(i = 0; i < n2; i++) uc[i] += amt*(uc[i] - ub2[i]);
+        }
+        ub1 = ub2 = null;
+      }
+      // (b) grain match: add noise so the fill has the same fine-grain level as the pixels around it
+      var Lb = new Float32Array(n2), Lf = lumaOf(fR, fG, fB, n2), Lbl = new Float32Array(n2), Lfl = new Float32Array(n2);
+      for(i = 0; i < n2; i++){ var z4 = i*4; Lb[i] = 0.299*bd[z4] + 0.587*bd[z4+1] + 0.114*bd[z4+2]; }
+      bgBox(Lb, rw, rh, 1, Lbl, t); bgBox(Lf, rw, rh, 1, Lfl, t);
+      var holeInd = new Float32Array(n2), ringBox = new Float32Array(n2);
+      for(i = 0; i < n2; i++) holeInd[i] = soft[i] > 0.5 ? 1 : 0;
+      bgBox(holeInd, rw, rh, Math.max(4, Math.round(0.03*Math.max(rw, rh))), ringBox, t);
+      var eRing = 0, nRing = 0, eFill = 0, nFill = 0;
+      for(i = 0; i < n2; i++){
+        if(holeInd[i] > 0.5){ var hf = Lf[i] - Lfl[i]; eFill += hf*hf; nFill++; }
+        else if(ringBox[i] > 0.01 && soft[i] < 0.05){ var hb = Lb[i] - Lbl[i]; eRing += hb*hb; nRing++; }
+      }
+      if(nRing > 200 && nFill > 50){
+        var sR = Math.sqrt(eRing/nRing), sF = Math.sqrt(eFill/nFill);
+        if(sR > sF + 0.3){
+          var addStd = Math.min(6, Math.sqrt(sR*sR - sF*sF)*0.85), seed = 1234567;
+          for(i = 0; i < n2; i++){
+            var aa = soft[i]; if(aa <= 0.003) continue;
+            // mulberry32 + Box-Muller (deterministic, so the result is repeatable)
+            seed = (seed + 0x6D2B79F5) | 0; var tt = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+            tt = (tt + Math.imul(tt ^ (tt >>> 7), 61 | tt)) ^ tt; var u1 = (((tt ^ (tt >>> 14)) >>> 0) + 1) / 4294967297;
+            seed = (seed + 0x6D2B79F5) | 0; tt = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+            tt = (tt + Math.imul(tt ^ (tt >>> 7), 61 | tt)) ^ tt; var u2 = ((tt ^ (tt >>> 14)) >>> 0) / 4294967296;
+            var gn = Math.sqrt(-2*Math.log(u1)) * Math.cos(6.2831853*u2) * addStd * aa;
+            fR[i] += gn; fG[i] += gn; fB[i] += gn;
+          }
+        }
+      }
+      Lb = Lf = Lbl = Lfl = holeInd = ringBox = null;
+    }
+    t = b2 = null;
+
+    // --- blend back, region only. Manual RGB blend, force-opaque inside the fill. ---
     for(i = 0; i < n2; i++){
       var a = soft[i];
       if(a <= 0.003) continue;
       var k4 = i*4;
-      bd[k4]   = bd[k4]   * (1 - a) + (fillData[k4]   + diffR) * a;
-      bd[k4+1] = bd[k4+1] * (1 - a) + (fillData[k4+1] + diffG) * a;
-      bd[k4+2] = bd[k4+2] * (1 - a) + (fillData[k4+2] + diffB) * a;
+      bd[k4]   = bd[k4]   * (1 - a) + fR[i] * a;
+      bd[k4+1] = bd[k4+1] * (1 - a) + fG[i] * a;
+      bd[k4+2] = bd[k4+2] * (1 - a) + fB[i] * a;
       bd[k4+3] = 255; // a filled hole must never end up transparent
     }
     ctx.putImageData(baseImg, sx0, sy0);
@@ -2256,15 +2434,28 @@
     if(!maskBox){ statusEl.textContent = 'Paint over the object first.'; return; }
     var R = objRegion();
     if(R.tooBig){ statusEl.textContent = 'That selection is too large for this device — please remove smaller areas one at a time.'; return; }
+    var qEl = document.getElementById('orQuality');
+    var useUltra = !!qEl && qEl.value === 'ultra' && deviceTier() === 'desktop';
     btn.disabled = true;
     statusEl.innerHTML = '<span class="spinner"></span> loading AI model…';
     function clearMask(){ mctx.clearRect(0,0,maskCanvas.width,maskCanvas.height); maskBox = null; redrawOverlay(); }
     (async function(){
+      var label = 'AI fill';
       try{
-        await aiInpaint(statusEl, R);
+        if(useUltra){
+          try{ await aiInpaint(statusEl, R, 'lama'); label = 'Ultra AI fill'; }
+          catch(eU){
+            console.warn('Ultra (LaMa) failed, using MI-GAN instead:', eU);
+            statusEl.innerHTML = '<span class="spinner"></span> Ultra engine unavailable — using standard AI…';
+            await aiInpaint(statusEl, R, 'migan');
+            label = 'AI fill — Ultra unavailable, check connection/memory';
+          }
+        } else {
+          await aiInpaint(statusEl, R, 'migan');
+        }
         clearMask();
         bakeToOriginal();
-        statusEl.textContent = '✓ done (AI fill)';
+        statusEl.textContent = '✓ done (' + label + ')';
         btn.disabled = false;
       } catch(err){
         console.error('AI object removal failed, falling back to patch fill:', err);
@@ -2284,6 +2475,13 @@
       }
     })();
   });
+
+  // Ultra (LaMa) is a ~208MB model: offer it only on desktop-class devices; phones keep MI-GAN.
+  (function(){
+    var q = document.getElementById('orQuality'); if(!q) return;
+    if(deviceTier() !== 'desktop'){ for(var oi = q.options.length - 1; oi >= 0; oi--){ if(q.options[oi].value === 'ultra') q.remove(oi); } q.value = 'best'; }
+    else { q.value = 'ultra'; }
+  })();
 
   /* ---------------- advanced pixel FX (levels / gamma / sharpen / temp / vignette) ---------------- */
   ['advBlack','advWhite','advGamma','advSharpen','advTemp','advVignette','advHue'].forEach(function(id){
@@ -3425,6 +3623,10 @@ that ever happens unexpectedly, check these values first.
 Welcome email fires automatically on first sign-in. The update broadcast is
 manual by design — you write it and click send, nothing goes out under your
 name without you personally triggering it.
+
+OBJECT REMOVAL runs LaMa (Apache-2.0, ~208MB, desktop 'Ultra') or MI-GAN (MIT, ~28MB, all devices)
+fully on-device via onnxruntime-web; models are cached after the first download. Fills are
+colour-matched (Laplace seam field) and grain-matched to the surrounding photo.
 
 BACKGROUND REMOVAL runs the IS-Net (DIS, Apache-2.0) segmentation model fully
 on-device via onnxruntime-web (WebAssembly) — first use downloads the model
