@@ -897,7 +897,7 @@
           <p class="hint" style="margin-top:0;">On-device AI cut-out for people, products, pets and objects, with edge refinement and colour-fringe removal. Output keeps your full resolution. Nothing is uploaded to any server.</p>
           <div class="row"><label>Quality</label>
             <select id="bgQuality">
-              <option value="max">Maximum accuracy — 176 MB first download, PC recommended</option>
+              <option value="max">Maximum accuracy — multi-pass, slower, 176 MB first download, PC recommended</option>
               <option value="fast">Fast — 44 MB first download</option>
               <option value="lite">Light — 5 MB, made for phones</option>
             </select>
@@ -2832,28 +2832,205 @@
     return out;
   }
 
-  // Turn raw model output into a clean, edge-aligned alpha matte at w x h.
-  // matte: Float32 0..1 at (mw x mh). gray: Float32 0..1 luminance at (w x h).
-  function bgBuildAlpha(matte, mw, mh, gray, w, h){
-    var longSide = Math.max(w, h), i, n = w*h;
-    var a0 = bgResample(matte, mw, mh, w, h);
-    for(i=0; i<n; i++){ var t = a0[i]; a0[i] = t < 0 ? 0 : (t > 1 ? 1 : t); }
-    bgCleanSpecks(a0, w, h, 0.00015);
-    var rGF = Math.max(3, Math.round(longSide*0.004));
-    var q = bgGuided(gray, a0, w, h, rGF, 4e-4);
-    // keep the refinement inside a narrow band around the model's own edge so the
-    // filter can sharpen the boundary but can never invent or delete real regions
-    var rb = Math.max(3, Math.round(longSide*0.004));
-    var lo = bgMorph(a0, w, h, rb, false), hi = bgMorph(a0, w, h, rb, true);
-    var LO = 0.03, HI = 0.97, span = HI - LO;
-    for(i=0; i<n; i++){
-      var v = q[i];
-      if(v < lo[i]) v = lo[i]; else if(v > hi[i]) v = hi[i];
-      v = (v - LO)/span;               // kill faint haze, make interior fully opaque
-      q[i] = v < 0 ? 0 : (v > 1 ? 1 : v);
+  // ---- Colour guided filter (fast variant: coefficients solved at 1/s resolution) ----
+  // Gray guides fail when subject and background have equal brightness but different
+  // hue (red flower on green leaves). Using R,G,B as the guide separates those edges.
+  function bgAreaDown(src, w, h, s){
+    var dw = Math.max(1, Math.floor(w/s)), dh = Math.max(1, Math.floor(h/s)), out = new Float32Array(dw*dh), x, y, i, j, sum, cnt;
+    for(y=0; y<dh; y++){ for(x=0; x<dw; x++){
+      sum = 0; cnt = 0;
+      var y1 = (y === dh-1) ? h : (y+1)*s, x1 = (x === dw-1) ? w : (x+1)*s;
+      for(j=y*s; j<y1; j++){ for(i=x*s; i<x1; i++){ sum += src[j*w+i]; cnt++; } }
+      out[y*dw+x] = sum/cnt;
+    } }
+    return { data: out, w: dw, h: dh };
+  }
+
+  function bgGuidedColor(Ir, Ig, Ib, p, w, h, r, eps, s){
+    var n = w*h, i;
+    var dr = bgAreaDown(Ir, w, h, s), dg = bgAreaDown(Ig, w, h, s), db = bgAreaDown(Ib, w, h, s), dp = bgAreaDown(p, w, h, s);
+    var lw = dr.w, lh = dr.h, ln = lw*lh, lr = Math.max(1, Math.round(r/s));
+    var R = dr.data, G = dg.data, B = db.data, P = dp.data;
+    var tmp = new Float32Array(ln), buf = new Float32Array(ln);
+    function mean(src){ var o = new Float32Array(ln); bgBox(src, lw, lh, lr, o, tmp); return o; }
+    function mean2(a, b){ for(var k=0; k<ln; k++) buf[k] = a[k]*b[k]; return mean(buf); }
+    var mR = mean(R), mG = mean(G), mB = mean(B), mP = mean(P);
+    var cRP = mean2(R, P), cGP = mean2(G, P), cBP = mean2(B, P);
+    var vRR = mean2(R, R), vRG = mean2(R, G), vRB = mean2(R, B), vGG = mean2(G, G), vGB = mean2(G, B), vBB = mean2(B, B);
+    var aR = new Float32Array(ln), aG = new Float32Array(ln), aB = new Float32Array(ln), bb = new Float32Array(ln);
+    for(i=0; i<ln; i++){
+      var rr = vRR[i] - mR[i]*mR[i] + eps, rg = vRG[i] - mR[i]*mG[i], rb = vRB[i] - mR[i]*mB[i];
+      var gg = vGG[i] - mG[i]*mG[i] + eps, gb = vGB[i] - mG[i]*mB[i], bbv = vBB[i] - mB[i]*mB[i] + eps;
+      var cr = cRP[i] - mR[i]*mP[i], cg = cGP[i] - mG[i]*mP[i], cb = cBP[i] - mB[i]*mP[i];
+      // solve the symmetric 3x3 system  Sigma * a = cov  (Cramer's rule)
+      var det = rr*(gg*bbv - gb*gb) - rg*(rg*bbv - gb*rb) + rb*(rg*gb - gg*rb);
+      if(Math.abs(det) < 1e-12){ aR[i] = aG[i] = aB[i] = 0; }
+      else {
+        var id = 1/det;
+        aR[i] = (cr*(gg*bbv - gb*gb) - rg*(cg*bbv - gb*cb) + rb*(cg*gb - gg*cb))*id;
+        aG[i] = (rr*(cg*bbv - gb*cb) - cr*(rg*bbv - gb*rb) + rb*(rg*cb - cg*rb))*id;
+        aB[i] = (rr*(gg*cb - cg*gb) - rg*(rg*cb - cg*rb) + cr*(rg*gb - gg*rb))*id;
+      }
+      bb[i] = mP[i] - aR[i]*mR[i] - aG[i]*mG[i] - aB[i]*mB[i];
     }
+    var maR = mean(aR), maG = mean(aG), maB = mean(aB), mb = mean(bb);
+    var uR = bgResample(maR, lw, lh, w, h), uG = bgResample(maG, lw, lh, w, h), uB = bgResample(maB, lw, lh, w, h), ub = bgResample(mb, lw, lh, w, h);
+    var q = new Float32Array(n);
+    for(i=0; i<n; i++) q[i] = uR[i]*Ir[i] + uG[i]*Ig[i] + uB[i]*Ib[i] + ub[i];
     return q;
   }
+
+  // Turn raw model output into a clean, edge-aligned alpha matte at w x h.
+  // `m1` = {data,w,h} full-frame matte. `m2` (optional) = {data,w,h,x0,y0,x1,y1} a
+  // zoomed-in second pass covering that rectangle (working-res px); it is blended in
+  // with a feathered border. `rgb` = {r,g,b} Float32 0..1 planes at (w x h).
+  // `hq` = maximum-accuracy mode: wider band, two refinement rounds, colour guide.
+  function bgBuildAlpha(m1, m2, rgb, w, h, hq){
+    var longSide = Math.max(w, h), i, n = w*h, x, y;
+    var a0 = bgResample(m1.data, m1.w, m1.h, w, h);
+    if(m2){
+      var cw = m2.x1 - m2.x0, ch = m2.y1 - m2.y0;
+      var z = bgResample(m2.data, m2.w, m2.h, cw, ch);
+      var fx = Math.max(2, Math.round(cw*0.06)), fy = Math.max(2, Math.round(ch*0.06));
+      for(y=0; y<ch; y++){
+        var ty = Math.min(1, (y+1)/fy, (ch-y)/fy);
+        for(x=0; x<cw; x++){
+          var t = Math.min(ty, (x+1)/fx, (cw-x)/fx)*0.8;       // keep 20% of the full-frame pass as a stabiliser
+          var p = (m2.y0+y)*w + (m2.x0+x);
+          a0[p] = a0[p]*(1 - t) + z[y*cw+x]*t;
+        }
+      }
+    }
+    for(i=0; i<n; i++){ var tt = a0[i]; a0[i] = tt < 0 ? 0 : (tt > 1 ? 1 : tt); }
+    bgCleanSpecks(a0, w, h, 0.00015);
+
+    function refine(src, rGF, eps, rb, LO, HI){
+      var q = rgb && hq ? bgGuidedColor(rgb.r, rgb.g, rgb.b, src, w, h, rGF, eps, w*h > 1.5e6 ? 2 : 1)
+                        : bgGuided(rgb.gray, src, w, h, rGF, eps);
+      // keep the refinement inside a narrow band around the model's own edge so the
+      // filter can sharpen the boundary but can never invent or delete real regions
+      var lo = bgMorph(src, w, h, rb, false), hi = bgMorph(src, w, h, rb, true), span = HI - LO;
+      for(var k=0; k<n; k++){
+        var v = q[k];
+        if(v < lo[k]) v = lo[k]; else if(v > hi[k]) v = hi[k];
+        v = (v - LO)/span;               // kill faint haze, make interior fully opaque
+        q[k] = v < 0 ? 0 : (v > 1 ? 1 : v);
+      }
+      return q;
+    }
+    if(!hq) return refine(a0, Math.max(3, Math.round(longSide*0.004)), 4e-4, Math.max(3, Math.round(longSide*0.004)), 0.03, 0.97);
+    // maximum accuracy: coarse round (wide band — catches hair / fur the 1024px model blurs),
+    // then a fine round that snaps to the sharpest real edges.
+    var q1 = refine(a0, Math.max(4, Math.round(longSide*0.006)), 6e-4, Math.max(4, Math.round(longSide*0.007)), 0.02, 0.98);
+    return refine(q1, Math.max(2, Math.round(longSide*0.002)), 1.5e-4, Math.max(2, Math.round(longSide*0.0025)), 0.02, 0.98);
+  }
+
+  /* ---- Worker-side pipeline: runs OFF the main thread so the page keeps scrolling ---- */
+  // Edge-colour decontamination + compose at original resolution. Mutates & returns `od` (RGBA).
+  function bgFinish(od, W, H, alphaW, rgb, w, h){
+    var n = w*h, i, c;
+    var longSide = Math.max(w, h), R1 = Math.max(8, Math.round(0.044*longSide)), R2 = Math.max(2, Math.round(0.003*longSide));
+    var tmp = new Float32Array(n), bA1 = new Float32Array(n), bA2 = new Float32Array(n);
+    bgBox(alphaW, w, h, R1, bA1, tmp); bgBox(alphaW, w, h, R2, bA2, tmp);
+    var scratch = { prod: new Float32Array(n), bx: new Float32Array(n), tmp: tmp, bF: new Float32Array(n), bB: new Float32Array(n), F1: new Float32Array(n) };
+    var planes = [rgb.r, rgb.g, rgb.b], Fw = [];
+    for(c=0; c<3; c++){ Fw.push(bgFusionChannel(planes[c], alphaW, bA1, bA2, w, h, R1, R2, scratch)); }
+    scratch = null; bA1 = bA2 = tmp = null;
+    var xs = new Int32Array(W), xf = new Float32Array(W), x, y;
+    for(x=0; x<W; x++){
+      var fx = (x+0.5)*w/W - 0.5; if(fx < 0) fx = 0; if(fx > w-1) fx = w-1;
+      xs[x] = Math.floor(fx); xf[x] = fx - xs[x];
+    }
+    for(y=0; y<H; y++){
+      var fy = (y+0.5)*h/H - 0.5; if(fy < 0) fy = 0; if(fy > h-1) fy = h-1;
+      var y0 = Math.floor(fy), y1 = y0+1 > h-1 ? h-1 : y0+1, wy = fy - y0;
+      for(x=0; x<W; x++){
+        var x0 = xs[x], x1 = x0+1 > w-1 ? w-1 : x0+1, wx = xf[x], p = (y*W + x)*4;
+        var a = (alphaW[y0*w+x0]*(1-wx) + alphaW[y0*w+x1]*wx)*(1-wy) + (alphaW[y1*w+x0]*(1-wx) + alphaW[y1*w+x1]*wx)*wy;
+        var ea = od[p+3]/255;                 // keep any transparency from an earlier run
+        var fa = a*ea;
+        if(fa < 0.004){ od[p] = od[p+1] = od[p+2] = 0; od[p+3] = 0; continue; }
+        if(a < 0.99 && ea >= 0.99){           // edge pixel: use decontaminated foreground colour
+          for(var cc=0; cc<3; cc++){
+            var F = Fw[cc];
+            var f = (F[y0*w+x0]*(1-wx) + F[y0*w+x1]*wx)*(1-wy) + (F[y1*w+x0]*(1-wx) + F[y1*w+x1]*wx)*wy;
+            od[p+cc] = Math.round(f*255);
+          }
+        }
+        od[p+3] = Math.round(fa*255);
+      }
+    }
+    return od;
+  }
+
+  // Everything the worker needs, built from the very same functions (no duplicated code).
+  var bgWorkerFns = [bgBox, bgResample, bgGuided, bgAreaDown, bgGuidedColor, bgMorph, bgCleanSpecks, bgFusionChannel, bgBuildAlpha, bgFinish];
+  var bgWorkerGlue = '\n' +
+    'var ortReady = null, sessions = {};\n' +
+    'function loadOrt(){ if(!ortReady){ importScripts("https://cdnjs.cloudflare.com/ajax/libs/onnxruntime-web/1.23.2/ort.min.js");\n' +
+    '  ort.env.wasm.wasmPaths = "https://cdnjs.cloudflare.com/ajax/libs/onnxruntime-web/1.23.2/"; ort.env.wasm.numThreads = 1; ort.env.wasm.proxy = false; ortReady = true; } }\n' +
+    'function normalise(o){\n' +
+    '  var m = Float32Array.from(o.data), i, mn = Infinity, mx = -Infinity;\n' +
+    '  for(i=0;i<m.length;i++){ var v=m[i]; if(v<mn) mn=v; if(v>mx) mx=v; }\n' +
+    '  if(mn < -0.01 || mx > 1.01){ mn = Infinity; mx = -Infinity; for(i=0;i<m.length;i++){ m[i]=1/(1+Math.exp(-m[i])); if(m[i]<mn) mn=m[i]; if(m[i]>mx) mx=m[i]; } }\n' +
+    '  if(!(mx-mn > 0.05)) throw new Error("model produced an empty mask");\n' +
+    '  var inv = 1/(mx-mn); for(i=0;i<m.length;i++) m[i]=(m[i]-mn)*inv;\n' +
+    '  return m;\n' +
+    '}\n' +
+    'self.onmessage = async function(e){\n' +
+    '  var d = e.data;\n' +
+    '  try{\n' +
+    '    if(d.type === "load"){\n' +
+    '      loadOrt();\n' +
+    '      if(!sessions[d.tier]) sessions[d.tier] = await ort.InferenceSession.create(d.buf, { executionProviders: ["wasm"], enableCpuMemArena: false, enableMemPattern: false });\n' +
+    '      self.postMessage({ id: d.id, ok: true });\n' +
+    '    } else if(d.type === "infer"){\n' +
+    '      var ses = sessions[d.tier], S = d.size;\n' +
+    '      var feeds = {}; feeds[ses.inputNames[0]] = new ort.Tensor("float32", d.input, [1,3,S,S]);\n' +
+    '      var outName = ses.outputNames.indexOf("output_image") >= 0 ? "output_image" : ses.outputNames[0];\n' +
+    '      var res = await ses.run(feeds, [outName]), o = res[outName], dims = o.dims;\n' +
+    '      var m = normalise(o); if(o.dispose) o.dispose();\n' +
+    '      self.postMessage({ id: d.id, ok: true, matte: m, w: dims[dims.length-1], h: dims[dims.length-2] }, [m.buffer]);\n' +
+    '    } else if(d.type === "finish"){\n' +
+    '      var n = d.w*d.h, wd = d.work, rgb = { r: new Float32Array(n), g: new Float32Array(n), b: new Float32Array(n), gray: new Float32Array(n) }, i;\n' +
+    '      for(i=0;i<n;i++){ var r=wd[i*4]/255, g=wd[i*4+1]/255, b=wd[i*4+2]/255; rgb.r[i]=r; rgb.g[i]=g; rgb.b[i]=b; rgb.gray[i]=0.299*r+0.587*g+0.114*b; }\n' +
+    '      self.postMessage({ id: d.id, ok: true, progress: "refining edges…" });\n' +
+    '      var alpha = bgBuildAlpha(d.m1, d.m2, rgb, d.w, d.h, d.hq);\n' +
+    '      self.postMessage({ id: d.id, ok: true, progress: "removing edge colour fringe…" });\n' +
+    '      var out = bgFinish(d.orig, d.W, d.H, alpha, rgb, d.w, d.h);\n' +
+    '      self.postMessage({ id: d.id, ok: true, pixels: out }, [out.buffer]);\n' +
+    '    }\n' +
+    '  } catch(err){ self.postMessage({ id: d.id, ok: false, error: String(err && err.message || err) }); }\n' +
+    '};\n';
+
+  var bgWorker = null, bgWorkerSeq = 0, bgWorkerCbs = {}, bgWorkerBroken = false;
+  function bgGetWorker(){
+    if(bgWorker || bgWorkerBroken) return bgWorker;
+    try{
+      var src = bgWorkerFns.map(function(f){ return f.toString(); }).join('\n') + bgWorkerGlue;
+      bgWorker = new Worker(URL.createObjectURL(new Blob([src], { type: 'application/javascript' })));
+      bgWorker.onmessage = function(e){
+        var cb = bgWorkerCbs[e.data.id]; if(!cb) return;
+        if(e.data.progress){ if(cb.onProgress) cb.onProgress(e.data.progress); return; }
+        delete bgWorkerCbs[e.data.id];
+        if(e.data.ok) cb.resolve(e.data); else cb.reject(new Error(e.data.error || 'worker error'));
+      };
+      bgWorker.onerror = function(ev){
+        var err = new Error('worker crashed' + (ev && ev.message ? ': ' + ev.message : ''));
+        for(var k in bgWorkerCbs){ bgWorkerCbs[k].reject(err); } bgWorkerCbs = {};
+        try{ bgWorker.terminate(); }catch(x){} bgWorker = null; bgWorkerBroken = true; // fall back to main thread next time
+      };
+    } catch(e){ bgWorker = null; bgWorkerBroken = true; }
+    return bgWorker;
+  }
+  function bgCall(msg, transfer, onProgress){
+    return new Promise(function(resolve, reject){
+      var wk = bgGetWorker(); if(!wk){ reject(new Error('no worker')); return; }
+      msg.id = ++bgWorkerSeq; bgWorkerCbs[msg.id] = { resolve: resolve, reject: reject, onProgress: onProgress };
+      wk.postMessage(msg, transfer || []);
+    });
+  }
+  var bgLoadedTiers = {};
 
   function bgYield(){ return new Promise(function(r){ setTimeout(r, 0); }); }
 
@@ -2864,10 +3041,15 @@
   })();
 
   // Clean downscale (halve repeatedly, then final step) — avoids aliasing on big photos.
-  function bgResizeCanvas(src, tw, th){
+  // sx,sy,sw,sh optionally select a sub-rectangle of the source (used by the zoom pass).
+  function bgResizeCanvas(src, tw, th, sx, sy, sw, sh){
     var cur = src;
     function cw(o){ return o.naturalWidth || o.width; }
     function ch(o){ return o.naturalHeight || o.height; }
+    if(sw){
+      var c0 = document.createElement('canvas'); c0.width = Math.max(1, Math.round(sw)); c0.height = Math.max(1, Math.round(sh));
+      c0.getContext('2d').drawImage(src, Math.round(sx), Math.round(sy), c0.width, c0.height, 0, 0, c0.width, c0.height); cur = c0;
+    }
     while(cw(cur) >= tw*2 && ch(cur) >= th*2){
       var c = document.createElement('canvas');
       c.width = Math.max(tw, Math.floor(cw(cur)/2)); c.height = Math.max(th, Math.floor(ch(cur)/2));
@@ -2880,39 +3062,77 @@
     return out;
   }
 
-  // Run IS-Net: returns normalised 0..1 matte.
-  async function bgRunModel(session, flat, cfg){
-    var S = cfg.size || 1024, n = S*S, i;
-    var d = bgResizeCanvas(flat, S, S).getContext('2d').getImageData(0, 0, S, S).data;
-    var input = new Float32Array(3*n);
-    if(cfg.norm === 'u2'){                    // U2-Net: x / max(x), then ImageNet mean/std
-      var mxp = 1; for(i=0; i<n; i++){ var q = d[i*4]; if(d[i*4+1] > q) q = d[i*4+1]; if(d[i*4+2] > q) q = d[i*4+2]; if(q > mxp) mxp = q; }
-      for(i=0; i<n; i++){
-        input[i] = (d[i*4]/mxp - 0.485)/0.229; input[n+i] = (d[i*4+1]/mxp - 0.456)/0.224; input[2*n+i] = (d[i*4+2]/mxp - 0.406)/0.225;
+  // Build the model input tensor data from a canvas (optionally mirrored for test-time augmentation).
+  function bgPrepInput(flat, cfg, flip, rect){
+    var S = cfg.size || 1024, n = S*S, i, x, y;
+    var cv = rect ? bgResizeCanvas(flat, S, S, rect.x, rect.y, rect.w, rect.h) : bgResizeCanvas(flat, S, S);
+    var d = cv.getContext('2d').getImageData(0, 0, S, S).data;
+    var input = new Float32Array(3*n), mxp = 1, src;
+    if(cfg.norm === 'u2'){ for(i=0; i<n; i++){ var q = d[i*4]; if(d[i*4+1] > q) q = d[i*4+1]; if(d[i*4+2] > q) q = d[i*4+2]; if(q > mxp) mxp = q; } }
+    for(y=0; y<S; y++){ for(x=0; x<S; x++){
+      i = y*S + (flip ? S-1-x : x); src = (y*S + x)*4;
+      if(cfg.norm === 'u2'){
+        input[i] = (d[src]/mxp - 0.485)/0.229; input[n+i] = (d[src+1]/mxp - 0.456)/0.224; input[2*n+i] = (d[src+2]/mxp - 0.406)/0.225;
+      } else {
+        input[i] = d[src]/255 - 0.5; input[n+i] = d[src+1]/255 - 0.5; input[2*n+i] = d[src+2]/255 - 0.5;
       }
-    } else {                                  // IS-Net: x/255 - 0.5
-      for(i=0; i<n; i++){
-        input[i] = d[i*4]/255 - 0.5; input[n+i] = d[i*4+1]/255 - 0.5; input[2*n+i] = d[i*4+2]/255 - 0.5;
-      }
+    } }
+    return input;
+  }
+  function bgUnflip(m, w, h){
+    for(var y=0; y<h; y++){ var o = y*w; for(var x=0, xe = w>>1; x<xe; x++){ var t = m[o+x]; m[o+x] = m[o+w-1-x]; m[o+w-1-x] = t; } }
+    return m;
+  }
+  function bgAvg(a, b){ for(var i=0; i<a.length; i++) a[i] = (a[i] + b[i])*0.5; return a; }
+
+  // Run the model once (worker if possible, otherwise main thread).
+  async function bgInfer(tier, session, cfg, input){
+    if(session === 'worker'){
+      var r = await bgCall({ type: 'infer', tier: tier, size: cfg.size, input: input }, [input.buffer]);
+      return { data: r.matte, w: r.w, h: r.h };
     }
-    var tensor = new ort.Tensor('float32', input, [1, 3, S, S]);
-    var feeds = {}; feeds[session.inputNames[0]] = tensor;
+    var S = cfg.size, tensor = new ort.Tensor('float32', input, [1, 3, S, S]), feeds = {}; feeds[session.inputNames[0]] = tensor;
     var outName = session.outputNames.indexOf('output_image') >= 0 ? 'output_image' : session.outputNames[0];
-    var res = await session.run(feeds, [outName]);
-    var o = res[outName], dims = o.dims;
-    var mh = dims[dims.length-2], mw = dims[dims.length-1];
-    var m = Float32Array.from(o.data);
-    if(o.dispose) o.dispose(); if(tensor.dispose) tensor.dispose();
+    var res = await session.run(feeds, [outName]), o = res[outName], dims = o.dims, m = Float32Array.from(o.data), i;
+    if(o.dispose) o.dispose();
     var mn = Infinity, mx = -Infinity;
     for(i=0; i<m.length; i++){ var v = m[i]; if(v < mn) mn = v; if(v > mx) mx = v; }
-    if(mn < -0.01 || mx > 1.01){            // logits -> probabilities
-      mn = Infinity; mx = -Infinity;
-      for(i=0; i<m.length; i++){ m[i] = 1/(1+Math.exp(-m[i])); if(m[i] < mn) mn = m[i]; if(m[i] > mx) mx = m[i]; }
-    }
+    if(mn < -0.01 || mx > 1.01){ mn = Infinity; mx = -Infinity; for(i=0; i<m.length; i++){ m[i] = 1/(1+Math.exp(-m[i])); if(m[i] < mn) mn = m[i]; if(m[i] > mx) mx = m[i]; } }
     if(!(mx - mn > 0.05)) throw new Error('model produced an empty mask');
-    var inv = 1/(mx - mn);
-    for(i=0; i<m.length; i++) m[i] = (m[i] - mn)*inv;
-    return { data: m, w: mw, h: mh };
+    var inv = 1/(mx - mn); for(i=0; i<m.length; i++) m[i] = (m[i] - mn)*inv;
+    return { data: m, w: dims[dims.length-1], h: dims[dims.length-2] };
+  }
+
+  // Load a model into the worker (preferred) or the main thread.
+  async function bgLoadSession(tier, onProgress){
+    var buf = null;
+    if(bgGetWorker()){
+      if(bgLoadedTiers[tier]) return 'worker';
+      var cfg = window.__BG_MODELS[tier];
+      try{
+        buf = await window.__apicFetchModel(cfg.url, cfg.mb*1e6, onProgress);
+        await bgCall({ type: 'load', tier: tier, buf: buf }, [buf]);
+        bgLoadedTiers[tier] = true; return 'worker';
+      } catch(e){
+        console.warn('Worker model load failed, using main thread:', e);
+        bgWorkerBroken = true; try{ if(bgWorker) bgWorker.terminate(); }catch(x){} bgWorker = null;
+      }
+    }
+    return await window.__loadBgModel(tier, onProgress);
+  }
+
+  // Bounding box (in matte px) of the subject, trimming stray specks with 0.1% percentiles.
+  function bgSubjectBox(m, mw, mh){
+    var cols = new Float64Array(mw), rows = new Float64Array(mh), tot = 0, x, y;
+    for(y=0; y<mh; y++){ for(x=0; x<mw; x++){ if(m[y*mw+x] > 0.5){ cols[x]++; rows[y]++; tot++; } } }
+    if(tot < 50) return null;
+    var cut = tot*0.001;
+    function edge(arr, len, fromEnd){
+      var acc = 0, i;
+      if(!fromEnd){ for(i=0; i<len; i++){ acc += arr[i]; if(acc > cut) return i; } return 0; }
+      for(i=len-1; i>=0; i--){ acc += arr[i]; if(acc > cut) return i; } return len-1;
+    }
+    return { x0: edge(cols, mw, false), x1: edge(cols, mw, true) + 1, y0: edge(rows, mh, false), y1: edge(rows, mh, true) + 1 };
   }
 
   // Old person-only segmenter, kept only as an offline/blocked-model fallback.
@@ -2945,12 +3165,15 @@
     return { data: fg, w: w, h: h };
   }
 
+  var bgBusy = false;
   document.getElementById('runBgRemove').addEventListener('click', async function(){
-    if(!originalImg) return;
+    if(!originalImg || bgBusy) return;
+    bgBusy = true;
     var statusEl = document.getElementById('bgStatus');
     var btn = this; btn.disabled = true;
     var qSel = document.getElementById('bgQuality');
     var quality = qSel ? qSel.value : 'fast';
+    function say(t){ statusEl.innerHTML = '<span class="spinner"></span> ' + t; }
     try{
       var W = canvas.width, H = canvas.height;
       // Snapshot current pixels (keeps any earlier transparency + current edits)
@@ -2959,82 +3182,98 @@
       var fctx = flat.getContext('2d'); fctx.fillStyle = '#ffffff'; fctx.fillRect(0, 0, W, H); fctx.drawImage(canvas, 0, 0);
 
       // ---- 1) segmentation (best model first, graceful fallbacks) ----
-      var matte = null, tiers = (quality === 'max') ? ['max', 'fast', 'lite'] : (quality === 'fast' ? ['fast', 'lite'] : ['lite']);
+      var matte = null, zoom = null, usedTier = null, tiers = (quality === 'max') ? ['max', 'fast', 'lite'] : (quality === 'fast' ? ['fast', 'lite'] : ['lite']);
       for(var ti=0; ti<tiers.length && !matte; ti++){
-        var tier = tiers[ti], mb = window.__BG_MODELS[tier].mb;
+        var tier = tiers[ti], cfg = window.__BG_MODELS[tier], mb = cfg.mb;
         try{
-          statusEl.innerHTML = '<span class="spinner"></span> loading AI model (' + mb + ' MB, first time only)…';
-          var session = await window.__loadBgModel(tier, function(pct){
-            statusEl.innerHTML = '<span class="spinner"></span> downloading AI model ' + pct + '% (' + mb + ' MB, cached afterwards)';
-          });
-          statusEl.innerHTML = '<span class="spinner"></span> analysing image…';
+          say('loading AI model (' + mb + ' MB, first time only)…');
+          var session = await bgLoadSession(tier, function(pct){ say('downloading AI model ' + pct + '% (' + mb + ' MB, cached afterwards)'); });
+          var hq = (tier === 'max');
+          // pass 1: whole frame (+ mirrored copy in max mode: test-time augmentation averages out model noise)
+          say(hq ? 'analysing image (pass 1 of ' + (2) + ')…' : 'analysing image…');
           await bgYield();
-          matte = await bgRunModel(session, flat, window.__BG_MODELS[tier]);
+          var m = await bgInfer(tier, session, cfg, bgPrepInput(flat, cfg, false));
+          if(hq){
+            say('analysing image (mirrored check)…'); await bgYield();
+            var mf = await bgInfer(tier, session, cfg, bgPrepInput(flat, cfg, true));
+            bgUnflip(mf.data, mf.w, mf.h); bgAvg(m.data, mf.data);
+          }
+          matte = m; usedTier = tier;
+          // pass 2 (max only): zoom into the subject so it fills the model's 1024px frame —
+          // the single biggest accuracy gain for small subjects in large photos.
+          if(hq){
+            var bx = bgSubjectBox(m.data, m.w, m.h);
+            if(bx){
+              var bw = bx.x1 - bx.x0, bh = bx.y1 - bx.y0, mgx = Math.round(bw*0.10) + 4, mgy = Math.round(bh*0.10) + 4;
+              var zx0 = Math.max(0, bx.x0 - mgx), zy0 = Math.max(0, bx.y0 - mgy), zx1 = Math.min(m.w, bx.x1 + mgx), zy1 = Math.min(m.h, bx.y1 + mgy);
+              if((zx1-zx0)*(zy1-zy0) < 0.62*m.w*m.h){
+                var rx = Math.floor(zx0/m.w*W), ry = Math.floor(zy0/m.h*H), rx1 = Math.ceil(zx1/m.w*W), ry1 = Math.ceil(zy1/m.h*H);
+                var rect = { x: rx, y: ry, w: rx1 - rx, h: ry1 - ry };
+                try{
+                  say('zooming in on subject for fine detail (pass 2)…'); await bgYield();
+                  var z1 = await bgInfer(tier, session, cfg, bgPrepInput(flat, cfg, false, rect));
+                  say('zoomed mirrored check…'); await bgYield();
+                  var z2 = await bgInfer(tier, session, cfg, bgPrepInput(flat, cfg, true, rect));
+                  bgUnflip(z2.data, z2.w, z2.h); bgAvg(z1.data, z2.data);
+                  zoom = { data: z1.data, w: z1.w, h: z1.h, rect: rect };
+                } catch(zErr){ console.warn('Zoom pass skipped:', zErr); zoom = null; }
+              }
+            }
+          }
         } catch(modelErr){
           console.error('Remove BG model "' + tier + '" failed:', modelErr);
-          delete window.__bgSessions[tier]; matte = null;
+          delete window.__bgSessions[tier]; delete bgLoadedTiers[tier]; matte = null; zoom = null;
         }
       }
       if(!matte){
-        statusEl.innerHTML = '<span class="spinner"></span> AI model unavailable — using fallback (people only)…';
+        say('AI model unavailable — using fallback (people only)…');
         await bgYield();
         matte = await bgRunMediaPipe(flat);
       }
+      var hqFinal = (usedTier === 'max');
 
-      // ---- 2) refine at a working resolution, then apply at full resolution ----
-      statusEl.innerHTML = '<span class="spinner"></span> refining edges…';
+      // ---- 2) refine at a working resolution, then apply at full resolution (in the worker) ----
+      say('preparing edge refinement…');
       await bgYield();
-      var cap = deviceTier() === 'low' ? 1024 : (bgIsLowEnd() ? 1280 : 2048), sc = Math.min(1, cap/Math.max(W, H));
-      var w = Math.max(1, Math.round(W*sc)), h = Math.max(1, Math.round(H*sc)), n = w*h, i;
+      var cap = deviceTier() === 'low' ? 1024 : (bgIsLowEnd() ? 1280 : (hqFinal ? 2560 : 2048)), sc = Math.min(1, cap/Math.max(W, H));
+      var w = Math.max(1, Math.round(W*sc)), h = Math.max(1, Math.round(H*sc)), n = w*h;
       var wd = (sc === 1 ? flat : bgResizeCanvas(flat, w, h)).getContext('2d').getImageData(0, 0, w, h).data;
-      var gray = new Float32Array(n);
-      for(i=0; i<n; i++) gray[i] = (0.299*wd[i*4] + 0.587*wd[i*4+1] + 0.114*wd[i*4+2])/255;
-      var alphaW = bgBuildAlpha(matte.data, matte.w, matte.h, gray, w, h);
-      matte = null; gray = null;
-
-      statusEl.innerHTML = '<span class="spinner"></span> removing edge colour fringe…';
-      await bgYield();
-      var longSide = Math.max(w, h), R1 = Math.max(8, Math.round(0.044*longSide)), R2 = Math.max(2, Math.round(0.003*longSide));
-      var tmp = new Float32Array(n), bA1 = new Float32Array(n), bA2 = new Float32Array(n);
-      bgBox(alphaW, w, h, R1, bA1, tmp); bgBox(alphaW, w, h, R2, bA2, tmp);
-      var scratch = { prod: new Float32Array(n), bx: new Float32Array(n), tmp: tmp,
-                      bF: new Float32Array(n), bB: new Float32Array(n), F1: new Float32Array(n) };
-      var Fw = new Uint8ClampedArray(n*4), Ic = new Float32Array(n);
-      for(var c=0; c<3; c++){
-        for(i=0; i<n; i++) Ic[i] = wd[i*4+c]/255;
-        var Fc = bgFusionChannel(Ic, alphaW, bA1, bA2, w, h, R1, R2, scratch);
-        for(i=0; i<n; i++) Fw[i*4+c] = Math.round(Fc[i]*255);
-        await bgYield();
+      var m2 = null;
+      if(zoom){
+        var zr = zoom.rect, X0 = Math.max(0, Math.floor(zr.x*w/W)), Y0 = Math.max(0, Math.floor(zr.y*h/H));
+        var X1 = Math.min(w, Math.ceil((zr.x + zr.w)*w/W)), Y1 = Math.min(h, Math.ceil((zr.y + zr.h)*h/H));
+        if(X1 - X0 > 8 && Y1 - Y0 > 8) m2 = { data: zoom.data, w: zoom.w, h: zoom.h, x0: X0, y0: Y0, x1: X1, y1: Y1 };
       }
-      scratch = null; bA1 = bA2 = tmp = Ic = null;
-
-      // ---- 3) compose at ORIGINAL resolution ----
-      statusEl.innerHTML = '<span class="spinner"></span> finishing…';
-      await bgYield();
-      var od = orig.data, xs = new Int32Array(W), xf = new Float32Array(W), x, y;
-      for(x=0; x<W; x++){
-        var fx = (x+0.5)*w/W - 0.5; if(fx < 0) fx = 0; if(fx > w-1) fx = w-1;
-        xs[x] = Math.floor(fx); xf[x] = fx - xs[x];
-      }
-      for(y=0; y<H; y++){
-        var fy = (y+0.5)*h/H - 0.5; if(fy < 0) fy = 0; if(fy > h-1) fy = h-1;
-        var y0 = Math.floor(fy), y1 = y0+1 > h-1 ? h-1 : y0+1, wy = fy - y0;
-        for(x=0; x<W; x++){
-          var x0 = xs[x], x1 = x0+1 > w-1 ? w-1 : x0+1, wx = xf[x], p = (y*W + x)*4;
-          var a = (alphaW[y0*w+x0]*(1-wx) + alphaW[y0*w+x1]*wx)*(1-wy) + (alphaW[y1*w+x0]*(1-wx) + alphaW[y1*w+x1]*wx)*wy;
-          var ea = od[p+3]/255;                 // keep any transparency from an earlier run
-          var fa = a*ea;
-          if(fa < 0.004){ od[p] = od[p+1] = od[p+2] = 0; od[p+3] = 0; continue; }
-          if(a < 0.99 && ea >= 0.99){           // edge pixel: use decontaminated foreground colour
-            for(var cc=0; cc<3; cc++){
-              var f = (Fw[(y0*w+x0)*4+cc]*(1-wx) + Fw[(y0*w+x1)*4+cc]*wx)*(1-wy) + (Fw[(y1*w+x0)*4+cc]*(1-wx) + Fw[(y1*w+x1)*4+cc]*wx)*wy;
-              od[p+cc] = f;
-            }
-          }
-          od[p+3] = Math.round(fa*255);
+      var m1 = { data: matte.data, w: matte.w, h: matte.h };
+      var resultPixels;
+      var wk = bgGetWorker();
+      if(wk){
+        try{
+          say('refining edges…');
+          var workCopy = new Uint8ClampedArray(wd); // detach-safe copy for transfer
+          var r = await bgCall({ type: 'finish', m1: m1, m2: m2, work: workCopy, w: w, h: h, orig: orig.data, W: W, H: H, hq: hqFinal },
+                               [workCopy.buffer, orig.data.buffer], say);
+          resultPixels = r.pixels;
+        } catch(wErr){
+          console.warn('Worker refine failed, falling back to main thread:', wErr);
+          bgWorkerBroken = true; resultPixels = null;
+          orig = ctx.getImageData(0, 0, W, H);   // buffer may have been transferred away
         }
       }
-      ctx.putImageData(orig, 0, 0);
+      if(!resultPixels){
+        // Main-thread fallback (only if Web Workers are unavailable): same maths, chunked UI yields between stages.
+        say('refining edges (this browser can\'t run it in the background — page may feel slow)…');
+        await bgYield();
+        var rgb = { r: new Float32Array(n), g: new Float32Array(n), b: new Float32Array(n), gray: new Float32Array(n) }, i;
+        for(i=0; i<n; i++){ var rr = wd[i*4]/255, gg = wd[i*4+1]/255, bb2 = wd[i*4+2]/255; rgb.r[i] = rr; rgb.g[i] = gg; rgb.b[i] = bb2; rgb.gray[i] = 0.299*rr + 0.587*gg + 0.114*bb2; }
+        var alphaW = bgBuildAlpha(m1, m2, rgb, w, h, hqFinal);
+        await bgYield();
+        resultPixels = bgFinish(orig.data, W, H, alphaW, rgb, w, h);
+      }
+
+      say('finishing…');
+      await bgYield();
+      ctx.putImageData(new ImageData(resultPixels, W, H), 0, 0);
       hasAlpha = true;
       dropEl.classList.add('has-alpha');
       bakeToOriginal(); // so later filter/edit tweaks build on this result, not the pristine source
@@ -3043,7 +3282,7 @@
       console.error('Remove BG failed:', err);
       statusEl.textContent = 'Failed: ' + (err && err.message ? err.message : 'unknown error') + ' — open the browser console for details, or try again.';
     }
-    btn.disabled = false;
+    btn.disabled = false; bgBusy = false;
   });
 
   updateGate();
