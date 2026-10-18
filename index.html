@@ -4946,7 +4946,8 @@ COSTS AT SMALL SCALE: $0 across all of the above.
   .lyr-ic{background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:15px; padding:4px; min-width:28px; min-height:28px; border-radius:6px;}
   .lyr-ic:hover{color:var(--green);} .lyr-ic.on{color:var(--green);}
   .lyr-base{opacity:.75; cursor:default;}
-  #lyrCtl.off{opacity:.4; pointer-events:none;}
+  #lyrCtl.off{display:none;}
+  .lyr-empty{padding:12px; font-size:12.5px; color:var(--text-muted); text-align:center; border-bottom:1px solid var(--line);}
   #lyrTxt input[type=text]{flex:1; min-width:120px;}
 </style>
 <script>
@@ -5126,6 +5127,7 @@ COSTS AT SMALL SCALE: $0 across all of the above.
       });
       list.appendChild(r);
     })(L[i], i);
+    if(!L.length){ var em = document.createElement('div'); em.className = 'lyr-empty'; em.textContent = 'No layers yet — tap ＋ Image or ＋ Text above to add one, then tap a layer to edit it.'; list.appendChild(em); }
     var b = document.createElement('div'); b.className = 'lyr-row lyr-base';
     var bt = mk(34, 34); bt.getContext('2d').drawImage(cv, 0, 0, 34, 34*cv.height/Math.max(1, cv.width)); b.appendChild(bt);
     var bn = document.createElement('span'); bn.className = 'lyr-name'; bn.textContent = 'Photo — use the other tabs to edit it'; b.appendChild(bn);
