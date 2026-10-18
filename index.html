@@ -4927,6 +4927,379 @@ COSTS AT SMALL SCALE: $0 across all of the above.
 </script>
 
 <!-- ============================================================================
+     APIC — Layers (additive module). Touches no auth/backend/existing tool code.
+     Layers live only in memory on-device: nothing is uploaded, stored or tracked.
+     Your photo stays the "Photo" layer (all existing tools keep working on it);
+     image/text layers stack above it and are composited into every export.
+============================================================================= -->
+<style id="apic-layers-css">
+  #layerStage{position:absolute; z-index:2; display:none; max-width:100%; border-radius:3px; touch-action:none; -webkit-user-select:none; user-select:none; pointer-events:none;}
+  #layerStage.on{display:block;} #layerStage.live{pointer-events:auto; cursor:move;}
+  #panel-layers .lyr-bar{display:grid; grid-template-columns:repeat(auto-fit,minmax(104px,1fr)); gap:8px; margin-bottom:12px;}
+  #panel-layers .hint + .lyr-bar{margin-top:12px;}
+  #lyrList{border:1px solid var(--line); border-radius:8px; overflow:auto; max-height:210px; margin-bottom:12px;}
+  .lyr-row{display:flex; align-items:center; gap:8px; padding:6px 8px; border-bottom:1px solid var(--line); cursor:pointer; font-size:12.5px; color:var(--text);}
+  .lyr-row:last-child{border-bottom:none;} .lyr-row.sel{background:color-mix(in srgb, var(--green) 12%, transparent); box-shadow:inset 3px 0 0 var(--green);}
+  .lyr-row.dragover{outline:2px dashed var(--green); outline-offset:-2px;} .lyr-row.hid .lyr-name,.lyr-row.hid canvas{opacity:.4;}
+  .lyr-row canvas{width:34px; height:34px; border-radius:4px; flex-shrink:0; background:repeating-conic-gradient(#8884 0 25%, transparent 0 50%) 0 0/10px 10px;}
+  .lyr-name{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .lyr-ic{background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:15px; padding:4px; min-width:28px; min-height:28px; border-radius:6px;}
+  .lyr-ic:hover{color:var(--green);} .lyr-ic.on{color:var(--green);}
+  .lyr-base{opacity:.75; cursor:default;}
+  #lyrCtl.off{opacity:.4; pointer-events:none;}
+  #lyrTxt input[type=text]{flex:1; min-width:120px;}
+</style>
+<script>
+(function(){
+  "use strict";
+  var cv = document.getElementById('canvas'), drop = document.getElementById('drop'), ov = document.getElementById('overlay'),
+      exportBtn = document.getElementById('exportBtn'), bench = document.querySelector('.bench-tools'),
+      foot = document.querySelector('.bench-footer'), toolTitle = document.getElementById('toolTitle');
+  if(!cv || !drop || !ov || !bench || !foot) return;
+  var stage = document.createElement('canvas'); stage.id = 'layerStage'; drop.insertBefore(stage, ov);
+  var sx = stage.getContext('2d');
+  var L = [], sel = null, open = false, uid = 1, H = [{l:[], sel:null}], hi = 0, guide = {x:false, y:false};
+  var BLENDS = [['source-over','Normal'],['multiply','Multiply'],['screen','Screen'],['overlay','Overlay'],['soft-light','Soft light'],['hard-light','Hard light'],['darken','Darken'],['lighten','Lighten'],['color-dodge','Color dodge'],['color-burn','Color burn'],['difference','Difference'],['exclusion','Exclusion'],['hue','Hue'],['saturation','Saturation'],['color','Color'],['luminosity','Luminosity']];
+  var coarse = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches);
+  var BMP_CAP = coarse ? 1800 : 3600;
+
+  /* ---------- tab + panel ---------- */
+  var t0 = bench.querySelector('.tool-btn');
+  var tab = document.createElement('button'); tab.className = 'tool-btn'; tab.id = 'layersTab'; tab.textContent = 'Layers'; tab.disabled = true; bench.appendChild(tab);
+  new MutationObserver(function(){ tab.disabled = t0.disabled; }).observe(t0, {attributes:true, attributeFilter:['disabled']});
+  tab.disabled = t0.disabled;
+
+  var panel = document.createElement('div'); panel.className = 'bench-panel'; panel.id = 'panel-layers';
+  var opts = BLENDS.map(function(b){ return '<option value="'+b[0]+'">'+b[1]+'</option>'; }).join('');
+  function slider(id, lab, min, max, val, step){ return '<div class="row"><label>'+lab+'</label><input type="range" id="'+id+'" min="'+min+'" max="'+max+'" value="'+val+'"'+(step?' step="'+step+'"':'')+'><span class="val" id="'+id+'V"></span></div>'; }
+  panel.innerHTML =
+    '<p class="hint" style="margin-top:0;">Stack images and text above your photo — move, scale, rotate, blend and fade each one. Drop or paste an image to add it as a layer. Everything stays on your device: layers are never uploaded or saved anywhere.</p>'+
+    '<div class="lyr-bar"><button class="quick-btn" id="lyAddImg">＋ Image</button><button class="quick-btn" id="lyAddTxt">＋ Text</button><button class="quick-btn" id="lyAddCopy">⧉ Copy of photo</button></div>'+
+    '<div id="lyrList"></div>'+
+    '<div id="lyrCtl" class="off">'+
+      slider('lyOp','Opacity',0,100,100)+
+      '<div class="row"><label>Blend</label><select id="lyBlend">'+opts+'</select></div>'+
+      '<div id="lyrTxt" style="display:none;"><div class="row"><label>Text</label><input type="text" id="lyT" maxlength="200"></div>'+
+        '<div class="row"><label>Font</label><select id="lyF"><option value="Inter, system-ui, sans-serif">Sans</option><option value="Georgia, serif">Serif</option><option value="\'Courier New\', monospace">Mono</option><option value="Impact, Haettenschweiler, sans-serif">Impact</option><option value="\'Brush Script MT\', cursive">Script</option></select><input type="color" id="lyC" value="#ffffff" style="width:42px; height:30px; padding:0; border:none; background:none;"><label style="width:auto;"><input type="checkbox" id="lyBold" style="accent-color:var(--green);"> Bold</label></div>'+
+        slider('lyS','Size',12,400,80)+'</div>'+
+      slider('lyBr','Brightness',0,200,100)+slider('lyCo','Contrast',0,200,100)+slider('lySa','Saturation',0,200,100)+slider('lyHu','Hue',-180,180,0)+slider('lyBl','Blur',0,30,0,0.5)+
+      '<div class="lyr-bar"><button class="quick-btn" id="lyFlipH">⇋ Flip H</button><button class="quick-btn" id="lyFlipV">⇵ Flip V</button><button class="quick-btn" id="lyRot">↻ Rotate 90°</button><button class="quick-btn" id="lyFit">Fit to canvas</button><button class="quick-btn" id="lyCenter">Centre</button><button class="quick-btn" id="lyReset">Reset layer</button><button class="quick-btn" id="lyUp">↑ Forward</button><button class="quick-btn" id="lyDown">↓ Backward</button><button class="quick-btn" id="lyDup">⧉ Duplicate</button><button class="quick-btn" id="lyMerge">Merge down</button><button class="quick-btn" id="lyDel">Delete</button></div>'+
+    '</div>'+
+    '<div class="lyr-bar"><button class="quick-btn" id="lyUndo">↺ Undo layer</button><button class="quick-btn" id="lyRedo">↻ Redo layer</button></div>'+
+    '<p class="hint" style="margin-bottom:0;">Drag to move · corner handle scales · top handle rotates (Shift = 15° steps) · arrows nudge · Del removes · Ctrl+Z / Ctrl+Y undo layers · it snaps to the centre. Tip: crop and resize your photo <b>before</b> adding layers.</p>';
+  foot.parentNode.insertBefore(panel, foot);
+  var $ = function(id){ return document.getElementById(id); };
+  var fileIn = document.createElement('input'); fileIn.type = 'file'; fileIn.accept = 'image/*'; fileIn.multiple = true; fileIn.style.display = 'none'; panel.appendChild(fileIn);
+
+  /* ---------- helpers ---------- */
+  function mk(w, h){ var c = document.createElement('canvas'); c.width = Math.max(1, Math.round(w)); c.height = Math.max(1, Math.round(h)); return c; }
+  function byId(id){ for(var i=0;i<L.length;i++) if(L[i].id===id) return L[i]; return null; }
+  function idx(id){ for(var i=0;i<L.length;i++) if(L[i].id===id) return i; return -1; }
+  function cur(){ return sel ? byId(sel) : null; }
+  function fxStr(l){
+    var f = l.fx, p = [];
+    if(f.br!==100) p.push('brightness('+f.br+'%)'); if(f.co!==100) p.push('contrast('+f.co+'%)');
+    if(f.sa!==100) p.push('saturate('+f.sa+'%)'); if(f.hu!==0) p.push('hue-rotate('+f.hu+'deg)'); if(f.bl>0) p.push('blur('+f.bl+'px)');
+    return p.length ? p.join(' ') : 'none';
+  }
+  function drawLayer(c, l, noBlend){
+    c.save(); c.globalAlpha = l.op; c.globalCompositeOperation = noBlend ? 'source-over' : l.blend;
+    c.translate(l.x, l.y); c.rotate(l.rot); c.scale(l.s*(l.fh?-1:1), l.s*(l.fv?-1:1));
+    try{ c.filter = fxStr(l); }catch(e){}
+    c.drawImage(l.bmp, -l.bmp.width/2, -l.bmp.height/2); c.restore();
+  }
+  function drawLayers(c){ L.forEach(function(l){ if(l.vis) drawLayer(c, l); }); }
+  function newLayer(name, type, bmp){
+    return {id:uid++, name:name, type:type, bmp:bmp, x:cv.width/2, y:cv.height/2, s:1, rot:0, fh:false, fv:false, op:1, blend:'source-over', vis:true, lock:false,
+            fx:{br:100,co:100,sa:100,hu:0,bl:0}, t:'', ts:Math.round(cv.width*0.08), tc:'#ffffff', tf:'Inter, system-ui, sans-serif', tb:false};
+  }
+  function clone(l){ return Object.assign({}, l, {fx:Object.assign({}, l.fx)}); }
+
+  /* ---------- history (layers only; the photo keeps APIC's own undo) ---------- */
+  function pushHist(){
+    H = H.slice(0, hi+1); H.push({l:L.map(clone), sel:sel}); if(H.length > 60) H.shift(); hi = H.length-1; btns();
+  }
+  function goHist(i){ if(i<0 || i>=H.length) return; hi = i; L = H[i].l.map(clone); sel = byId(H[i].sel) ? H[i].sel : null; refresh(); }
+  function btns(){ $('lyUndo').disabled = hi<=0; $('lyRedo').disabled = hi>=H.length-1; }
+
+  /* ---------- compose / paint ---------- */
+  function place(){ var s = stage.style; s.left = cv.offsetLeft+'px'; s.top = cv.offsetTop+'px'; s.width = cv.clientWidth+'px'; s.height = cv.clientHeight+'px'; }
+  function corners(l){
+    var w = l.bmp.width*l.s/2, h = l.bmp.height*l.s/2, c = Math.cos(l.rot), s = Math.sin(l.rot);
+    return [[-w,-h],[w,-h],[w,h],[-w,h]].map(function(p){ return {x:l.x+p[0]*c-p[1]*s, y:l.y+p[0]*s+p[1]*c}; });
+  }
+  function kf(){ return stage.width / (stage.clientWidth || stage.width); }
+  function rotHandle(l){ var k = kf(), d = l.bmp.height*l.s/2 + 28*k; return {x:l.x + Math.sin(l.rot)*d, y:l.y - Math.cos(l.rot)*d}; }
+  var raf = 0;
+  function redraw(){ if(!raf) raf = requestAnimationFrame(function(){ raf = 0; paint(); }); }
+  function paint(){
+    var on = L.length > 0 && cv.style.display !== 'none' && cv.width > 1;
+    stage.classList.toggle('on', on); stage.classList.toggle('live', on && open);
+    if(!on) return;
+    place();
+    if(stage.width !== cv.width) stage.width = cv.width; if(stage.height !== cv.height) stage.height = cv.height;
+    sx.clearRect(0, 0, stage.width, stage.height); sx.drawImage(cv, 0, 0); drawLayers(sx);
+    var l = open ? cur() : null; if(!l) return;
+    var k = kf(), cs = corners(l), hs = 5*k;
+    sx.save(); sx.lineWidth = 1.5*k; sx.strokeStyle = '#39ff9d'; sx.setLineDash([6*k, 4*k]);
+    sx.beginPath(); cs.forEach(function(p, i){ i ? sx.lineTo(p.x, p.y) : sx.moveTo(p.x, p.y); }); sx.closePath(); sx.stroke(); sx.setLineDash([]);
+    var rh = rotHandle(l), top = {x:(cs[0].x+cs[1].x)/2, y:(cs[0].y+cs[1].y)/2};
+    sx.beginPath(); sx.moveTo(top.x, top.y); sx.lineTo(rh.x, rh.y); sx.stroke();
+    sx.fillStyle = '#fff'; sx.strokeStyle = '#111';
+    cs.forEach(function(p){ sx.fillRect(p.x-hs, p.y-hs, hs*2, hs*2); sx.strokeRect(p.x-hs, p.y-hs, hs*2, hs*2); });
+    sx.beginPath(); sx.arc(rh.x, rh.y, hs*1.2, 0, 7); sx.fill(); sx.stroke();
+    sx.strokeStyle = '#ff3b9a'; sx.lineWidth = 1*k;
+    if(guide.x){ sx.beginPath(); sx.moveTo(stage.width/2, 0); sx.lineTo(stage.width/2, stage.height); sx.stroke(); }
+    if(guide.y){ sx.beginPath(); sx.moveTo(0, stage.height/2); sx.lineTo(stage.width, stage.height/2); sx.stroke(); }
+    sx.restore();
+  }
+
+  /* ---------- text layers ---------- */
+  function renderText(l){
+    var fs = l.ts, font = (l.tb ? '700 ' : '400 ') + fs + 'px ' + l.tf, lines = (l.t || ' ').split('\n');
+    var m = mk(8, 8).getContext('2d'); m.font = font;
+    var w = 0; lines.forEach(function(s){ w = Math.max(w, m.measureText(s).width); });
+    var pad = Math.round(fs*0.25), lh = Math.round(fs*1.2), c = mk(w + pad*2, lh*lines.length + pad*2), g = c.getContext('2d');
+    g.font = font; g.fillStyle = l.tc; g.textBaseline = 'top'; g.textAlign = 'left';
+    lines.forEach(function(s, i){ g.fillText(s, pad, pad + i*lh + (lh-fs)/2); });
+    l.bmp = c;
+  }
+
+  /* ---------- add layers ---------- */
+  function addLayer(l){ L.push(l); sel = l.id; pushHist(); refresh(); }
+  function fitInto(l, frac){ var f = Math.min(cv.width*frac/l.bmp.width, cv.height*frac/l.bmp.height); l.s = Math.min(1, f > 0 ? f : 1); }
+  function addFile(f){
+    if(!f || !/^image\//.test(f.type)) return;
+    var url = URL.createObjectURL(f), im = new Image();
+    im.onload = function(){
+      var sc = Math.min(1, BMP_CAP/Math.max(im.naturalWidth, im.naturalHeight)), c = mk(im.naturalWidth*sc, im.naturalHeight*sc);
+      var g = c.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(im, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      var l = newLayer((f.name || 'Image').replace(/\.[^.]+$/, '').slice(0, 40) || 'Image', 'image', c); fitInto(l, 0.6); addLayer(l);
+    };
+    im.onerror = function(){ URL.revokeObjectURL(url); alert('That file could not be opened as an image.'); };
+    im.src = url;
+  }
+  $('lyAddImg').addEventListener('click', function(){ fileIn.value = ''; fileIn.click(); });
+  fileIn.addEventListener('change', function(){ Array.prototype.forEach.call(fileIn.files, addFile); });
+  $('lyAddTxt').addEventListener('click', function(){
+    var l = newLayer('Text', 'text', mk(2, 2)); l.t = 'Your text'; renderText(l); addLayer(l);
+    var t = $('lyT'); t.focus(); t.select();
+  });
+  $('lyAddCopy').addEventListener('click', function(){
+    var c = mk(cv.width, cv.height); c.getContext('2d').drawImage(cv, 0, 0);
+    addLayer(newLayer('Copy of photo', 'image', c));
+  });
+  document.addEventListener('paste', function(e){
+    if(!open || !e.clipboardData) return;
+    var tg = (e.target && e.target.tagName) || ''; if(tg === 'INPUT' || tg === 'TEXTAREA') return;
+    var items = e.clipboardData.items || [];
+    for(var i=0;i<items.length;i++){ if(items[i].type.indexOf('image/') === 0){ e.preventDefault(); addFile(items[i].getAsFile()); return; } }
+  });
+  ['dragenter','dragover','drop'].forEach(function(ev){ stage.addEventListener(ev, function(e){
+    if(!open) return; e.preventDefault(); e.stopPropagation();
+    if(ev === 'drop') Array.prototype.forEach.call(e.dataTransfer.files, addFile);
+  }); });
+  stage.addEventListener('click', function(e){ e.preventDefault(); e.stopPropagation(); });   // <label> would open the file picker
+
+  /* ---------- list UI ---------- */
+  var dragFrom = -1;
+  function renderList(){
+    var list = $('lyrList'); list.textContent = '';
+    for(var i=L.length-1; i>=0; i--) (function(l, i){
+      var r = document.createElement('div'); r.className = 'lyr-row' + (l.id===sel ? ' sel' : '') + (l.vis ? '' : ' hid'); r.draggable = true;
+      var th = mk(34, 34), g = th.getContext('2d'), f = Math.min(34/l.bmp.width, 34/l.bmp.height);
+      g.drawImage(l.bmp, (34-l.bmp.width*f)/2, (34-l.bmp.height*f)/2, l.bmp.width*f, l.bmp.height*f); r.appendChild(th);
+      var n = document.createElement('span'); n.className = 'lyr-name'; n.textContent = (l.type==='text' ? 'T  ' : '') + l.name; n.title = 'Double-click to rename'; r.appendChild(n);
+      function ic(txt, cls, title, fn){ var b = document.createElement('button'); b.className = 'lyr-ic ' + cls; b.textContent = txt; b.title = title; b.addEventListener('click', function(e){ e.stopPropagation(); fn(); }); r.appendChild(b); }
+      ic(l.lock ? '🔒' : '🔓', l.lock ? 'on' : '', l.lock ? 'Unlock' : 'Lock', function(){ l.lock = !l.lock; pushHist(); refresh(); });
+      ic(l.vis ? '👁' : '◌', l.vis ? 'on' : '', l.vis ? 'Hide' : 'Show', function(){ l.vis = !l.vis; pushHist(); refresh(); });
+      r.addEventListener('click', function(){ sel = l.id; refresh(); });
+      n.addEventListener('dblclick', function(){ var v = prompt('Layer name', l.name); if(v && v.trim()){ l.name = v.trim().slice(0, 40); pushHist(); refresh(); } });
+      r.addEventListener('dragstart', function(e){ dragFrom = i; try{ e.dataTransfer.setData('text/plain', 'layer'); }catch(x){} });
+      r.addEventListener('dragover', function(e){ if(dragFrom >= 0){ e.preventDefault(); r.classList.add('dragover'); } });
+      r.addEventListener('dragleave', function(){ r.classList.remove('dragover'); });
+      r.addEventListener('drop', function(e){
+        e.preventDefault(); r.classList.remove('dragover');
+        if(dragFrom >= 0 && dragFrom !== i){ var m = L.splice(dragFrom, 1)[0]; L.splice(i, 0, m); pushHist(); refresh(); }
+        dragFrom = -1;
+      });
+      list.appendChild(r);
+    })(L[i], i);
+    var b = document.createElement('div'); b.className = 'lyr-row lyr-base';
+    var bt = mk(34, 34); bt.getContext('2d').drawImage(cv, 0, 0, 34, 34*cv.height/Math.max(1, cv.width)); b.appendChild(bt);
+    var bn = document.createElement('span'); bn.className = 'lyr-name'; bn.textContent = 'Photo — use the other tabs to edit it'; b.appendChild(bn);
+    var lk = document.createElement('span'); lk.textContent = '🔒'; b.appendChild(lk); list.appendChild(b);
+  }
+  function syncCtl(){
+    var l = cur(), ctl = $('lyrCtl'); ctl.classList.toggle('off', !l);
+    var rows = [['lyOp','op',100,'%'],['lyBr','br'],['lyCo','co'],['lySa','sa'],['lyHu','hu'],['lyBl','bl']];
+    var v = l ? {lyOp:Math.round(l.op*100), lyBr:l.fx.br, lyCo:l.fx.co, lySa:l.fx.sa, lyHu:l.fx.hu, lyBl:l.fx.bl} : {lyOp:100, lyBr:100, lyCo:100, lySa:100, lyHu:0, lyBl:0};
+    Object.keys(v).forEach(function(id){ $(id).value = v[id]; $(id+'V').textContent = v[id] + (id==='lyOp'||id==='lyBr'||id==='lyCo'||id==='lySa' ? '%' : id==='lyHu' ? '°' : id==='lyBl' ? 'px' : ''); });
+    $('lyBlend').value = l ? l.blend : 'source-over';
+    var tx = $('lyrTxt'); tx.style.display = (l && l.type==='text') ? '' : 'none';
+    if(l && l.type==='text'){ $('lyT').value = l.t; $('lyF').value = l.tf; $('lyC').value = l.tc; $('lyBold').checked = l.tb; $('lyS').value = l.ts; $('lySV').textContent = l.ts + 'px'; }
+    $('lyMerge').disabled = !l || idx(l.id) < 1;
+  }
+  function refresh(){ renderList(); syncCtl(); btns(); redraw(); }
+
+  /* ---------- controls ---------- */
+  function bind(id, fn){
+    var el = $(id);
+    el.addEventListener('input', function(){ var l = cur(); if(!l || l.lock) return; fn(l, el); syncVals(); redraw(); });
+    el.addEventListener('change', function(){ var l = cur(); if(!l || l.lock) return; pushHist(); renderList(); });
+    el.addEventListener('dblclick', function(){ if(el.type === 'range' && el.dataset.def !== undefined){ el.value = el.dataset.def; el.dispatchEvent(new Event('input')); el.dispatchEvent(new Event('change')); } });
+  }
+  function syncVals(){ var l = cur(); if(!l) return; $('lyOpV').textContent = Math.round(l.op*100)+'%'; $('lyBrV').textContent = l.fx.br+'%'; $('lyCoV').textContent = l.fx.co+'%'; $('lySaV').textContent = l.fx.sa+'%'; $('lyHuV').textContent = l.fx.hu+'°'; $('lyBlV').textContent = l.fx.bl+'px'; if(l.type==='text') $('lySV').textContent = l.ts+'px'; }
+  [['lyOp',100],['lyBr',100],['lyCo',100],['lySa',100],['lyHu',0],['lyBl',0]].forEach(function(p){ $(p[0]).dataset.def = p[1]; });
+  bind('lyOp', function(l, e){ l.op = e.value/100; });
+  bind('lyBr', function(l, e){ l.fx.br = +e.value; }); bind('lyCo', function(l, e){ l.fx.co = +e.value; });
+  bind('lySa', function(l, e){ l.fx.sa = +e.value; }); bind('lyHu', function(l, e){ l.fx.hu = +e.value; }); bind('lyBl', function(l, e){ l.fx.bl = +e.value; });
+  $('lyBlend').addEventListener('change', function(){ var l = cur(); if(!l || l.lock) return; l.blend = this.value; pushHist(); redraw(); });
+  [['lyT', function(l, e){ l.t = e.value; }], ['lyF', function(l, e){ l.tf = e.value; }], ['lyC', function(l, e){ l.tc = e.value; }], ['lyS', function(l, e){ l.ts = +e.value; }]].forEach(function(p){
+    var el = $(p[0]);
+    el.addEventListener('input', function(){ var l = cur(); if(!l || l.type!=='text' || l.lock) return; p[1](l, el); renderText(l); syncVals(); redraw(); });
+    el.addEventListener('change', function(){ var l = cur(); if(l && l.type==='text'){ pushHist(); renderList(); } });
+  });
+  $('lyBold').addEventListener('change', function(){ var l = cur(); if(!l || l.type!=='text' || l.lock) return; l.tb = this.checked; renderText(l); pushHist(); renderList(); redraw(); });
+  function act(id, fn){ $(id).addEventListener('click', function(){ var l = cur(); if(!l) return; if(l.lock && id!=='lyDup'){ return; } fn(l); pushHist(); refresh(); }); }
+  act('lyFlipH', function(l){ l.fh = !l.fh; }); act('lyFlipV', function(l){ l.fv = !l.fv; });
+  act('lyRot', function(l){ l.rot += Math.PI/2; });
+  act('lyFit', function(l){ var w = l.bmp.width, h = l.bmp.height, r = Math.abs(Math.sin(l.rot)), c = Math.abs(Math.cos(l.rot)); l.s = Math.min(cv.width/(w*c + h*r), cv.height/(w*r + h*c)); l.x = cv.width/2; l.y = cv.height/2; });
+  act('lyCenter', function(l){ l.x = cv.width/2; l.y = cv.height/2; });
+  act('lyReset', function(l){ l.rot = 0; l.fh = l.fv = false; l.s = 1; fitInto(l, 0.6); l.x = cv.width/2; l.y = cv.height/2; l.op = 1; l.blend = 'source-over'; l.fx = {br:100,co:100,sa:100,hu:0,bl:0}; });
+  act('lyUp', function(l){ var i = idx(l.id); if(i < L.length-1){ L.splice(i, 1); L.splice(i+1, 0, l); } });
+  act('lyDown', function(l){ var i = idx(l.id); if(i > 0){ L.splice(i, 1); L.splice(i-1, 0, l); } });
+  act('lyDup', function(l){ var d = clone(l); d.id = uid++; d.name = l.name + ' copy'; d.x += 24; d.y += 24; d.lock = false; L.splice(idx(l.id)+1, 0, d); sel = d.id; });
+  act('lyDel', function(l){ var i = idx(l.id); L.splice(i, 1); sel = L.length ? L[Math.max(0, i-1)].id : null; });
+  act('lyMerge', function(a){
+    var i = idx(a.id); if(i < 1) return; var b = L[i-1], m = mk(cv.width, cv.height), g = m.getContext('2d');
+    drawLayer(g, b, true); drawLayer(g, a);
+    var n = newLayer(b.name, 'image', m); n.blend = b.blend; L.splice(i-1, 2, n); sel = n.id;
+  });
+  $('lyUndo').addEventListener('click', function(){ goHist(hi-1); });
+  $('lyRedo').addEventListener('click', function(){ goHist(hi+1); });
+
+  /* ---------- pointer interaction on the canvas ---------- */
+  var drag = null;
+  function pt(e){ var r = stage.getBoundingClientRect(); return {x:(e.clientX-r.left)*stage.width/r.width, y:(e.clientY-r.top)*stage.height/r.height}; }
+  function hit(l, p){
+    if(!l.vis) return false;
+    var dx = p.x-l.x, dy = p.y-l.y, c = Math.cos(-l.rot), s = Math.sin(-l.rot);
+    var lx = (dx*c - dy*s)/(l.s*(l.fh?-1:1)) + l.bmp.width/2, ly = (dx*s + dy*c)/(l.s*(l.fv?-1:1)) + l.bmp.height/2;
+    if(lx < 0 || ly < 0 || lx >= l.bmp.width || ly >= l.bmp.height) return false;
+    try{ return l.bmp.getContext('2d').getImageData(lx|0, ly|0, 1, 1).data[3] > 12; }catch(e){ return true; }
+  }
+  stage.addEventListener('pointerdown', function(e){
+    if(!open || e.button > 0) return; e.preventDefault();
+    var p = pt(e), k = kf(), l = cur(), mode = null;
+    if(l && !l.lock){
+      var rh = rotHandle(l);
+      if(Math.hypot(p.x-rh.x, p.y-rh.y) < 14*k) mode = 'rot';
+      else if(corners(l).some(function(c){ return Math.hypot(p.x-c.x, p.y-c.y) < 14*k; })) mode = 'scale';
+    }
+    if(!mode){
+      var h = (l && hit(l, p)) ? l : null;
+      for(var i=L.length-1; i>=0 && !h; i--) if(hit(L[i], p)) h = L[i];
+      if(!h){ sel = null; refresh(); return; }
+      sel = h.id; l = h; mode = 'move'; renderList(); syncCtl();
+    }
+    if(l.lock){ redraw(); return; }
+    drag = {mode:mode, l:l, p0:p, x0:l.x, y0:l.y, s0:l.s, d0:Math.hypot(p.x-l.x, p.y-l.y) || 1, moved:false};
+    try{ stage.setPointerCapture(e.pointerId); }catch(x){}
+    redraw();
+  });
+  stage.addEventListener('pointermove', function(e){
+    if(!drag) return; e.preventDefault();
+    var p = pt(e), l = drag.l, k = kf(); drag.moved = true; guide.x = guide.y = false;
+    if(drag.mode === 'move'){
+      l.x = drag.x0 + p.x - drag.p0.x; l.y = drag.y0 + p.y - drag.p0.y;
+      if(Math.abs(l.x - cv.width/2) < 7*k){ l.x = cv.width/2; guide.x = true; }
+      if(Math.abs(l.y - cv.height/2) < 7*k){ l.y = cv.height/2; guide.y = true; }
+    } else if(drag.mode === 'scale'){
+      l.s = Math.max(0.01, Math.min(60, drag.s0 * Math.hypot(p.x-l.x, p.y-l.y) / drag.d0));
+    } else {
+      var a = Math.atan2(p.y-l.y, p.x-l.x) + Math.PI/2;
+      if(e.shiftKey){ var st = Math.PI/12; a = Math.round(a/st)*st; }
+      l.rot = a;
+    }
+    redraw();
+  });
+  function endDrag(){ if(!drag) return; var m = drag.moved; drag = null; guide.x = guide.y = false; if(m) pushHist(); redraw(); }
+  stage.addEventListener('pointerup', endDrag); stage.addEventListener('pointercancel', endDrag);
+
+  window.addEventListener('keydown', function(e){
+    if(!open) return;
+    var tg = (e.target && e.target.tagName) || ''; if(tg === 'INPUT' || tg === 'TEXTAREA' || tg === 'SELECT') return;
+    var mod = e.ctrlKey || e.metaKey, key = e.key, l = cur();
+    if(mod && (key==='z' || key==='Z' || key==='y' || key==='Y')){
+      var redo = key==='y' || key==='Y' || e.shiftKey;
+      if(redo ? hi < H.length-1 : hi > 0){ e.preventDefault(); e.stopImmediatePropagation(); goHist(hi + (redo ? 1 : -1)); }
+      return;
+    }
+    if(!l) return;
+    if(mod && (key==='d' || key==='D')){ e.preventDefault(); $('lyDup').click(); }
+    else if(key==='Delete' || key==='Backspace'){ e.preventDefault(); $('lyDel').click(); }
+    else if(key.indexOf('Arrow') === 0 && !l.lock){
+      e.preventDefault(); var st = e.shiftKey ? 10 : 1, k = kf();
+      if(key==='ArrowLeft') l.x -= st*k; if(key==='ArrowRight') l.x += st*k; if(key==='ArrowUp') l.y -= st*k; if(key==='ArrowDown') l.y += st*k;
+      clearTimeout(keyT); keyT = setTimeout(pushHist, 350); redraw();
+    }
+  }, true);
+  var keyT = 0;
+
+  /* ---------- open / close the Layers tab ---------- */
+  function setOpen(v){
+    open = v; panel.classList.toggle('show', v); tab.classList.toggle('active', v);
+    if(v){ document.querySelectorAll('.bench-panel').forEach(function(p){ if(p !== panel) p.classList.remove('show'); }); toolTitle.textContent = 'layers.exe'; }
+    refresh(); setTimeout(redraw, 700);
+  }
+  tab.addEventListener('click', function(){
+    if(tab.disabled) return;
+    t0.click();                       // park APIC on the Edit tool so crop/brush overlays are off
+    t0.classList.remove('active'); setOpen(true);
+  });
+  Array.prototype.forEach.call(bench.querySelectorAll('.tool-btn'), function(b){
+    if(b !== tab) b.addEventListener('click', function(){ if(open) setOpen(false); });
+  });
+
+  /* ---------- keep layers in step with the photo ---------- */
+  var lw = cv.width, lh = cv.height;
+  new MutationObserver(function(){
+    var nw = cv.width, nh = cv.height; if(nw === lw && nh === lh) return;
+    if(L.length && lw > 1 && lh > 1 && nw > 1 && nh > 1){
+      var rx = nw/lw, ry = nh/lh; L.forEach(function(l){ l.x *= rx; l.y *= ry; l.s *= rx; });
+      H.forEach(function(h){ h.l.forEach(function(l){ l.x *= rx; l.y *= ry; l.s *= rx; }); });
+    }
+    lw = nw; lh = nh; redraw();
+  }).observe(cv, {attributes:true, attributeFilter:['width','height']});
+  if(window.ResizeObserver) new ResizeObserver(function(){ redraw(); }).observe(cv);
+  window.addEventListener('resize', redraw);
+  // APIC re-renders the photo through this hook on every slider/tool change — repaint on top of it.
+  (function hook(){
+    var d = window.__apicDock; if(!d || typeof d.sync !== 'function'){ return setTimeout(hook, 300); }
+    var o = d.sync; d.sync = function(){ var r = o.apply(this, arguments); redraw(); return r; };
+  })();
+  var rm = $('removeImgBtn');
+  if(rm) rm.addEventListener('click', function(){ L = []; sel = null; H = [{l:[], sel:null}]; hi = 0; if(open) setOpen(false); refresh(); }, true);
+
+  /* ---------- export: composite layers into every export (same sync-bake trick as the watermark gate) ---------- */
+  var baked = null;
+  function bake(){
+    if(baked || !L.some(function(l){ return l.vis; })) return;
+    var g = cv.getContext('2d'); baked = g.getImageData(0, 0, cv.width, cv.height); drawLayers(g);
+    setTimeout(unbake, 0);   // every export branch snapshots the canvas synchronously, so restoring next tick is safe
+  }
+  function unbake(){ if(!baked) return; cv.getContext('2d').putImageData(baked, 0, 0); baked = null; redraw(); }
+  document.addEventListener('click', function(e){
+    var t = e.target; if(t === exportBtn || (t && t.id === 'apicWmContinue')) bake();
+  }, true);
+
+  refresh();
+})();
+</script>
+
+<!-- ============================================================================
      APIC — export watermark gate (additive, appended)
      Adds: (1) a "sign in or export with watermark" prompt for guests,
      (2) a bottom-right "Edited on APIC" watermark on gated exports,
