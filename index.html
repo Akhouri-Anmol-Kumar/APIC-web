@@ -1013,7 +1013,8 @@
     box-shadow:0 30px 70px -28px rgba(0,0,0,.7), 0 2px 0 rgba(255,255,255,.03) inset;
     visibility:hidden; opacity:0; pointer-events:none; cursor:pointer; user-select:none; -webkit-user-select:none;
     transform-origin:0 0; will-change:transform, opacity; -webkit-tap-highlight-color:transparent;
-    transition:transform .8s var(--ease-out), opacity .45s ease, width .5s var(--ease-out), height .5s var(--ease-out), box-shadow .3s ease;
+    transition:transform .8s var(--ease-out), opacity .45s ease, width .5s var(--ease-out), height .5s var(--ease-out), top .35s var(--ease-out), left .35s var(--ease-out), box-shadow .3s ease;
+    contain:layout style;
   }
   #apicDock.max{z-index:155;}
   #apicDock.on{visibility:visible; opacity:1; pointer-events:auto;}
@@ -1052,7 +1053,8 @@
   #apicDock .ad-live{display:flex; align-items:center; gap:7px; color:var(--text);}
   #apicDock .ad-live i{width:6px; height:6px; border-radius:50%; background:var(--green); animation:pulse 2s infinite;}
   #apicDock .ad-dim{letter-spacing:.4px; opacity:.85; overflow:hidden; text-overflow:ellipsis;}
-  #apicDock.pip{border-radius:12px;}
+  #apicDock.pip{border-radius:14px; margin-bottom:env(safe-area-inset-bottom, 0px);}
+  #apicDock.pip .ad-img{border-radius:9px;}
   #apicDock.pip .ad-cap{height:22px; font-size:8px; letter-spacing:.8px;}
   #apicDock.pip .ad-dim{display:none;}
   html.apic-fast #apicDock{-webkit-backdrop-filter:none; backdrop-filter:none; background:var(--bg-2);}
@@ -1967,8 +1969,10 @@
     if(!originalImg) return;
     var w = originalImg.naturalWidth, h = originalImg.naturalHeight;
     var rotated = (rotation % 180 !== 0);
-    canvas.width = rotated ? h : w;
-    canvas.height = rotated ? w : h;
+    var nw = rotated ? h : w, nh = rotated ? w : h;
+    if(canvas.width !== nw) canvas.width = nw;      // assigning even the same size wipes + reallocates the bitmap
+    if(canvas.height !== nh) canvas.height = nh;
+    ctx.clearRect(0, 0, nw, nh);
     ctx.save();
     ctx.filter = comparing ? 'none' : currentFilterString();
     ctx.translate(canvas.width/2, canvas.height/2);
@@ -3060,7 +3064,16 @@
   var CPAD = 10, CPLOT = 256;
   function cx2px(x){ return CPAD + x/255*CPLOT; }
   function cy2px(y){ return CPAD + CPLOT - y/255*CPLOT; }
-  function cssVar(n, fb){ var v = getComputedStyle(document.documentElement).getPropertyValue(n); return (v && v.trim()) || fb; }
+  var cssVarCache = {};
+  function cssVar(n, fb){
+    var c = cssVarCache[n]; if(c !== undefined) return c;
+    var v = getComputedStyle(document.documentElement).getPropertyValue(n);
+    return (cssVarCache[n] = (v && v.trim()) || fb);
+  }
+  try{ new MutationObserver(function(){ cssVarCache = {}; if(typeof scheduleCurves === 'function') scheduleCurves(); })
+         .observe(document.documentElement, { attributes:true, attributeFilter:['data-theme','class'] }); }catch(e){}
+  var curveRaf = 0;
+  function scheduleCurves(){ if(curveRaf) return; curveRaf = requestAnimationFrame(function(){ curveRaf = 0; drawCurves(); }); }
 
   function drawCurves(){
     var W = curveCanvas.width, H = curveCanvas.height;
@@ -3072,17 +3085,22 @@
       var hk = curveCh === 'rgb' ? 'l' : curveCh;
       var hv = lastHist[hk], mx = lastHist.max[hk] || 1;
       cctx.fillStyle = curveCh === 'rgb' ? 'rgba(160,160,170,0.28)' : (CURVE_COLORS[curveCh] + '44');
+      cctx.beginPath();                               // one batched path instead of 256 fillRect calls
+      var bw = Math.max(1, CPLOT/255);
       for(var i=0;i<256;i++){
         var bh = Math.min(1, hv[i]/mx) * CPLOT;
-        cctx.fillRect(cx2px(i), CPAD + CPLOT - bh, Math.max(1, CPLOT/255), bh);
+        cctx.rect(cx2px(i), CPAD + CPLOT - bh, bw, bh);
       }
+      cctx.fill();
     }
     cctx.strokeStyle = line; cctx.lineWidth = 1;
+    cctx.beginPath();
     for(var g=0; g<=4; g++){
       var gp = CPAD + g*CPLOT/4;
-      cctx.beginPath(); cctx.moveTo(gp, CPAD); cctx.lineTo(gp, CPAD+CPLOT); cctx.stroke();
-      cctx.beginPath(); cctx.moveTo(CPAD, gp); cctx.lineTo(CPAD+CPLOT, gp); cctx.stroke();
+      cctx.moveTo(gp, CPAD); cctx.lineTo(gp, CPAD+CPLOT);
+      cctx.moveTo(CPAD, gp); cctx.lineTo(CPAD+CPLOT, gp);
     }
+    cctx.stroke();
     cctx.beginPath(); cctx.moveTo(cx2px(0), cy2px(0)); cctx.lineTo(cx2px(255), cy2px(255));
     cctx.setLineDash([4,4]); cctx.stroke(); cctx.setLineDash([]);
     function strokeCurve(key, color, width){
@@ -3111,7 +3129,7 @@
     var py = (e.clientY - r.top) * curveCanvas.height / r.height;
     return {px:px, py:py, x:Math.round((px-CPAD)/CPLOT*255), y:Math.round((CPAD+CPLOT-py)/CPLOT*255)};
   }
-  function curveChanged(){ rebuildSplines(); drawCurves(); scheduleRender(); }
+  function curveChanged(){ rebuildSplines(); scheduleCurves(); scheduleRender(); }
   curveCanvas.addEventListener('pointerdown', function(e){
     if(!originalImg) return;
     e.preventDefault();
@@ -3171,19 +3189,33 @@
   var histCanvas = document.getElementById('advHist');
   var hctx = histCanvas.getContext('2d');
   var histTmp = document.createElement('canvas');
-  function scheduleHist(){
-    if(histRaf || activeTool !== 'advanced') return;
-    histRaf = requestAnimationFrame(function(){ histRaf = 0; updateHist(); });
+  var histTctx = null, histDirty = false, histLast = 0, histTimer = 0;
+  var histBuf = { r:new Float32Array(256), g:new Float32Array(256), b:new Float32Array(256), l:new Float32Array(256) };
+  var histSecEl = histCanvas.closest('details'), curveSecEl = curveCanvas.closest('details');
+  function histVisible(){
+    return (!histSecEl || histSecEl.open) || (!curveSecEl || curveSecEl.open);   // both closed -> nobody sees it
   }
+  function scheduleHist(){
+    if(histRaf || histTimer || activeTool !== 'advanced') return;
+    if(!histVisible()){ histDirty = true; return; }
+    var lite = document.documentElement.classList.contains('apic-lite');
+    var wait = lite ? 90 - (performance.now() - histLast) : 0;     // weak phones: ~11 updates/s while dragging, final state always lands
+    if(wait > 0){ histTimer = setTimeout(function(){ histTimer = 0; scheduleHist(); }, wait); return; }
+    histRaf = requestAnimationFrame(function(){ histRaf = 0; histLast = performance.now(); updateHist(); });
+  }
+  [histSecEl, curveSecEl].forEach(function(d){ if(d) d.addEventListener('toggle', function(){ if(d.open && histDirty){ histDirty = false; scheduleHist(); } }); });
   function updateHist(){
     if(!originalImg || canvas.width < 2) return;
     var tw = Math.min(canvas.width, 220), th = Math.max(1, Math.round(canvas.height * tw / canvas.width));
-    histTmp.width = tw; histTmp.height = th;
-    var tctx = histTmp.getContext('2d');
+    if(histTmp.width !== tw) histTmp.width = tw;
+    if(histTmp.height !== th) histTmp.height = th;
+    var tctx = histTctx || (histTctx = histTmp.getContext('2d', { willReadFrequently:true }));
+    tctx.clearRect(0, 0, tw, th);
     tctx.imageSmoothingEnabled = true; tctx.imageSmoothingQuality = 'high';
     tctx.drawImage(canvas, 0, 0, tw, th);
     var px = tctx.getImageData(0,0,tw,th).data;
-    var R = new Float32Array(256), G = new Float32Array(256), B = new Float32Array(256), L = new Float32Array(256);
+    var R = histBuf.r, G = histBuf.g, B = histBuf.b, L = histBuf.l;
+    R.fill(0); G.fill(0); B.fill(0); L.fill(0);
     var total = 0, sc = 0, hc = 0;
     for(var i=0;i<px.length;i+=4){
       if(px[i+3] < 8) continue;
@@ -3211,7 +3243,7 @@
     hctx.strokeStyle = cssVar('--text-muted','#999'); hctx.lineWidth = 1; hctx.stroke();
     var pc = function(n){ return total ? (n/total*100).toFixed(1) + '%' : '0%'; };
     document.getElementById('advHistStats').innerHTML = '<span>Shadow clip <b>'+pc(sc)+'</b></span><span>Highlight clip <b>'+pc(hc)+'</b></span>';
-    if(curveCanvas) drawCurves();
+    if(curveCanvas) scheduleCurves();
   }
 
   /* ---- slider wiring ---- */
@@ -4592,20 +4624,28 @@
       var cap = side ? 26 : 22, imgW, imgH, w, top, left, shift = 0;
       if(side){
         top = Math.round(topLimit() + (maxed ? 12 : 16));
-        var cardW = Math.max(200, Math.min(300, vw * 0.22));
-        var maxImgH = Math.max(100, Math.min(vh * 0.5, vh - top - 24 - cap - 8));
+        // Big preview: uses (a) the empty gutter left of the studio and (b) up to ~42% of the studio width,
+        // while always leaving >= 460px for the controls. Height may use nearly the whole viewport,
+        // so portrait photos get a tall, large preview.
+        var gutter = Math.max(0, sr.left - 14);
+        var ext = Math.min(gutter, 280);
+        var inner = Math.max(0, sr.width - 30);
+        var want = Math.max(300, Math.min(vw * 0.40, 640));
+        var cardW = Math.min(want + ext, Math.max(210, inner + ext - 460 - 18));
+        var maxImgH = Math.max(120, vh - top - 20 - cap - 8);
         imgW = cardW - 14; imgH = imgW / aspect;
         if(imgH > maxImgH){ imgH = maxImgH; imgW = imgH * aspect; }
-        w = Math.max(156, Math.round(imgW + 14));
-        left = Math.round(sr.left + 15);
-        shift = w + 18;
+        w = Math.max(170, Math.round(imgW + 14));
+        left = Math.round(sr.left + 15 - ext);
+        if(left < 10) left = 10;
+        shift = Math.max(0, Math.round(left + w + 18 - (sr.left + 15)));
       } else {
-        var cw = Math.max(120, Math.min(vw * 0.36, 168));
-        var maxH = vh * 0.22;
+        var cw = Math.max(150, Math.min(vw * 0.5, 250));
+        var maxH = Math.min(vh * 0.34, 320);
         imgW = cw - 14; imgH = imgW / aspect;
         if(imgH > maxH){ imgH = maxH; imgW = imgH * aspect; }
-        w = Math.max(120, Math.round(imgW + 14));
-        left = 12;
+        w = Math.max(130, Math.round(imgW + 14));
+        left = 10;
       }
       imgW = Math.round(imgW); imgH = Math.max(24, Math.round(imgH));
       var h = imgH + 6 + cap + 2;
@@ -4635,7 +4675,9 @@
       drawRaf = 0;
       if(!g || !canvas.width || !canvas.height) return;
       var dpr = Math.min(2, window.devicePixelRatio || 1);
-      var tw = Math.max(2, Math.min(960, Math.round(g.iw * dpr)));
+      var lite = document.documentElement.classList.contains('apic-lite');
+      if(lite) dpr = Math.min(dpr, 1.5);
+      var tw = Math.max(2, Math.min(g.side ? 1600 : 1000, Math.round(g.iw * dpr)));
       var th = Math.max(2, Math.round(tw * canvas.height / canvas.width));
       if(cv.width !== tw || cv.height !== th){ cv.width = tw; cv.height = th; } else { cx.clearRect(0, 0, tw, th); }
       var src = canvas;
