@@ -1002,6 +1002,71 @@
   #apicTop:active{transform:translate3d(0,0,0) scale(.92);}
   #apicTop svg{width:18px; height:18px;}
 </style>
+<style id="apic-dock-css">
+  /* ---------- Floating live preview dock (Advanced tab) ---------- */
+  #drop{scroll-margin-top:84px;}
+  #apicDock{
+    position:fixed; left:0; top:0; z-index:55; box-sizing:border-box; margin:0;
+    padding:6px 6px 0; border-radius:16px; border:1px solid var(--line);
+    background:color-mix(in srgb, var(--bg-2) 90%, transparent);
+    -webkit-backdrop-filter:blur(14px) saturate(1.3); backdrop-filter:blur(14px) saturate(1.3);
+    box-shadow:0 30px 70px -28px rgba(0,0,0,.7), 0 2px 0 rgba(255,255,255,.03) inset;
+    visibility:hidden; opacity:0; pointer-events:none; cursor:pointer; user-select:none; -webkit-user-select:none;
+    transform-origin:0 0; will-change:transform, opacity; -webkit-tap-highlight-color:transparent;
+    transition:transform .8s var(--ease-out), opacity .45s ease, width .5s var(--ease-out), height .5s var(--ease-out), box-shadow .3s ease;
+  }
+  #apicDock.max{z-index:155;}
+  #apicDock.on{visibility:visible; opacity:1; pointer-events:auto;}
+  #apicDock.on:hover{box-shadow:0 36px 80px -26px rgba(0,0,0,.75), var(--glow-green);}
+  #apicDock.on.pip{pointer-events:none;}
+  #apicDock.on.leaving{opacity:0; pointer-events:none; transition:transform .65s var(--ease-out), opacity .34s ease .26s, width .5s var(--ease-out), height .5s var(--ease-out);}
+  #apicDock.on.leaving.fade{transition:transform .42s ease, opacity .3s ease;}
+  #apicDock:focus-visible{outline:2px solid var(--cyan); outline-offset:3px;}
+  /* gradient ring + soft brand glow */
+  #apicDock::before{
+    content:""; position:absolute; inset:-1px; border-radius:inherit; padding:1px; pointer-events:none;
+    background:var(--grad-brand); opacity:.55;
+    -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite:xor;
+    mask:linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  }
+  #apicDock::after{
+    content:""; position:absolute; inset:-12px; z-index:-1; border-radius:26px; pointer-events:none;
+    background:var(--grad-brand); filter:blur(26px); opacity:.16;
+  }
+  #apicDock .ad-img{
+    position:relative; margin:0 auto; border-radius:10px; overflow:hidden; background:var(--bg-3);
+    transition:width .5s var(--ease-out), height .5s var(--ease-out);
+  }
+  #apicDock.alpha .ad-img{background-image:repeating-conic-gradient(#8a8a8a 0% 25%, #5c5c5c 0% 50%); background-size:14px 14px;}
+  #apicDock canvas{display:block; width:100%; height:100%;}
+  #apicDock .ad-img::after{
+    content:""; position:absolute; inset:0; pointer-events:none; transform:translateX(-120%);
+    background:linear-gradient(105deg, transparent 30%, rgba(255,255,255,.3) 50%, transparent 70%);
+  }
+  #apicDock.sheen .ad-img::after{animation:adSheen 1s .3s var(--ease-out) 1 both;}
+  @keyframes adSheen{from{transform:translateX(-120%);} to{transform:translateX(120%);}}
+  #apicDock .ad-cap{
+    height:26px; display:flex; align-items:center; justify-content:space-between; gap:8px; padding:0 4px;
+    font-family:var(--mono); font-size:9.5px; font-weight:600; letter-spacing:1.2px; text-transform:uppercase; color:var(--text-muted); white-space:nowrap;
+  }
+  #apicDock .ad-live{display:flex; align-items:center; gap:7px; color:var(--text);}
+  #apicDock .ad-live i{width:6px; height:6px; border-radius:50%; background:var(--green); animation:pulse 2s infinite;}
+  #apicDock .ad-dim{letter-spacing:.4px; opacity:.85; overflow:hidden; text-overflow:ellipsis;}
+  #apicDock.pip{border-radius:12px;}
+  #apicDock.pip .ad-cap{height:22px; font-size:8px; letter-spacing:.8px;}
+  #apicDock.pip .ad-dim{display:none;}
+  html.apic-fast #apicDock{-webkit-backdrop-filter:none; backdrop-filter:none; background:var(--bg-2);}
+  html.apic-fast #apicDock::after{display:none;}
+  /* controls glide right to make room for the docked preview */
+  .studio .bench-tools, .studio .bench-panel, .studio .bench-footer{transition:margin-left .8s var(--ease-out);}
+  .studio.apic-docked-side .bench-tools, .studio.apic-docked-side .bench-panel, .studio.apic-docked-side .bench-footer{margin-left:var(--apic-dock-shift, 0px);}
+  @media (prefers-reduced-motion:reduce){
+    #apicDock{transition:opacity .2s ease;}
+    #apicDock.on.leaving, #apicDock.on.leaving.fade{transition:opacity .2s ease;}
+    #apicDock .ad-img{transition:none;}
+    .studio .bench-tools, .studio .bench-panel, .studio .bench-footer{transition:none;}
+  }
+</style>
 </head>
 <body>
 
@@ -1773,6 +1838,7 @@
     document.body.classList.toggle('studio-active', loaded);
     // layout animates for ~0.5s; re-align the tool overlay (crop/brush) once it settles
     setTimeout(function(){ if(loaded && typeof syncOverlay === 'function') syncOverlay(); }, 650);
+    if(window.__apicDock) window.__apicDock.evaluate();
   }
 
   // Clear the current image and return the studio to its empty state
@@ -3502,6 +3568,7 @@
       }
     }
     scheduleHist();
+    if(window.__apicDock) window.__apicDock.sync();   // keep the floating live preview in step
   }
 
   /* ---- .cube 3D LUT export (colour-only part of the grade) ---- */
@@ -4486,6 +4553,187 @@
     }
     btn.disabled = false; bgBusy = false;
   });
+
+  /* ======================= FLOATING LIVE PREVIEW (Advanced tab) =======================
+     While you tweak sliders far below the photo, a live mirror of the image flies out to the
+     left, the controls glide right to make room, and when you scroll back up the card flies
+     home onto the real image and the controls settle back. The real canvas is never moved,
+     so crop / histogram / export keep working exactly as before. */
+  (function(){
+    var DOCK_TOOLS = { advanced: true };           // add more tool names here to enable the dock for them
+    var el = document.createElement('div');
+    el.id = 'apicDock';
+    el.setAttribute('role', 'button'); el.tabIndex = 0;
+    el.setAttribute('aria-label', 'Live preview of your image. Activate to jump back to the image.');
+    el.title = 'Jump back to image';
+    el.innerHTML = '<div class="ad-img"><canvas aria-hidden="true"></canvas></div>' +
+      '<div class="ad-cap"><span class="ad-live"><i></i>Live preview</span><span class="ad-dim"></span></div>';
+    document.body.appendChild(el);
+    var imgBox = el.querySelector('.ad-img'), cv = el.querySelector('canvas'), dimEl = el.querySelector('.ad-dim');
+    var cx = cv.getContext('2d');
+    var mid = document.createElement('canvas'), mx = mid.getContext('2d');
+    var header = document.querySelector('header.top');
+    var on = false, g = null, lastKey = '', hideT = 0, drawRaf = 0, evalRaf = 0;
+    var rmq = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
+    function reduced(){ return !!(rmq && rmq.matches); }
+
+    function topLimit(){
+      if(studio.classList.contains('maximized')){
+        var tb = studio.querySelector('.title-bar');
+        return studio.getBoundingClientRect().top + (tb ? tb.offsetHeight : 40);
+      }
+      return header && !header.classList.contains('apic-hide') ? header.offsetHeight : 0;
+    }
+    function geometry(){
+      var vw = window.innerWidth, vh = window.innerHeight;
+      var side = vw >= 900, maxed = studio.classList.contains('maximized');
+      var sr = studio.getBoundingClientRect();
+      var aspect = canvas.width / Math.max(1, canvas.height);
+      var cap = side ? 26 : 22, imgW, imgH, w, top, left, shift = 0;
+      if(side){
+        top = Math.round(topLimit() + (maxed ? 12 : 16));
+        var cardW = Math.max(200, Math.min(300, vw * 0.22));
+        var maxImgH = Math.max(100, Math.min(vh * 0.5, vh - top - 24 - cap - 8));
+        imgW = cardW - 14; imgH = imgW / aspect;
+        if(imgH > maxImgH){ imgH = maxImgH; imgW = imgH * aspect; }
+        w = Math.max(156, Math.round(imgW + 14));
+        left = Math.round(sr.left + 15);
+        shift = w + 18;
+      } else {
+        var cw = Math.max(120, Math.min(vw * 0.36, 168));
+        var maxH = vh * 0.22;
+        imgW = cw - 14; imgH = imgW / aspect;
+        if(imgH > maxH){ imgH = maxH; imgW = imgH * aspect; }
+        w = Math.max(120, Math.round(imgW + 14));
+        left = 12;
+      }
+      imgW = Math.round(imgW); imgH = Math.max(24, Math.round(imgH));
+      var h = imgH + 6 + cap + 2;
+      if(!side) top = Math.round(vh - h - 14);
+      return { left: left, top: top, w: w, h: h, iw: imgW, ih: imgH, side: side, shift: shift, maxed: maxed };
+    }
+    function applyGeometry(){
+      var n = geometry();
+      g = n;
+      var key = [n.left, n.top, n.w, n.h, n.iw, n.ih, n.side, n.shift, n.maxed].join('|');
+      if(key === lastKey) return;
+      lastKey = key;
+      el.style.left = n.left + 'px'; el.style.top = n.top + 'px';
+      el.style.width = n.w + 'px'; el.style.height = n.h + 'px';
+      imgBox.style.width = n.iw + 'px'; imgBox.style.height = n.ih + 'px';
+      el.classList.toggle('pip', !n.side);
+      el.classList.toggle('max', n.maxed);
+      studio.style.setProperty('--apic-dock-shift', n.shift + 'px');
+      if(on) studio.classList.toggle('apic-docked-side', n.side);
+    }
+    function flip(s){
+      return 'translate3d(' + (s.left - g.left) + 'px,' + (s.top - g.top) + 'px,0) scale(' +
+        Math.max(0.05, s.width / g.w) + ',' + Math.max(0.05, s.height / g.h) + ')';
+    }
+
+    function draw(){
+      drawRaf = 0;
+      if(!g || !canvas.width || !canvas.height) return;
+      var dpr = Math.min(2, window.devicePixelRatio || 1);
+      var tw = Math.max(2, Math.min(960, Math.round(g.iw * dpr)));
+      var th = Math.max(2, Math.round(tw * canvas.height / canvas.width));
+      if(cv.width !== tw || cv.height !== th){ cv.width = tw; cv.height = th; } else { cx.clearRect(0, 0, tw, th); }
+      var src = canvas;
+      if(canvas.width > tw * 3){                     // two-step shrink keeps the thumbnail crisp, not aliased
+        var mw = tw * 2, mh = Math.max(2, Math.round(mw * canvas.height / canvas.width));
+        if(mid.width !== mw || mid.height !== mh){ mid.width = mw; mid.height = mh; } else { mx.clearRect(0, 0, mw, mh); }
+        mx.imageSmoothingEnabled = true; mx.imageSmoothingQuality = 'high';
+        mx.drawImage(canvas, 0, 0, mw, mh); src = mid;
+      }
+      cx.imageSmoothingEnabled = true; cx.imageSmoothingQuality = 'high';
+      try{ cx.drawImage(src, 0, 0, tw, th); }catch(e){}
+      el.classList.toggle('alpha', dropEl.classList.contains('has-alpha'));
+      var d = canvas.width + '×' + canvas.height;
+      if(dimEl.textContent !== d) dimEl.textContent = d;
+    }
+    function requestDraw(){ if(!drawRaf) drawRaf = requestAnimationFrame(draw); }
+
+    function show(){
+      clearTimeout(hideT);
+      on = true; lastKey = '';
+      var wasOn = el.classList.contains('on');
+      var s = canvas.getBoundingClientRect();
+      if(!wasOn) el.style.transition = 'none';
+      applyGeometry();
+      draw();
+      el.classList.remove('leaving', 'fade');
+      studio.classList.toggle('apic-docked-side', g.side);
+      if(!wasOn){
+        el.style.transform = reduced() ? 'none' : flip(s);
+        el.style.opacity = '0';
+        el.classList.add('on');
+        el.classList.remove('sheen');
+        void el.offsetWidth;
+        el.style.transition = '';
+        el.style.opacity = '';
+        el.style.transform = 'none';
+        if(!reduced()) el.classList.add('sheen');
+      } else {
+        el.style.transform = 'none'; el.style.opacity = '';
+      }
+    }
+    function finishHide(){
+      el.style.transition = 'none';
+      el.classList.remove('on', 'leaving', 'fade', 'sheen');
+      el.style.transform = 'none'; el.style.opacity = '';
+      void el.offsetWidth;
+      el.style.transition = '';
+    }
+    function hide(instant, frac){
+      on = false;
+      clearTimeout(hideT);
+      studio.classList.remove('apic-docked-side');
+      if(!el.classList.contains('on')) return;
+      if(instant || !g){ finishHide(); return; }
+      var fly = !reduced() && (frac === undefined || frac >= 0.3);
+      el.classList.add('leaving');
+      if(fly){ el.classList.remove('fade'); el.style.transform = flip(canvas.getBoundingClientRect()); }
+      else { el.classList.add('fade'); el.style.transform = reduced() ? 'none' : 'translate3d(-22px,0,0) scale(.94)'; }
+      hideT = setTimeout(finishHide, fly ? 720 : 440);
+    }
+
+    function imgFrac(tl){
+      var r = canvas.getBoundingClientRect();
+      if(!r.height) return 1;
+      var vis = Math.min(r.bottom, window.innerHeight) - Math.max(r.top, tl);
+      return Math.max(0, vis) / r.height;
+    }
+    function evaluate(){
+      if(!originalImg || canvas.style.display === 'none' || studio.classList.contains('hidden')){
+        if(on || el.classList.contains('on')) hide(true);
+        return;
+      }
+      var tool = !!DOCK_TOOLS[activeTool];
+      var f = imgFrac(topLimit());
+      var want = tool && (on ? f < 0.5 : f < 0.25);     // hysteresis: no flicker near the threshold
+      if(want && !on) show();
+      else if(!want && on) hide(false, f);
+      else if(on){ applyGeometry(); }
+    }
+    function schedule(){
+      if(evalRaf) return;
+      evalRaf = requestAnimationFrame(function(){ evalRaf = 0; evaluate(); });
+    }
+    function sync(){ if(on){ applyGeometry(); requestDraw(); } schedule(); }
+
+    function jump(){ dropEl.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'start' }); }
+    el.addEventListener('click', function(e){ e.preventDefault(); jump(); });
+    el.addEventListener('keydown', function(e){ if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); jump(); } });
+
+    window.addEventListener('scroll', schedule, { passive: true, capture: true });   // capture: also catches the maximized studio's inner scroll
+    window.addEventListener('resize', function(){ lastKey = ''; schedule(); }, { passive: true });
+    window.addEventListener('orientationchange', function(){ setTimeout(function(){ lastKey = ''; schedule(); }, 250); });
+    Array.prototype.forEach.call(toolBtns, function(b){ b.addEventListener('click', schedule); });
+    ['btnMin', 'btnClose', 'btnMax'].forEach(function(id){ var b = document.getElementById(id); if(b) b.addEventListener('click', function(){ lastKey = ''; schedule(); }); });
+    minTab.addEventListener('click', function(){ lastKey = ''; schedule(); });
+
+    window.__apicDock = { evaluate: evaluate, sync: sync };
+  })();
 
   updateGate();
 })();
