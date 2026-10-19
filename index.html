@@ -1989,7 +1989,7 @@
   // canvas (Remove Background, Object Removal) would get silently wiped
   // out the moment any slider was touched again, because render() always
   // redraws from the pristine originalImg. Called after those two ops.
-  function bakeToOriginal(){
+  function bakeToOriginal(done){
     canvasToUrl(canvas, function(url){
       var snap = new Image();
       snap.onload = function(){
@@ -2004,10 +2004,13 @@
         document.getElementById('editBlurVal').textContent = '0px';
         resetAdvancedUI();
         commitHistory();
+        if(typeof done === 'function') done();
       };
       snap.src = url;
     });
   }
+  window.__apicBake = bakeToOriginal;                                  // used by Layers → "Flatten into photo"
+  window.__apicXform = function(){ return { r: rotation, h: flipH, v: flipV }; };   // used by Layers to follow rotate/flip
 
   /* ---------------- undo / redo history ----------------
      A real edit history, the way Photoshop's history panel works: every
@@ -4592,7 +4595,7 @@
      home onto the real image and the controls settle back. The real canvas is never moved,
      so crop / histogram / export keep working exactly as before. */
   (function(){
-    var DOCK_TOOLS = { advanced: true };           // add more tool names here to enable the dock for them
+    var DOCK_TOOLS = { edit: true, advanced: true };   // add more tool names here to enable the dock for them
     var el = document.createElement('div');
     el.id = 'apicDock';
     el.setAttribute('role', 'button'); el.tabIndex = 0;
@@ -4689,6 +4692,13 @@
       }
       cx.imageSmoothingEnabled = true; cx.imageSmoothingQuality = 'high';
       try{ cx.drawImage(src, 0, 0, tw, th); }catch(e){}
+      var LY = window.__apicLayers;                  // layers sit above the photo: show them in the live preview as well
+      if(LY && LY.count() > 0){
+        var kk = tw / canvas.width;
+        cx.save();
+        try{ cx.scale(kk, th / canvas.height); LY.draw(cx, kk); }catch(e){}
+        cx.restore();
+      }
       el.classList.toggle('alpha', dropEl.classList.contains('has-alpha'));
       var d = canvas.width + '×' + canvas.height;
       if(dimEl.textContent !== d) dimEl.textContent = d;
@@ -4933,10 +4943,12 @@ COSTS AT SMALL SCALE: $0 across all of the above.
      image/text layers stack above it and are composited into every export.
 ============================================================================= -->
 <style id="apic-layers-css">
-  #layerStage{position:absolute; z-index:2; display:none; max-width:100%; border-radius:3px; touch-action:none; -webkit-user-select:none; user-select:none; pointer-events:none;}
+  /* Root-cause fix: ".drop canvas{max-height:340px}" used to clamp this overlay, squashing + clipping every layer. Inline size from JS is authoritative. */
+  #layerStage{position:absolute; z-index:2; display:none; max-width:none !important; max-height:none !important; min-width:0; min-height:0; border-radius:3px; touch-action:none; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; pointer-events:none;}
   #layerStage.on{display:block;} #layerStage.live{pointer-events:auto; cursor:move;}
   #panel-layers .lyr-bar{display:grid; grid-template-columns:repeat(auto-fit,minmax(104px,1fr)); gap:8px; margin-bottom:12px;}
   #panel-layers .hint + .lyr-bar{margin-top:12px;}
+  #panel-layers .lyr-bar.sm{grid-template-columns:repeat(auto-fit,minmax(78px,1fr));}
   #lyrList{border:1px solid var(--line); border-radius:8px; overflow:auto; max-height:210px; margin-bottom:12px;}
   .lyr-row{display:flex; align-items:center; gap:8px; padding:6px 8px; border-bottom:1px solid var(--line); cursor:pointer; font-size:12.5px; color:var(--text);}
   .lyr-row:last-child{border-bottom:none;} .lyr-row.sel{background:color-mix(in srgb, var(--green) 12%, transparent); box-shadow:inset 3px 0 0 var(--green);}
@@ -4949,6 +4961,9 @@ COSTS AT SMALL SCALE: $0 across all of the above.
   #lyrCtl.off{display:none;}
   .lyr-empty{padding:12px; font-size:12.5px; color:var(--text-muted); text-align:center; border-bottom:1px solid var(--line);}
   #lyrTxt input[type=text]{flex:1; min-width:120px;}
+  #panel-layers .quick-btn:disabled{opacity:.4; cursor:not-allowed;}
+  #panel-layers .lyr-sub{font-size:11px; letter-spacing:.8px; text-transform:uppercase; color:var(--text-muted); margin:2px 0 8px; font-family:var(--mono);}
+  @media (pointer:coarse){ .lyr-ic{min-width:38px; min-height:38px; font-size:17px;} .lyr-row{padding:8px 8px;} }
 </style>
 <script>
 (function(){
@@ -4960,9 +4975,11 @@ COSTS AT SMALL SCALE: $0 across all of the above.
   var stage = document.createElement('canvas'); stage.id = 'layerStage'; drop.insertBefore(stage, ov);
   var sx = stage.getContext('2d');
   var L = [], sel = null, open = false, uid = 1, H = [{l:[], sel:null}], hi = 0, guide = {x:false, y:false};
+  var busy = false, skipScale = false, dockSync = null;
   var BLENDS = [['source-over','Normal'],['multiply','Multiply'],['screen','Screen'],['overlay','Overlay'],['soft-light','Soft light'],['hard-light','Hard light'],['darken','Darken'],['lighten','Lighten'],['color-dodge','Color dodge'],['color-burn','Color burn'],['difference','Difference'],['exclusion','Exclusion'],['hue','Hue'],['saturation','Saturation'],['color','Color'],['luminosity','Luminosity']];
   var coarse = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches);
   var BMP_CAP = coarse ? 1800 : 3600;
+  var HIT = coarse ? 24 : 14, HSZ = coarse ? 8 : 5;
 
   /* ---------- tab + panel ---------- */
   var t0 = bench.querySelector('.tool-btn');
@@ -4984,10 +5001,12 @@ COSTS AT SMALL SCALE: $0 across all of the above.
         '<div class="row"><label>Font</label><select id="lyF"><option value="Inter, system-ui, sans-serif">Sans</option><option value="Georgia, serif">Serif</option><option value="\'Courier New\', monospace">Mono</option><option value="Impact, Haettenschweiler, sans-serif">Impact</option><option value="\'Brush Script MT\', cursive">Script</option></select><input type="color" id="lyC" value="#ffffff" style="width:42px; height:30px; padding:0; border:none; background:none;"><label style="width:auto;"><input type="checkbox" id="lyBold" style="accent-color:var(--green);"> Bold</label></div>'+
         slider('lyS','Size',12,400,80)+'</div>'+
       slider('lyBr','Brightness',0,200,100)+slider('lyCo','Contrast',0,200,100)+slider('lySa','Saturation',0,200,100)+slider('lyHu','Hue',-180,180,0)+slider('lyBl','Blur',0,30,0,0.5)+
+      '<div class="lyr-sub">Align to canvas</div>'+
+      '<div class="lyr-bar sm"><button class="quick-btn" id="lyAlL">⇤ Left</button><button class="quick-btn" id="lyAlC">↔ Centre</button><button class="quick-btn" id="lyAlR">⇥ Right</button><button class="quick-btn" id="lyAlT">⤒ Top</button><button class="quick-btn" id="lyAlM">↕ Middle</button><button class="quick-btn" id="lyAlB">⤓ Bottom</button></div>'+
       '<div class="lyr-bar"><button class="quick-btn" id="lyFlipH">⇋ Flip H</button><button class="quick-btn" id="lyFlipV">⇵ Flip V</button><button class="quick-btn" id="lyRot">↻ Rotate 90°</button><button class="quick-btn" id="lyFit">Fit to canvas</button><button class="quick-btn" id="lyCenter">Centre</button><button class="quick-btn" id="lyReset">Reset layer</button><button class="quick-btn" id="lyUp">↑ Forward</button><button class="quick-btn" id="lyDown">↓ Backward</button><button class="quick-btn" id="lyDup">⧉ Duplicate</button><button class="quick-btn" id="lyMerge">Merge down</button><button class="quick-btn" id="lyDel">Delete</button></div>'+
     '</div>'+
-    '<div class="lyr-bar"><button class="quick-btn" id="lyUndo">↺ Undo layer</button><button class="quick-btn" id="lyRedo">↻ Redo layer</button></div>'+
-    '<p class="hint" style="margin-bottom:0;">Drag to move · corner handle scales · top handle rotates (Shift = 15° steps) · arrows nudge · Del removes · Ctrl+Z / Ctrl+Y undo layers · it snaps to the centre. Tip: crop and resize your photo <b>before</b> adding layers.</p>';
+    '<div class="lyr-bar"><button class="quick-btn" id="lyUndo">↺ Undo layer</button><button class="quick-btn" id="lyRedo">↻ Redo layer</button><button class="quick-btn" id="lyFlat" title="Merge every visible layer into the photo">▣ Flatten into photo</button></div>'+
+    '<p class="hint" style="margin-bottom:0;">Drag to move · corner handle scales · top handle rotates (Shift = 15° steps) · two fingers pinch &amp; twist · Ctrl/Alt + scroll scales · double-click text to edit · arrows nudge · Del removes · Esc deselects · Ctrl+Z / Ctrl+Y undo layers · it snaps to the centre. Tip: crop your photo <b>before</b> adding layers.</p>';
   foot.parentNode.insertBefore(panel, foot);
   var $ = function(id){ return document.getElementById(id); };
   var fileIn = document.createElement('input'); fileIn.type = 'file'; fileIn.accept = 'image/*'; fileIn.multiple = true; fileIn.style.display = 'none'; panel.appendChild(fileIn);
@@ -4997,31 +5016,68 @@ COSTS AT SMALL SCALE: $0 across all of the above.
   function byId(id){ for(var i=0;i<L.length;i++) if(L[i].id===id) return L[i]; return null; }
   function idx(id){ for(var i=0;i<L.length;i++) if(L[i].id===id) return i; return -1; }
   function cur(){ return sel ? byId(sel) : null; }
-  function fxStr(l){
+  function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
+  var FILTER_OK = (function(){ try{ var g = mk(1,1).getContext('2d'); g.filter = 'blur(1px)'; return g.filter === 'blur(1px)'; }catch(e){ return false; } })();
+  function fxDefault(f){ return f.br===100 && f.co===100 && f.sa===100 && f.hu===0 && f.bl===0; }
+  function fxStr(l, k){
     var f = l.fx, p = [];
     if(f.br!==100) p.push('brightness('+f.br+'%)'); if(f.co!==100) p.push('contrast('+f.co+'%)');
-    if(f.sa!==100) p.push('saturate('+f.sa+'%)'); if(f.hu!==0) p.push('hue-rotate('+f.hu+'deg)'); if(f.bl>0) p.push('blur('+f.bl+'px)');
+    if(f.sa!==100) p.push('saturate('+f.sa+'%)'); if(f.hu!==0) p.push('hue-rotate('+f.hu+'deg)'); if(f.bl>0) p.push('blur('+(f.bl*(k||1))+'px)');
     return p.length ? p.join(' ') : 'none';
   }
-  function drawLayer(c, l, noBlend){
+  /* Safari/iOS has no canvas filters: reproduce brightness/contrast/saturate/hue/blur in JS (cached per setting). */
+  function fxBitmap(l){
+    var f = l.fx, w = l.bmp.width, h = l.bmp.height;
+    var key = [f.br, f.co, f.sa, f.hu, f.bl, f.bl>0 ? Math.round(l.s*10) : 0].join('|');
+    if(l._fb && l._fk === key && l._fs === l.bmp) return l._fb;
+    var o = mk(w, h), g = o.getContext('2d'), rad = f.bl > 0 ? f.bl/Math.max(0.02, l.s) : 0;
+    if(rad > 0.5){
+      var q = Math.max(1, rad*1.2), t = mk(w/q, h/q); t.getContext('2d').drawImage(l.bmp, 0, 0, t.width, t.height);
+      g.imageSmoothingQuality = 'high'; g.drawImage(t, 0, 0, w, h);
+    } else g.drawImage(l.bmp, 0, 0);
+    if(f.br!==100 || f.co!==100 || f.sa!==100 || f.hu!==0){
+      try{
+        var id = g.getImageData(0, 0, w, h), d = id.data, b = f.br/100, c = f.co/100, s = f.sa/100, a = f.hu*Math.PI/180, cs = Math.cos(a), sn = Math.sin(a);
+        var S = [.213+.787*s,.715-.715*s,.072-.072*s, .213-.213*s,.715+.285*s,.072-.072*s, .213-.213*s,.715-.715*s,.072+.928*s];
+        var Hm = [.213+cs*.787-sn*.213,.715-cs*.715-sn*.715,.072-cs*.072+sn*.928, .213-cs*.213+sn*.143,.715+cs*.285+sn*.140,.072-cs*.072-sn*.283, .213-cs*.213-sn*.787,.715-cs*.715+sn*.715,.072+cs*.928+sn*.072];
+        var M = []; for(var i=0;i<3;i++) for(var j=0;j<3;j++) M[i*3+j] = Hm[i*3]*S[j] + Hm[i*3+1]*S[3+j] + Hm[i*3+2]*S[6+j];
+        for(var p=0; p<d.length; p+=4){
+          var r = clamp((d[p]*b-127.5)*c+127.5, 0, 255), gg = clamp((d[p+1]*b-127.5)*c+127.5, 0, 255), bb = clamp((d[p+2]*b-127.5)*c+127.5, 0, 255);
+          d[p] = M[0]*r+M[1]*gg+M[2]*bb; d[p+1] = M[3]*r+M[4]*gg+M[5]*bb; d[p+2] = M[6]*r+M[7]*gg+M[8]*bb;
+        }
+        g.putImageData(id, 0, 0);
+      }catch(e){}
+    }
+    l._fb = o; l._fk = key; l._fs = l.bmp; return o;
+  }
+  function drawLayer(c, l, noBlend, k){
+    k = k || 1; var src = l.bmp;
+    if(!FILTER_OK && !fxDefault(l.fx)) src = fxBitmap(l);
     c.save(); c.globalAlpha = l.op; c.globalCompositeOperation = noBlend ? 'source-over' : l.blend;
     c.translate(l.x, l.y); c.rotate(l.rot); c.scale(l.s*(l.fh?-1:1), l.s*(l.fv?-1:1));
-    try{ c.filter = fxStr(l); }catch(e){}
-    c.drawImage(l.bmp, -l.bmp.width/2, -l.bmp.height/2); c.restore();
+    if(FILTER_OK){ try{ c.filter = fxStr(l, k); }catch(e){} }
+    c.drawImage(src, -l.bmp.width/2, -l.bmp.height/2, l.bmp.width, l.bmp.height); c.restore();
   }
-  function drawLayers(c){ L.forEach(function(l){ if(l.vis) drawLayer(c, l); }); }
+  function drawLayers(c, k){ L.forEach(function(l){ if(l.vis) drawLayer(c, l, false, k); }); }
   function newLayer(name, type, bmp){
     return {id:uid++, name:name, type:type, bmp:bmp, x:cv.width/2, y:cv.height/2, s:1, rot:0, fh:false, fv:false, op:1, blend:'source-over', vis:true, lock:false,
-            fx:{br:100,co:100,sa:100,hu:0,bl:0}, t:'', ts:Math.round(cv.width*0.08), tc:'#ffffff', tf:'Inter, system-ui, sans-serif', tb:false};
+            fx:{br:100,co:100,sa:100,hu:0,bl:0}, t:'', ts:clamp(Math.round(cv.width*0.08), 12, 400), tc:'#ffffff', tf:'Inter, system-ui, sans-serif', tb:false};
   }
   function clone(l){ return Object.assign({}, l, {fx:Object.assign({}, l.fx)}); }
+  function anyVisible(){ return L.some(function(l){ return l.vis; }); }
+
+  /* The live-preview dock (Edit / Advanced / Layers) mirrors the photo — let it include the layers too. */
+  window.__apicLayers = {
+    draw: function(c, k){ if(busy || baked) return; drawLayers(c, k); },
+    count: function(){ return L.length; }
+  };
 
   /* ---------- history (layers only; the photo keeps APIC's own undo) ---------- */
   function pushHist(){
     H = H.slice(0, hi+1); H.push({l:L.map(clone), sel:sel}); if(H.length > 60) H.shift(); hi = H.length-1; btns();
   }
   function goHist(i){ if(i<0 || i>=H.length) return; hi = i; L = H[i].l.map(clone); sel = byId(H[i].sel) ? H[i].sel : null; refresh(); }
-  function btns(){ $('lyUndo').disabled = hi<=0; $('lyRedo').disabled = hi>=H.length-1; }
+  function btns(){ $('lyUndo').disabled = hi<=0; $('lyRedo').disabled = hi>=H.length-1; $('lyFlat').disabled = busy || !anyVisible(); }
 
   /* ---------- compose / paint ---------- */
   function place(){ var s = stage.style; s.left = cv.offsetLeft+'px'; s.top = cv.offsetTop+'px'; s.width = cv.clientWidth+'px'; s.height = cv.clientHeight+'px'; }
@@ -5029,11 +5085,18 @@ COSTS AT SMALL SCALE: $0 across all of the above.
     var w = l.bmp.width*l.s/2, h = l.bmp.height*l.s/2, c = Math.cos(l.rot), s = Math.sin(l.rot);
     return [[-w,-h],[w,-h],[w,h],[-w,h]].map(function(p){ return {x:l.x+p[0]*c-p[1]*s, y:l.y+p[0]*s+p[1]*c}; });
   }
+  function bbox(l){
+    var cs = corners(l), b = {x0:Infinity, y0:Infinity, x1:-Infinity, y1:-Infinity};
+    cs.forEach(function(p){ b.x0 = Math.min(b.x0, p.x); b.y0 = Math.min(b.y0, p.y); b.x1 = Math.max(b.x1, p.x); b.y1 = Math.max(b.y1, p.y); });
+    return b;
+  }
   function kf(){ return stage.width / (stage.clientWidth || stage.width); }
-  function rotHandle(l){ var k = kf(), d = l.bmp.height*l.s/2 + 28*k; return {x:l.x + Math.sin(l.rot)*d, y:l.y - Math.cos(l.rot)*d}; }
+  function rotHandle(l){ var k = kf(), d = l.bmp.height*l.s/2 + (coarse ? 36 : 28)*k; return {x:l.x + Math.sin(l.rot)*d, y:l.y - Math.cos(l.rot)*d}; }
   var raf = 0;
   function redraw(){ if(!raf) raf = requestAnimationFrame(function(){ raf = 0; paint(); }); }
   function paint(){
+    if(dockSync){ try{ dockSync(); }catch(e){} }
+    if(baked || busy) return;
     var on = L.length > 0 && cv.style.display !== 'none' && cv.width > 1;
     stage.classList.toggle('on', on); stage.classList.toggle('live', on && open);
     if(!on) return;
@@ -5041,7 +5104,7 @@ COSTS AT SMALL SCALE: $0 across all of the above.
     if(stage.width !== cv.width) stage.width = cv.width; if(stage.height !== cv.height) stage.height = cv.height;
     sx.clearRect(0, 0, stage.width, stage.height); sx.drawImage(cv, 0, 0); drawLayers(sx);
     var l = open ? cur() : null; if(!l) return;
-    var k = kf(), cs = corners(l), hs = 5*k;
+    var k = kf(), cs = corners(l), hs = HSZ*k;
     sx.save(); sx.lineWidth = 1.5*k; sx.strokeStyle = '#39ff9d'; sx.setLineDash([6*k, 4*k]);
     sx.beginPath(); cs.forEach(function(p, i){ i ? sx.lineTo(p.x, p.y) : sx.moveTo(p.x, p.y); }); sx.closePath(); sx.stroke(); sx.setLineDash([]);
     var rh = rotHandle(l), top = {x:(cs[0].x+cs[1].x)/2, y:(cs[0].y+cs[1].y)/2};
@@ -5099,7 +5162,7 @@ COSTS AT SMALL SCALE: $0 across all of the above.
   });
   ['dragenter','dragover','drop'].forEach(function(ev){ stage.addEventListener(ev, function(e){
     if(!open) return; e.preventDefault(); e.stopPropagation();
-    if(ev === 'drop') Array.prototype.forEach.call(e.dataTransfer.files, addFile);
+    if(ev === 'drop' && e.dataTransfer) Array.prototype.forEach.call(e.dataTransfer.files, addFile);
   }); });
   stage.addEventListener('click', function(e){ e.preventDefault(); e.stopPropagation(); });   // <label> would open the file picker
 
@@ -5118,6 +5181,7 @@ COSTS AT SMALL SCALE: $0 across all of the above.
       r.addEventListener('click', function(){ sel = l.id; refresh(); });
       n.addEventListener('dblclick', function(){ var v = prompt('Layer name', l.name); if(v && v.trim()){ l.name = v.trim().slice(0, 40); pushHist(); refresh(); } });
       r.addEventListener('dragstart', function(e){ dragFrom = i; try{ e.dataTransfer.setData('text/plain', 'layer'); }catch(x){} });
+      r.addEventListener('dragend', function(){ dragFrom = -1; });
       r.addEventListener('dragover', function(e){ if(dragFrom >= 0){ e.preventDefault(); r.classList.add('dragover'); } });
       r.addEventListener('dragleave', function(){ r.classList.remove('dragover'); });
       r.addEventListener('drop', function(e){
@@ -5129,13 +5193,13 @@ COSTS AT SMALL SCALE: $0 across all of the above.
     })(L[i], i);
     if(!L.length){ var em = document.createElement('div'); em.className = 'lyr-empty'; em.textContent = 'No layers yet — tap ＋ Image or ＋ Text above to add one, then tap a layer to edit it.'; list.appendChild(em); }
     var b = document.createElement('div'); b.className = 'lyr-row lyr-base';
-    var bt = mk(34, 34); bt.getContext('2d').drawImage(cv, 0, 0, 34, 34*cv.height/Math.max(1, cv.width)); b.appendChild(bt);
+    var bt = mk(34, 34), bw = Math.max(1, cv.width), bh = Math.max(1, cv.height), bf = Math.min(34/bw, 34/bh);
+    try{ bt.getContext('2d').drawImage(cv, (34-bw*bf)/2, (34-bh*bf)/2, bw*bf, bh*bf); }catch(e){} b.appendChild(bt);
     var bn = document.createElement('span'); bn.className = 'lyr-name'; bn.textContent = 'Photo — use the other tabs to edit it'; b.appendChild(bn);
     var lk = document.createElement('span'); lk.textContent = '🔒'; b.appendChild(lk); list.appendChild(b);
   }
   function syncCtl(){
     var l = cur(), ctl = $('lyrCtl'); ctl.classList.toggle('off', !l);
-    var rows = [['lyOp','op',100,'%'],['lyBr','br'],['lyCo','co'],['lySa','sa'],['lyHu','hu'],['lyBl','bl']];
     var v = l ? {lyOp:Math.round(l.op*100), lyBr:l.fx.br, lyCo:l.fx.co, lySa:l.fx.sa, lyHu:l.fx.hu, lyBl:l.fx.bl} : {lyOp:100, lyBr:100, lyCo:100, lySa:100, lyHu:0, lyBl:0};
     Object.keys(v).forEach(function(id){ $(id).value = v[id]; $(id+'V').textContent = v[id] + (id==='lyOp'||id==='lyBr'||id==='lyCo'||id==='lySa' ? '%' : id==='lyHu' ? '°' : id==='lyBl' ? 'px' : ''); });
     $('lyBlend').value = l ? l.blend : 'source-over';
@@ -5169,6 +5233,12 @@ COSTS AT SMALL SCALE: $0 across all of the above.
   act('lyRot', function(l){ l.rot += Math.PI/2; });
   act('lyFit', function(l){ var w = l.bmp.width, h = l.bmp.height, r = Math.abs(Math.sin(l.rot)), c = Math.abs(Math.cos(l.rot)); l.s = Math.min(cv.width/(w*c + h*r), cv.height/(w*r + h*c)); l.x = cv.width/2; l.y = cv.height/2; });
   act('lyCenter', function(l){ l.x = cv.width/2; l.y = cv.height/2; });
+  act('lyAlL', function(l){ l.x -= bbox(l).x0; });
+  act('lyAlC', function(l){ var b = bbox(l); l.x += cv.width/2 - (b.x0+b.x1)/2; });
+  act('lyAlR', function(l){ l.x += cv.width - bbox(l).x1; });
+  act('lyAlT', function(l){ l.y -= bbox(l).y0; });
+  act('lyAlM', function(l){ var b = bbox(l); l.y += cv.height/2 - (b.y0+b.y1)/2; });
+  act('lyAlB', function(l){ l.y += cv.height - bbox(l).y1; });
   act('lyReset', function(l){ l.rot = 0; l.fh = l.fv = false; l.s = 1; fitInto(l, 0.6); l.x = cv.width/2; l.y = cv.height/2; l.op = 1; l.blend = 'source-over'; l.fx = {br:100,co:100,sa:100,hu:0,bl:0}; });
   act('lyUp', function(l){ var i = idx(l.id); if(i < L.length-1){ L.splice(i, 1); L.splice(i+1, 0, l); } });
   act('lyDown', function(l){ var i = idx(l.id); if(i > 0){ L.splice(i, 1); L.splice(i-1, 0, l); } });
@@ -5182,23 +5252,51 @@ COSTS AT SMALL SCALE: $0 across all of the above.
   $('lyUndo').addEventListener('click', function(){ goHist(hi-1); });
   $('lyRedo').addEventListener('click', function(){ goHist(hi+1); });
 
+  /* Flatten: bake every visible layer into the photo itself (so Remove BG / Remove Object / Advanced all see them). */
+  $('lyFlat').addEventListener('click', function(){
+    if(busy || !anyVisible()) return;
+    if(typeof window.__apicBake !== 'function'){ alert('Flatten is not available right now.'); return; }
+    if(!confirm('Flatten merges every visible layer into the photo for good (hidden layers are dropped).\n\nYou can undo it with the ↺ button in the title bar, but that restores the photo only — layers would have to be re-added.\n\nContinue?')) return;
+    var g = cv.getContext('2d'), before = null, done = false, failed = false;
+    try{ before = g.getImageData(0, 0, cv.width, cv.height); }catch(e){ alert('Could not flatten this image.'); return; }
+    function undoDraw(){ try{ g.putImageData(before, 0, 0); }catch(e){} busy = false; refresh(); }
+    busy = true; btns(); drawLayers(g);
+    var guardT = setTimeout(function(){ if(!done){ failed = true; undoDraw(); } }, 30000);
+    try{
+      window.__apicBake(function(){
+        if(failed) return; done = true; clearTimeout(guardT);
+        busy = false; L = []; sel = null; H = [{l:[], sel:null}]; hi = 0; refresh();
+      });
+    }catch(e){ clearTimeout(guardT); failed = true; undoDraw(); }
+  });
+
   /* ---------- pointer interaction on the canvas ---------- */
-  var drag = null;
-  function pt(e){ var r = stage.getBoundingClientRect(); return {x:(e.clientX-r.left)*stage.width/r.width, y:(e.clientY-r.top)*stage.height/r.height}; }
+  var drag = null, ptrs = {}, pinch = null;
+  function pt(e){ var r = stage.getBoundingClientRect(); return {x:(e.clientX-r.left)*stage.width/Math.max(1, r.width), y:(e.clientY-r.top)*stage.height/Math.max(1, r.height)}; }
+  function nptr(){ return Object.keys(ptrs).length; }
   function hit(l, p){
     if(!l.vis) return false;
     var dx = p.x-l.x, dy = p.y-l.y, c = Math.cos(-l.rot), s = Math.sin(-l.rot);
     var lx = (dx*c - dy*s)/(l.s*(l.fh?-1:1)) + l.bmp.width/2, ly = (dx*s + dy*c)/(l.s*(l.fv?-1:1)) + l.bmp.height/2;
     if(lx < 0 || ly < 0 || lx >= l.bmp.width || ly >= l.bmp.height) return false;
+    if(l.type === 'text') return true;      // whole text box is grabbable, not only the thin glyph pixels
     try{ return l.bmp.getContext('2d').getImageData(lx|0, ly|0, 1, 1).data[3] > 12; }catch(e){ return true; }
   }
   stage.addEventListener('pointerdown', function(e){
     if(!open || e.button > 0) return; e.preventDefault();
-    var p = pt(e), k = kf(), l = cur(), mode = null;
+    var p = pt(e); ptrs[e.pointerId] = p;
+    try{ stage.setPointerCapture(e.pointerId); }catch(x){}
+    if(nptr() === 2 && drag && !drag.l.lock && !pinch){            // second finger → pinch to scale + twist to rotate
+      var ids = Object.keys(ptrs), a = ptrs[ids[0]], b = ptrs[ids[1]], l2 = drag.l;
+      pinch = {l:l2, d0:Math.hypot(a.x-b.x, a.y-b.y) || 1, a0:Math.atan2(b.y-a.y, b.x-a.x), s0:l2.s, r0:l2.rot, m0:{x:(a.x+b.x)/2, y:(a.y+b.y)/2}, x0:l2.x, y0:l2.y};
+      drag.mode = 'pinch'; return;
+    }
+    if(nptr() > 1) return;
+    var k = kf(), l = cur(), mode = null;
     if(l && !l.lock){
       var rh = rotHandle(l);
-      if(Math.hypot(p.x-rh.x, p.y-rh.y) < 14*k) mode = 'rot';
-      else if(corners(l).some(function(c){ return Math.hypot(p.x-c.x, p.y-c.y) < 14*k; })) mode = 'scale';
+      if(Math.hypot(p.x-rh.x, p.y-rh.y) < HIT*k) mode = 'rot';
+      else if(corners(l).some(function(c){ return Math.hypot(p.x-c.x, p.y-c.y) < HIT*k; })) mode = 'scale';
     }
     if(!mode){
       var h = (l && hit(l, p)) ? l : null;
@@ -5208,28 +5306,51 @@ COSTS AT SMALL SCALE: $0 across all of the above.
     }
     if(l.lock){ redraw(); return; }
     drag = {mode:mode, l:l, p0:p, x0:l.x, y0:l.y, s0:l.s, d0:Math.hypot(p.x-l.x, p.y-l.y) || 1, moved:false};
-    try{ stage.setPointerCapture(e.pointerId); }catch(x){}
     redraw();
   });
   stage.addEventListener('pointermove', function(e){
+    if(ptrs[e.pointerId]) ptrs[e.pointerId] = pt(e);
     if(!drag) return; e.preventDefault();
-    var p = pt(e), l = drag.l, k = kf(); drag.moved = true; guide.x = guide.y = false;
+    var k = kf(); drag.moved = true; guide.x = guide.y = false;
+    if(pinch){
+      if(nptr() < 2) return;
+      var ids = Object.keys(ptrs), a = ptrs[ids[0]], b = ptrs[ids[1]], l3 = pinch.l;
+      l3.s = clamp(pinch.s0 * Math.hypot(a.x-b.x, a.y-b.y) / pinch.d0, 0.01, 60);
+      l3.rot = pinch.r0 + (Math.atan2(b.y-a.y, b.x-a.x) - pinch.a0);
+      l3.x = pinch.x0 + (a.x+b.x)/2 - pinch.m0.x; l3.y = pinch.y0 + (a.y+b.y)/2 - pinch.m0.y;
+      redraw(); return;
+    }
+    var p = pt(e), l = drag.l;
     if(drag.mode === 'move'){
       l.x = drag.x0 + p.x - drag.p0.x; l.y = drag.y0 + p.y - drag.p0.y;
       if(Math.abs(l.x - cv.width/2) < 7*k){ l.x = cv.width/2; guide.x = true; }
       if(Math.abs(l.y - cv.height/2) < 7*k){ l.y = cv.height/2; guide.y = true; }
     } else if(drag.mode === 'scale'){
-      l.s = Math.max(0.01, Math.min(60, drag.s0 * Math.hypot(p.x-l.x, p.y-l.y) / drag.d0));
+      l.s = clamp(drag.s0 * Math.hypot(p.x-l.x, p.y-l.y) / drag.d0, 0.01, 60);
     } else {
-      var a = Math.atan2(p.y-l.y, p.x-l.x) + Math.PI/2;
-      if(e.shiftKey){ var st = Math.PI/12; a = Math.round(a/st)*st; }
-      l.rot = a;
+      var a2 = Math.atan2(p.y-l.y, p.x-l.x) + Math.PI/2;
+      if(e.shiftKey){ var st = Math.PI/12; a2 = Math.round(a2/st)*st; }
+      l.rot = a2;
     }
     redraw();
   });
-  function endDrag(){ if(!drag) return; var m = drag.moved; drag = null; guide.x = guide.y = false; if(m) pushHist(); redraw(); }
-  stage.addEventListener('pointerup', endDrag); stage.addEventListener('pointercancel', endDrag);
+  function endDrag(){ if(!drag) return; var m = drag.moved; drag = null; pinch = null; guide.x = guide.y = false; if(m) pushHist(); redraw(); }
+  function lift(e){ delete ptrs[e.pointerId]; endDrag(); if(nptr() === 0){ pinch = null; } }
+  stage.addEventListener('pointerup', lift); stage.addEventListener('pointercancel', lift);
+  stage.addEventListener('lostpointercapture', function(e){ delete ptrs[e.pointerId]; });
+  stage.addEventListener('dblclick', function(e){
+    if(!open) return; var l = cur();
+    if(l && l.type === 'text' && !l.lock && hit(l, pt(e))){ var t = $('lyT'); t.focus(); t.select(); }
+  });
+  var wheelT = 0;
+  stage.addEventListener('wheel', function(e){
+    if(!open || !(e.ctrlKey || e.altKey)) return;      // plain scroll keeps scrolling the page
+    var l = cur(); if(!l || l.lock) return;
+    e.preventDefault(); l.s = clamp(l.s * Math.exp(-e.deltaY * 0.0015), 0.01, 60);
+    clearTimeout(wheelT); wheelT = setTimeout(pushHist, 320); redraw();
+  }, {passive:false});
 
+  var keyT = 0;
   window.addEventListener('keydown', function(e){
     if(!open) return;
     var tg = (e.target && e.target.tagName) || ''; if(tg === 'INPUT' || tg === 'TEXTAREA' || tg === 'SELECT') return;
@@ -5239,6 +5360,7 @@ COSTS AT SMALL SCALE: $0 across all of the above.
       if(redo ? hi < H.length-1 : hi > 0){ e.preventDefault(); e.stopImmediatePropagation(); goHist(hi + (redo ? 1 : -1)); }
       return;
     }
+    if(key === 'Escape' && sel){ sel = null; refresh(); return; }
     if(!l) return;
     if(mod && (key==='d' || key==='D')){ e.preventDefault(); $('lyDup').click(); }
     else if(key==='Delete' || key==='Backspace'){ e.preventDefault(); $('lyDel').click(); }
@@ -5248,12 +5370,12 @@ COSTS AT SMALL SCALE: $0 across all of the above.
       clearTimeout(keyT); keyT = setTimeout(pushHist, 350); redraw();
     }
   }, true);
-  var keyT = 0;
 
   /* ---------- open / close the Layers tab ---------- */
   function setOpen(v){
     open = v; panel.classList.toggle('show', v); tab.classList.toggle('active', v);
     if(v){ document.querySelectorAll('.bench-panel').forEach(function(p){ if(p !== panel) p.classList.remove('show'); }); toolTitle.textContent = 'layers.exe'; }
+    else { drag = null; pinch = null; ptrs = {}; }
     refresh(); setTimeout(redraw, 700);
   }
   tab.addEventListener('click', function(){
@@ -5267,28 +5389,45 @@ COSTS AT SMALL SCALE: $0 across all of the above.
 
   /* ---------- keep layers in step with the photo ---------- */
   var lw = cv.width, lh = cv.height;
+  // Rotate / flip in the Edit tab: carry the layers along (positions, orientation, flips) so the composition stays intact.
+  function xf(l, op, W, Hh){
+    if(op === 'cw'){ var nx = Hh - l.y, ny = l.x; l.x = nx; l.y = ny; l.rot += Math.PI/2; }
+    else if(op === 'fx'){ l.x = W - l.x; l.rot = Math.PI - l.rot; l.fv = !l.fv; }
+    else { l.y = Hh - l.y; l.rot = -l.rot; l.fv = !l.fv; }
+  }
+  document.addEventListener('click', function(e){
+    var b = e.target && e.target.closest ? e.target.closest('[data-flip]') : null;
+    if(!b || !L.length || !(lw > 1 && lh > 1)) return;
+    var t = b.dataset.flip, r = (typeof window.__apicXform === 'function') ? window.__apicXform().r : 0;
+    var q = (((r % 360) + 360) % 360) % 180 === 90, op;
+    if(t === 'rotate') op = 'cw'; else if(t === 'h') op = q ? 'fy' : 'fx'; else if(t === 'v') op = q ? 'fx' : 'fy'; else return;
+    var W = lw, Hh = lh;
+    L.forEach(function(l){ xf(l, op, W, Hh); }); H.forEach(function(h){ h.l.forEach(function(l){ xf(l, op, W, Hh); }); });
+    skipScale = true; setTimeout(function(){ skipScale = false; }, 0); redraw();
+  }, true);
   new MutationObserver(function(){
     var nw = cv.width, nh = cv.height; if(nw === lw && nh === lh) return;
-    if(L.length && lw > 1 && lh > 1 && nw > 1 && nh > 1){
+    if(!skipScale && L.length && lw > 1 && lh > 1 && nw > 1 && nh > 1){
       var rx = nw/lw, ry = nh/lh; L.forEach(function(l){ l.x *= rx; l.y *= ry; l.s *= rx; });
       H.forEach(function(h){ h.l.forEach(function(l){ l.x *= rx; l.y *= ry; l.s *= rx; }); });
     }
     lw = nw; lh = nh; redraw();
   }).observe(cv, {attributes:true, attributeFilter:['width','height']});
-  if(window.ResizeObserver) new ResizeObserver(function(){ redraw(); }).observe(cv);
+  if(window.ResizeObserver){ var ro = new ResizeObserver(function(){ redraw(); }); ro.observe(cv); ro.observe(drop); }
   window.addEventListener('resize', redraw);
+  cv.addEventListener('animationend', redraw);
   // APIC re-renders the photo through this hook on every slider/tool change — repaint on top of it.
   (function hook(){
     var d = window.__apicDock; if(!d || typeof d.sync !== 'function'){ return setTimeout(hook, 300); }
-    var o = d.sync; d.sync = function(){ var r = o.apply(this, arguments); redraw(); return r; };
+    var o = d.sync; dockSync = o; d.sync = function(){ var r = o.apply(this, arguments); redraw(); return r; };
   })();
   var rm = $('removeImgBtn');
-  if(rm) rm.addEventListener('click', function(){ L = []; sel = null; H = [{l:[], sel:null}]; hi = 0; if(open) setOpen(false); refresh(); }, true);
+  if(rm) rm.addEventListener('click', function(){ L = []; sel = null; H = [{l:[], sel:null}]; hi = 0; busy = false; if(open) setOpen(false); refresh(); }, true);
 
   /* ---------- export: composite layers into every export (same sync-bake trick as the watermark gate) ---------- */
   var baked = null;
   function bake(){
-    if(baked || !L.some(function(l){ return l.vis; })) return;
+    if(baked || busy || !L.some(function(l){ return l.vis; })) return;
     var g = cv.getContext('2d'); baked = g.getImageData(0, 0, cv.width, cv.height); drawLayers(g);
     setTimeout(unbake, 0);   // every export branch snapshots the canvas synchronously, so restoring next tick is safe
   }
