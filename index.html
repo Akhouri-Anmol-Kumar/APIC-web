@@ -77,7 +77,7 @@
       "name": "Is APIC really free?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Yes. APIC is a free online photo editor that runs in your browser. There are no paid tiers, and you sign in with one tap using Google to use the tools and export your work."
+        "text": "Yes. APIC is a free online photo editor that runs in your browser. There are no paid tiers. You can edit with every tool without an account, and you sign in with one tap using Google only when you export your work."
       }
     },
     {
@@ -1348,7 +1348,7 @@
         <p>Quick answers about privacy, AI tools, formats and the desktop app.</p>
       </div>
       <div class="faq-list reveal">
-        <details class="faq-item"><summary>Is APIC really free?</summary><p>Yes. APIC is a free online photo editor that runs in your browser. There are no paid tiers, and you sign in with one tap using Google to use the tools and export your work.</p></details>
+        <details class="faq-item"><summary>Is APIC really free?</summary><p>Yes. APIC is a free online photo editor that runs in your browser. There are no paid tiers. You can edit with every tool without an account, and you sign in with one tap using Google only when you export your work.</p></details>
         <details class="faq-item"><summary>Are my photos uploaded to a server?</summary><p>No. Editing, converting, compressing, resizing, background removal and object removal all run on your own device. Your images never leave your browser. Signing in only uses your name, email and photo for your account.</p></details>
         <details class="faq-item"><summary>How does the AI background remover work?</summary><p>APIC runs an AI segmentation model directly in your browser using WebAssembly. The first time you use it, the model downloads once (about 5 MB for Lite, 44 MB for Fast, or 176 MB for Maximum) and is cached on your device, so later runs start much faster and nothing is sent to a server.</p></details>
         <details class="faq-item"><summary>Which image formats can I convert between?</summary><p>APIC converts between PNG, JPEG, WebP, BMP, ICO and PDF. Use PNG or WebP when you need to keep a transparent background after removing it.</p></details>
@@ -1831,9 +1831,15 @@
 
   function updateGate(){
     var loaded = !!originalImg;
-    toolBtns.forEach(function(b){ b.disabled = !loaded || !user; });
+    toolBtns.forEach(function(b){ b.disabled = !loaded; });
     gateNote.classList.toggle('show', loaded && !user);
-    exportBtn.style.display = (loaded && user) ? 'inline-flex' : 'none';
+    exportBtn.style.display = loaded ? 'inline-flex' : 'none';
+    // If a guest chose "Sign in to export" a moment ago and has now signed in, finish the export they asked for.
+    if(user){ try{ warmVerify(); }catch(e){} }
+    if(loaded && user && __resumeUntil && Date.now() < __resumeUntil){
+      __resumeUntil = 0;
+      setTimeout(function(){ try{ exportBtn.click(); }catch(e){} }, 60);
+    }
     var rmBtn = document.getElementById('removeImgBtn');
     if(rmBtn) rmBtn.style.display = loaded ? 'inline-flex' : 'none';
     studio.classList.toggle('has-image', loaded);
@@ -3608,6 +3614,7 @@
 
   /* ---- .cube 3D LUT export (colour-only part of the grade) ---- */
   document.getElementById('advExportLut').addEventListener('click', function(){
+    if(!__pass) return;               // only runs when approved by the export gate (sign-in required to download)
     var N = 33, c = buildCfg(), buf = new Uint8ClampedArray(N*N*N*4), i = 0, rr, gg, bb;
     for(bb=0; bb<N; bb++) for(gg=0; gg<N; gg++) for(rr=0; rr<N; rr++){
       buf[i++] = Math.round(rr/(N-1)*255); buf[i++] = Math.round(gg/(N-1)*255); buf[i++] = Math.round(bb/(N-1)*255); buf[i++] = 255;
@@ -3898,13 +3905,144 @@
     return best;
   }
 
+  /* ---------------- export gate ----------------
+     Editing and every tool are free for everyone. Signing in is required only to EXPORT.
+     Hardening: all gate state lives in this closure (nothing on window, nothing in storage, so it cannot be
+     forged from the console or via localStorage); the session is checked against Google's identity service
+     at export time (a fake user object or a stale/forged token cannot pass); fetch is captured at load so
+     it cannot be swapped later; and the low-level download() and both export handlers refuse to run unless
+     the gate has just approved them. */
+  var __pass = false;             // true only during the gate's own synchronous re-dispatch of an approved click
+  var __verifiedAt = 0;           // time of the last successful server-side session check
+  var __busy = false;
+  var __resumeUntil = 0;
+  var __fx = (typeof window.fetch === 'function') ? window.fetch.bind(window) : null;
+  var VERIFY_TTL = 30*60*1000, DL_WINDOW = 45*60*1000;
+  var lutBtn = document.getElementById('advExportLut');
+
+  function authSettled(){
+    return new Promise(function(res){
+      var done = false, off = null;
+      function fin(u){ if(done) return; done = true; try{ if(off) off(); }catch(e){} res(u || null); }
+      try{ off = firebase.auth().onAuthStateChanged(function(u){ fin(u); }); }catch(e){ fin(null); return; }
+      setTimeout(function(){ var u = null; try{ u = firebase.auth().currentUser; }catch(e){} fin(u); }, 4000);
+    });
+  }
+
+  var __vp = null;
+  function verifySession(){
+    if(!__vp){ __vp = verifySessionNow(); __vp.then(function(){ __vp = null; }, function(){ __vp = null; }); }
+    return __vp;
+  }
+  // Start the check early (right after sign-in / when a photo is loaded) so Export is instant.
+  function warmVerify(){ try{ if(user && FIREBASE_READY && Date.now() - __verifiedAt >= VERIFY_TTL) verifySession(); }catch(e){} }
+
+  // 'ok' | 'signedout' | 'unavailable' | 'network'
+  async function verifySessionNow(){
+    var fu = FIREBASE_READY ? await authSettled() : null;
+    if(!user) return 'signedout';
+    if(!FIREBASE_READY || !__fx) return 'unavailable';
+    if(!fu) return 'signedout';
+    if(Date.now() - __verifiedAt < VERIFY_TTL) return 'ok';
+    try{
+      var key = firebase.app().options.apiKey;
+      var tok = await fu.getIdToken();
+      var r = await __fx('https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=' + encodeURIComponent(key), {
+        method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({idToken: tok})
+      });
+      var j = null; try{ j = await r.json(); }catch(e){}
+      if(r.ok){
+        if(j && j.users && j.users.length && !j.users[0].disabled){ __verifiedAt = Date.now(); return 'ok'; }
+        return 'signedout';
+      }
+      var m = (j && j.error && j.error.message) || '';
+      if(/INVALID_ID_TOKEN|USER_NOT_FOUND|TOKEN_EXPIRED|USER_DISABLED|CREDENTIAL_TOO_OLD/.test(m)) return 'signedout';
+      return 'network';
+    }catch(e){ return 'network'; }
+  }
+
+  var gateOv = null;
+  function hideGate(){ if(gateOv) gateOv.classList.remove('show'); }
+  function showGate(){
+    if(!gateOv){
+      var st = document.createElement('style');
+      st.textContent =
+        '#apicExportGate{position:fixed; inset:0; z-index:9999; background:rgba(3,4,6,0.72); display:none; align-items:center; justify-content:center; padding:20px; -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);}' +
+        '#apicExportGate.show{display:flex;}' +
+        '#apicExportGate .apic-xg-card{width:100%; max-width:380px; background:var(--bg-2,#14141c); border:1px solid var(--line,rgba(150,255,210,0.14)); border-radius:var(--card-radius,14px); box-shadow:var(--shadow-lift,0 26px 60px -24px rgba(0,0,0,0.65)); padding:28px 26px; color:var(--text,#eef1f6); font-family:var(--sans,"Inter",sans-serif); text-align:center;}' +
+        '#apicExportGate h3{font-family:var(--display,"Space Grotesk",sans-serif); font-size:19px; margin:0 0 10px; font-weight:700; line-height:1.3;}' +
+        '#apicExportGate p{font-size:13.5px; line-height:1.55; color:var(--text-muted,#8b8fa3); margin:0 0 22px;}' +
+        '#apicExportGate .apic-xg-btn{display:block; width:100%; padding:12px 16px; margin-bottom:10px; border-radius:8px; border:1px solid var(--line,rgba(150,255,210,0.14)); background:transparent; color:var(--text,#eef1f6); font-family:var(--sans,"Inter",sans-serif); font-size:14px; font-weight:600; cursor:pointer; transition:transform .15s ease, opacity .15s ease;}' +
+        '#apicExportGate .apic-xg-btn:last-child{margin-bottom:0;}' +
+        '#apicExportGate .apic-xg-btn:hover{transform:translateY(-1px); opacity:0.92;}' +
+        '#apicExportGate .apic-xg-primary{background:var(--green,#39ff9d); color:#04140c; border-color:transparent;}';
+      document.head.appendChild(st);
+      gateOv = document.createElement('div');
+      gateOv.id = 'apicExportGate';
+      gateOv.innerHTML =
+        '<div class="apic-xg-card" role="dialog" aria-modal="true" aria-labelledby="apicXgT">' +
+          '<h3 id="apicXgT">Sign in to export</h3>' +
+          '<p>You can edit and use every APIC tool without an account. Signing in is only needed to export your finished image.</p>' +
+          '<button type="button" class="apic-xg-btn apic-xg-primary" id="apicXgIn">Sign in to export</button>' +
+          '<button type="button" class="apic-xg-btn" id="apicXgNo">Not now</button>' +
+        '</div>';
+      document.body.appendChild(gateOv);
+      gateOv.addEventListener('click', function(e){ if(e.target === gateOv) hideGate(); });
+      document.getElementById('apicXgNo').addEventListener('click', hideGate);
+      document.getElementById('apicXgIn').addEventListener('click', function(){
+        hideGate();
+        if(!user) __resumeUntil = Date.now() + 120000;   // finish the export automatically once they have signed in
+        openModal();
+      });
+      document.addEventListener('keydown', function(e){ if(e.key === 'Escape' && gateOv.classList.contains('show')) hideGate(); });
+    }
+    gateOv.classList.add('show');
+  }
+
+  async function runGated(btn){
+    if(__busy) return;
+    __busy = true;
+    var label = null;
+    try{
+      var cached = !!user && (Date.now() - __verifiedAt < VERIFY_TTL);
+      if(!cached && btn === exportBtn && !btn.disabled){ label = btn.textContent; btn.textContent = 'Checking sign-in…'; btn.disabled = true; }
+      var st = await verifySession();
+      if(label !== null){ btn.textContent = label; btn.disabled = false; label = null; }
+      if(st === 'ok'){
+        __pass = true;
+        try{ btn.dispatchEvent(new MouseEvent('click', {bubbles:true, cancelable:true})); } finally { __pass = false; }
+      } else if(st === 'signedout'){
+        showGate();
+      } else if(st === 'unavailable'){
+        alert('The sign-in check could not load (an ad or script blocker may be blocking Google or Firebase). Disable blockers for this site, refresh and try again.');
+      } else {
+        alert('Could not verify your sign-in right now. Check your connection and try Export again.');
+      }
+    } catch(err){
+      console.error(err);
+      if(label !== null){ btn.textContent = label; btn.disabled = false; }
+    } finally { __busy = false; }
+  }
+
+  // Window + capture phase = runs before every other click listener (layers bake, the original handlers, etc.).
+  window.addEventListener('click', function(e){
+    var t = e.target;
+    if(t !== exportBtn && t !== lutBtn) return;
+    if(__pass) return;                                  // the gate's own approved dispatch
+    e.stopImmediatePropagation(); e.preventDefault();
+    if(t === exportBtn && !originalImg) return;
+    runGated(t);
+  }, true);
+
   function download(blob, filename){
+    if(Date.now() - __verifiedAt > DL_WINDOW) return;   // exports only ever run after a verified sign-in
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a'); a.href = url; a.download = filename; a.click();
     setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
   }
 
   exportBtn.addEventListener('click', async function(){
+    if(!__pass) return;               // only runs when approved by the export gate above
     if(!originalImg) return;
     exportBtn.disabled = true;
     var origText = exportBtn.textContent; exportBtn.textContent = 'Exporting…';
@@ -5424,7 +5562,7 @@ COSTS AT SMALL SCALE: $0 across all of the above.
   var rm = $('removeImgBtn');
   if(rm) rm.addEventListener('click', function(){ L = []; sel = null; H = [{l:[], sel:null}]; hi = 0; busy = false; if(open) setOpen(false); refresh(); }, true);
 
-  /* ---------- export: composite layers into every export (same sync-bake trick as the watermark gate) ---------- */
+  /* ---------- export: composite layers into every export (sync-bake: every export branch snapshots the canvas synchronously) ---------- */
   var baked = null;
   function bake(){
     if(baked || busy || !L.some(function(l){ return l.vis; })) return;
@@ -5433,187 +5571,10 @@ COSTS AT SMALL SCALE: $0 across all of the above.
   }
   function unbake(){ if(!baked) return; cv.getContext('2d').putImageData(baked, 0, 0); baked = null; redraw(); }
   document.addEventListener('click', function(e){
-    var t = e.target; if(t === exportBtn || (t && t.id === 'apicWmContinue')) bake();
+    var t = e.target; if(t === exportBtn) bake();
   }, true);
 
   refresh();
-})();
-</script>
-
-<!-- ============================================================================
-     APIC — export watermark gate (additive, appended)
-     Adds: (1) a "sign in or export with watermark" prompt for guests,
-     (2) a bottom-right "Edited on APIC" watermark on gated exports,
-     (3) a localStorage-tracked free demo so the prompt only shows once.
-     Nothing above this comment is modified — this only listens for the
-     existing #exportBtn click and, when needed, intercepts it.
-============================================================================= -->
-<style>
-  #apicWmOverlay{
-    position:fixed; inset:0; z-index:9999;
-    background:rgba(3,4,6,0.72);
-    display:none; align-items:center; justify-content:center;
-    padding:20px; backdrop-filter:blur(6px);
-  }
-  #apicWmOverlay.show{ display:flex; }
-  #apicWmCard{
-    width:100%; max-width:380px;
-    background:var(--bg-2, #14141c);
-    border:1px solid var(--line, rgba(150,255,210,0.14));
-    border-radius:var(--card-radius, 14px);
-    box-shadow:var(--shadow-lift, 0 26px 60px -24px rgba(0,0,0,0.65));
-    padding:28px 26px;
-    color:var(--text, #eef1f6);
-    font-family:var(--sans, 'Inter', sans-serif);
-    text-align:center;
-  }
-  #apicWmCard h3{
-    font-family:var(--display, 'Space Grotesk', sans-serif);
-    font-size:19px; margin:0 0 10px; font-weight:700; line-height:1.3;
-  }
-  #apicWmCard p{
-    font-size:13.5px; line-height:1.55; color:var(--text-muted, #8b8fa3);
-    margin:0 0 22px;
-  }
-  #apicWmCard .apic-wm-btn{
-    display:block; width:100%; padding:12px 16px; margin-bottom:10px;
-    border-radius:8px; border:1px solid var(--line, rgba(150,255,210,0.14));
-    background:transparent; color:var(--text, #eef1f6);
-    font-family:var(--sans, 'Inter', sans-serif); font-size:14px; font-weight:600;
-    cursor:pointer; transition:transform .15s ease, box-shadow .15s ease, opacity .15s ease;
-  }
-  #apicWmCard .apic-wm-btn:last-child{ margin-bottom:0; }
-  #apicWmCard .apic-wm-btn:hover{ transform:translateY(-1px); opacity:0.92; }
-  #apicWmCard .apic-wm-primary{
-    background:var(--green, #39ff9d); color:#04140c; border-color:transparent;
-  }
-</style>
-
-<div id="apicWmOverlay">
-  <div id="apicWmCard">
-    <h3>Sign in to export without watermark</h3>
-    <p>Sign in for a clean export, or continue now with a small "Edited on APIC" watermark in the corner.</p>
-    <button type="button" class="apic-wm-btn apic-wm-primary" id="apicWmSignIn">Sign in to remove watermark</button>
-    <button type="button" class="apic-wm-btn" id="apicWmContinue">Export with watermark</button>
-  </div>
-</div>
-
-<script>
-(function(){
-  "use strict";
-
-  var DEMO_USED_KEY = 'apic_watermark_demo_used';
-
-  var exportBtn = document.getElementById('exportBtn');
-  var realCanvas = document.getElementById('canvas');
-  var overlay = document.getElementById('apicWmOverlay');
-  var signInChoiceBtn = document.getElementById('apicWmSignIn');
-  var watermarkChoiceBtn = document.getElementById('apicWmContinue');
-  if(!exportBtn || !realCanvas || !overlay) return;
-
-  var bypassOnce = false; // lets our own re-dispatched click pass straight through
-
-  function isSignedIn(){
-    // The existing sign-in code (both real Firebase and demo-mode) mirrors
-    // the session into localStorage['apic_user'] on sign-in and removes it
-    // on sign-out, so this is a reliable, read-only signal of auth state.
-    try{ return !!localStorage.getItem('apic_user'); }catch(e){ return false; }
-  }
-  function demoUsed(){
-    try{ return localStorage.getItem(DEMO_USED_KEY) === '1'; }catch(e){ return false; }
-  }
-  function markDemoUsed(){
-    try{ localStorage.setItem(DEMO_USED_KEY, '1'); }catch(e){}
-  }
-  function hasImageLoaded(){
-    return realCanvas.style.display === 'block';
-  }
-
-  // The existing gate hides #exportBtn entirely whenever nobody is signed
-  // in (see updateGate() above). Guests still need to be able to click
-  // Export to reach the watermark prompt below, so keep it visible
-  // whenever an image is loaded, regardless of sign-in state. Polling
-  // (rather than only reacting to attribute mutations) guarantees this
-  // still applies even when the existing code re-sets display to the
-  // same "none" value it already had.
-  function ensureExportBtnReachable(){
-    if(hasImageLoaded() && exportBtn.style.display === 'none'){
-      exportBtn.style.display = 'inline-flex';
-    }
-  }
-  ensureExportBtnReachable();
-  setInterval(ensureExportBtnReachable, 250);
-
-  function drawWatermark(ctx, w, h){
-    if(w <= 0 || h <= 0) return;
-    var fontSize = Math.max(14, Math.min(42, Math.round(w * 0.022)));
-    var pad = Math.max(12, Math.round(fontSize * 0.8));
-    ctx.save();
-    ctx.font = '400 ' + fontSize + 'px "Inter", -apple-system, sans-serif';
-    try{ ctx.letterSpacing = '0.5px'; }catch(e){}
-    ctx.textAlign = 'right';
-    ctx.textBaseline = 'bottom';
-    ctx.shadowColor = 'rgba(0,0,0,0.55)';
-    ctx.shadowBlur = Math.max(3, fontSize * 0.18);
-    ctx.shadowOffsetX = 0;
-    ctx.shadowOffsetY = Math.max(1, fontSize * 0.06);
-    ctx.fillStyle = 'rgba(255,255,255,0.92)';
-    ctx.fillText('Edited on APIC', w - pad, h - pad);
-    ctx.restore();
-  }
-
-  // Bakes the watermark onto the real editor canvas for just long enough
-  // for the existing export handler to read it, then restores the exact
-  // pixels the user had — so the on-screen editor canvas stays clean and
-  // only the exported file carries the watermark. This works because
-  // canvas.toBlob()/toDataURL()/drawImage() all snapshot pixels the
-  // instant they're called (synchronously, before any await resolves),
-  // and dispatching a click is itself synchronous — so every branch of
-  // the existing export handler has already taken its snapshot by the
-  // time dispatchEvent() below returns control to us.
-  function exportWithWatermark(){
-    var w = realCanvas.width, h = realCanvas.height;
-    var rctx = realCanvas.getContext('2d');
-    var clean = rctx.getImageData(0, 0, w, h);
-    drawWatermark(rctx, w, h);
-    bypassOnce = true;
-    exportBtn.dispatchEvent(new MouseEvent('click', {bubbles:true, cancelable:true}));
-    rctx.putImageData(clean, 0, 0);
-  }
-
-  function openGate(){ overlay.classList.add('show'); }
-  function closeGate(){ overlay.classList.remove('show'); }
-
-  signInChoiceBtn.addEventListener('click', function(){
-    closeGate();
-    var existingSignInBtn = document.getElementById('signInBtn');
-    if(existingSignInBtn) existingSignInBtn.click(); // reuses the existing Google sign-in flow
-  });
-  watermarkChoiceBtn.addEventListener('click', function(){
-    closeGate();
-    markDemoUsed();
-    exportWithWatermark();
-  });
-  overlay.addEventListener('click', function(e){ if(e.target === overlay) closeGate(); });
-
-  // Capture phase on document runs before the existing bubble-phase click
-  // listener that's bound directly on #exportBtn, so we can decide here
-  // whether to let that original export run untouched, redirect it through
-  // the watermark path, or pause it behind the sign-in/watermark prompt.
-  document.addEventListener('click', function(e){
-    if(e.target !== exportBtn) return;
-    if(bypassOnce){ bypassOnce = false; return; } // our own re-dispatched click — let it through
-    if(!hasImageLoaded()) return; // nothing to export yet — let existing handler's own guard run
-    if(isSignedIn()) return; // signed in — normal, clean export, untouched
-
-    e.stopImmediatePropagation();
-    e.preventDefault();
-    if(demoUsed()){
-      exportWithWatermark();
-    } else {
-      openGate();
-    }
-  }, true);
 })();
 </script>
 
@@ -5688,7 +5649,6 @@ COSTS AT SMALL SCALE: $0 across all of the above.
         <p>APIC does not use advertising or tracking cookies. It uses your browser's local storage for a few small things:</p>
         <ul>
           <li><b>apic_user</b>: keeps you signed in on this device (your name, email and photo). Removed when you sign out.</li>
-          <li><b>apic_watermark_demo_used</b>: remembers that you already used the free demo.</li>
           <li><b>apic_notice_ok</b>: remembers that you closed the notice about this.</li>
           <li>Google and Firebase may store their own identifiers so sign-in works securely.</li>
           <li>Your browser may cache the AI model files so they do not download again.</li>
