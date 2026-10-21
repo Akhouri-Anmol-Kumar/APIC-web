@@ -1163,6 +1163,7 @@
           <button class="tool-btn" data-tool="convert" disabled>Convert</button>
           <button class="tool-btn" data-tool="compress" disabled>Compress</button>
           <button class="tool-btn" data-tool="bgremove" disabled>Remove BG</button>
+          <button class="tool-btn" data-tool="ai" disabled>AI Tools</button>
         </div>
 
         <!-- EDIT -->
@@ -1330,6 +1331,20 @@
           <span class="filesize" id="bgStatus" style="margin-left:10px;"></span>
         </div>
 
+        <!-- AI TOOLS (on-device) -->
+        <div class="bench-panel" id="panel-ai">
+          <p class="hint" style="margin-top:0;">All on-device: your photo never leaves your browser. Models download once and are cached. Every result can be undone with Ctrl+Z.</p>
+          <div class="row"><button class="btn btn-gold btn-sm" id="aiAuto" style="flex:1;">Auto-enhance (one click)</button></div>
+          <div class="row"><label>Smart crop</label>
+            <select id="aiCropRatio"><option value="0">Fit subject (free)</option><option value="1">1:1 square</option><option value="0.8">4:5 portrait</option><option value="0.75">3:4</option><option value="1.3333">4:3</option><option value="1.7778">16:9</option></select>
+            <button class="btn btn-ghost btn-sm" id="aiCrop">Crop to subject</button></div>
+          <div class="row"><label>AI upscale</label>
+            <select id="aiScale"><option value="2">2×</option><option value="4">4×</option></select>
+            <select id="aiUpQ"><option value="max">Max accuracy (Real-ESRGAN x4plus, 64 MB)</option><option value="fast">Fast (general-x4v3, 5 MB)</option></select></div>
+          <button class="btn btn-gold btn-sm" id="aiUp">Upscale with AI</button>
+          <span class="filesize" id="aiStatus" style="margin-left:10px;"></span>
+        </div>
+
         <div class="bench-footer">
           <span class="filesize" id="fileInfo">No image loaded</span>
           <span class="gate-note" id="gateNote">🔒 sign in to export</span>
@@ -1339,6 +1354,21 @@
       </div>
     </div>
   </div>
+
+  <section class="wrap" id="batchSec" style="max-width:900px; margin:30px auto;">
+    <details class="adv-sec" id="bxBox"><summary>Batch studio — remove BG, resize, compress &amp; convert many images at once, free</summary><div class="adv-body">
+      <p class="hint" style="margin-top:0;" id="bxHint">Pick many images, choose what to do, get one ZIP. Runs 100% on your device. Download is a sign-in step like Export.</p>
+      <div class="row"><input type="file" id="bxFiles" accept="image/*" multiple></div>
+      <div class="row"><label>Remove BG</label><input type="checkbox" id="bxBg" style="accent-color:var(--green); width:16px; height:16px;"><span class="filesize">outputs PNG/WebP (transparent)</span></div>
+      <div class="row"><label>Resize</label><select id="bxRs"><option value="none">Keep size</option><option value="side">Longest side (px)</option><option value="pct">Percent</option></select><input type="number" id="bxRsV" min="1" value="1600" style="width:90px;"></div>
+      <div class="row"><label>Convert to</label><select id="bxFmt"><option value="keep">Keep format</option><option value="png">PNG</option><option value="jpeg">JPEG</option><option value="webp">WebP</option><option value="bmp">BMP</option></select></div>
+      <div class="row"><label>Quality</label><input type="range" id="bxQ" min="40" max="98" value="85"><span class="val" id="bxQV">85%</span></div>
+      <div class="row"><label>Target KB</label><input type="number" id="bxKB" min="0" value="0" style="width:90px;"><span class="filesize">JPEG only · 0 = off</span></div>
+      <button class="btn btn-gold btn-sm" id="bxRun" disabled>Process</button>
+      <button class="btn btn-ghost btn-sm" id="bxDl" disabled>Download ZIP</button>
+      <div class="filesize" id="bxStatus" style="margin-top:10px;"></div>
+    </div></details>
+  </section>
 
   <div class="min-tab" id="minTab"><span class="pulse-dot"></span> apic@studio — minimized, tap to restore</div>
 
@@ -1843,8 +1873,8 @@
   var exportBtn = document.getElementById('exportBtn');
   var toolTitle = document.getElementById('toolTitle');
   var toolBtns = document.querySelectorAll('.tool-btn');
-  var panels = {edit:'panel-edit', advanced:'panel-advanced', objremove:'panel-objremove', resize:'panel-resize', convert:'panel-convert', compress:'panel-compress', bgremove:'panel-bgremove'};
-  var titles = {edit:'edit.exe', advanced:'advanced.exe', objremove:'removeobj.exe', resize:'resize.exe', convert:'convert.exe', compress:'compress.exe', bgremove:'removebg.exe'};
+  var panels = {edit:'panel-edit', advanced:'panel-advanced', objremove:'panel-objremove', resize:'panel-resize', convert:'panel-convert', compress:'panel-compress', bgremove:'panel-bgremove', ai:'panel-ai'};
+  var titles = {edit:'edit.exe', advanced:'advanced.exe', objremove:'removeobj.exe', resize:'resize.exe', convert:'convert.exe', compress:'compress.exe', bgremove:'removebg.exe', ai:'smartai.exe'};
   var activeTool = 'edit';
   var originalImg = null;   // pristine source
   var rotation = 0, flipH = 1, flipV = 1;
@@ -4100,6 +4130,11 @@
     setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
   }
 
+  // APIC Batch bridge: lets the Batch tool reuse the SAME sign-in check + guarded download as Export. Read-only use; the gate itself is unchanged.
+  window.__apicBatchAuth = function(){ return verifySession(); };
+  window.__apicBatchSave = function(b, n){ download(b, n); };
+  window.__apicBatchSignIn = function(){ openModal(); };
+
   exportBtn.addEventListener('click', async function(){
     if(!__pass) return;               // only runs when approved by the export gate above
     if(!originalImg) return;
@@ -4794,6 +4829,234 @@
     }
     btn.disabled = false; bgBusy = false;
   });
+
+  /* ======================= APIC BATCH + AI TOOLS (additive; all on-device) ======================= */
+  (function(){
+    var byId = function(i){ return document.getElementById(i); };
+    var MOB = deviceTier() !== 'desktop', MAXN = MOB ? 5 : 100;
+    var files = [], outs = [], busy = false;
+    var bxStatus = byId('bxStatus'), runB = byId('bxRun'), dlB = byId('bxDl');
+    function say(el, t, spin){ el.innerHTML = (spin ? '<span class="spinner"></span> ' : '') + t; }
+    function yieldUI(){ return new Promise(function(r){ setTimeout(r, 0); }); }
+    byId('bxHint').textContent += MOB ? ' On phones the limit is ' + MAXN + ' images per batch to protect memory.' : ' Up to ' + MAXN + ' images per batch.';
+    byId('bxQ').addEventListener('input', function(){ byId('bxQV').textContent = this.value + '%'; });
+
+    /* ---- store-only ZIP writer ---- */
+    var CRC = (function(){ var t = new Uint32Array(256); for(var n=0;n<256;n++){ var c=n; for(var k=0;k<8;k++) c = c&1 ? 0xEDB88320^(c>>>1) : c>>>1; t[n]=c>>>0; } return t; })();
+    function crc32(u){ var c=-1; for(var i=0;i<u.length;i++) c = CRC[(c^u[i])&255]^(c>>>8); return (c^-1)>>>0; }
+    function zipStore(list){
+      var enc = new TextEncoder(), parts = [], cd = [], off = 0, cdSize = 0;
+      list.forEach(function(f){
+        var nm = enc.encode(f.name), crc = crc32(f.data), sz = f.data.length;
+        var h = new DataView(new ArrayBuffer(30));
+        h.setUint32(0,0x04034b50,true); h.setUint16(4,20,true); h.setUint16(6,0x0800,true); h.setUint16(12,0x21,true);
+        h.setUint32(14,crc,true); h.setUint32(18,sz,true); h.setUint32(22,sz,true); h.setUint16(26,nm.length,true);
+        parts.push(h.buffer, nm, f.data);
+        var d = new DataView(new ArrayBuffer(46));
+        d.setUint32(0,0x02014b50,true); d.setUint16(4,20,true); d.setUint16(6,20,true); d.setUint16(8,0x0800,true); d.setUint16(14,0x21,true);
+        d.setUint32(16,crc,true); d.setUint32(20,sz,true); d.setUint32(24,sz,true); d.setUint16(28,nm.length,true); d.setUint32(42,off,true);
+        cd.push(d.buffer, nm); off += 30 + nm.length + sz; cdSize += 46 + nm.length;
+      });
+      var e = new DataView(new ArrayBuffer(22));
+      e.setUint32(0,0x06054b50,true); e.setUint16(8,list.length,true); e.setUint16(10,list.length,true); e.setUint32(12,cdSize,true); e.setUint32(16,off,true);
+      return new Blob(parts.concat(cd, [e.buffer]), { type: 'application/zip' });
+    }
+
+    /* ---- batch ---- */
+    async function decode(file){
+      var url = URL.createObjectURL(file);
+      try{
+        var im = await new Promise(function(res, rej){ var i = new Image(); i.onload = function(){ res(i); }; i.onerror = function(){ rej(new Error('unreadable image')); }; i.src = url; });
+        var w = im.naturalWidth, h = im.naturalHeight, sc = Math.min(1, Math.sqrt(mobilePixelCap()/(w*h)));
+        if(sc < 1) return bgResizeCanvas(im, Math.floor(w*sc), Math.floor(h*sc));
+        var c = document.createElement('canvas'); c.width = w; c.height = h; c.getContext('2d').drawImage(im, 0, 0); return c;
+      } finally { URL.revokeObjectURL(url); }
+    }
+    async function subjectMatte(flat, tier){
+      var cfg = window.__BG_MODELS[tier], ses = await bgLoadSession(tier, null);
+      return { m: await bgInfer(tier, ses, cfg, bgPrepInput(flat, cfg, false)) };
+    }
+    function flatOf(c){ var f = document.createElement('canvas'); f.width = c.width; f.height = c.height; var x = f.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0,0,f.width,f.height); x.drawImage(c,0,0); return f; }
+    async function removeBg(c, tier){
+      var W = c.width, H = c.height, orig = c.getContext('2d').getImageData(0,0,W,H), flat = flatOf(c);
+      var m = (await subjectMatte(flat, tier)).m;
+      var cap = bgIsLowEnd() ? 1280 : 2048, sc = Math.min(1, cap/Math.max(W,H)), w = Math.max(1, Math.round(W*sc)), h = Math.max(1, Math.round(H*sc)), n = w*h, i;
+      var wd = (sc === 1 ? flat : bgResizeCanvas(flat, w, h)).getContext('2d').getImageData(0,0,w,h).data;
+      var rgb = { r: new Float32Array(n), g: new Float32Array(n), b: new Float32Array(n), gray: new Float32Array(n) };
+      for(i=0;i<n;i++){ var a = wd[i*4]/255, b = wd[i*4+1]/255, d = wd[i*4+2]/255; rgb.r[i]=a; rgb.g[i]=b; rgb.b[i]=d; rgb.gray[i]=0.299*a+0.587*b+0.114*d; }
+      var alpha = bgBuildAlpha({ data: m.data, w: m.w, h: m.h }, null, rgb, w, h, false);
+      var px = bgFinish(orig.data, W, H, alpha, rgb, w, h);
+      var o = document.createElement('canvas'); o.width = W; o.height = H; o.getContext('2d').putImageData(new ImageData(px, W, H), 0, 0); return o;
+    }
+    byId('bxFiles').addEventListener('change', function(){
+      var all = Array.prototype.filter.call(this.files, function(f){ return /^image\//.test(f.type); });
+      files = all.slice(0, MAXN); outs = []; dlB.disabled = true; runB.disabled = !files.length;
+      say(bxStatus, files.length + ' image' + (files.length === 1 ? '' : 's') + ' ready' + (all.length > MAXN ? ' (limited to ' + MAXN + ' — run another batch for the rest)' : '') + '.');
+    });
+    runB.addEventListener('click', async function(){
+      if(busy || !files.length) return;
+      busy = true; runB.disabled = true; dlB.disabled = true; outs = [];
+      var doBg = byId('bxBg').checked, rs = byId('bxRs').value, rv = Math.max(1, parseFloat(byId('bxRsV').value) || 1), q = byId('bxQ').value/100, kb = parseFloat(byId('bxKB').value) || 0;
+      var pref = MOB ? 'lite' : 'fast', fails = 0, used = {};
+      for(var i=0;i<files.length;i++){
+        var f = files[i];
+        say(bxStatus, 'Processing ' + (i+1) + ' of ' + files.length + ': ' + f.name + (doBg && i === 0 ? ' (first run downloads the AI model)' : ''), true);
+        await yieldUI();
+        try{
+          var c = await decode(f), fmt = byId('bxFmt').value;
+          if(fmt === 'keep') fmt = { 'image/jpeg':'jpeg', 'image/webp':'webp', 'image/png':'png', 'image/bmp':'bmp' }[f.type] || 'png';
+          if(doBg){
+            try{ c = await removeBg(c, pref); } catch(e1){ if(pref === 'lite') throw e1; c = await removeBg(c, 'lite'); }
+            if(fmt === 'jpeg' || fmt === 'bmp') fmt = 'png';
+          }
+          if(rs !== 'none'){
+            var sc = rs === 'pct' ? rv/100 : rv/Math.max(c.width, c.height), nw = Math.max(1, Math.round(c.width*sc)), nh = Math.max(1, Math.round(c.height*sc));
+            if(nw !== c.width || nh !== c.height) c = highQualityResize(c, nw, nh);
+          }
+          var blob, ext = fmt === 'jpeg' ? 'jpg' : fmt;
+          if(fmt === 'png') blob = await canvasToBlob(c, 'image/png');
+          else if(fmt === 'webp') blob = await canvasToBlob(c, 'image/webp', q);
+          else if(fmt === 'bmp') blob = canvasToBMP(flattenToWhite(c));
+          else { var fl = flattenToWhite(c); blob = kb > 0 ? (await compressToTarget(fl, kb*1024)).blob : await canvasToBlob(fl, 'image/jpeg', q); }
+          if(!blob) throw new Error('encode failed');
+          var base = f.name.replace(/\.[^.]+$/, '').replace(/[\\/:*?"<>|]/g, '_') || 'image', nm = base + '-apic.' + ext, k = 1;
+          while(used[nm]) nm = base + '-apic-' + (++k) + '.' + ext;
+          used[nm] = 1; outs.push({ name: nm, blob: blob });
+          c.width = c.height = 1;
+        } catch(err){ fails++; console.error('Batch item failed:', f.name, err); }
+      }
+      var total = outs.reduce(function(s, o){ return s + o.blob.size; }, 0);
+      say(bxStatus, '✓ ' + outs.length + ' done' + (fails ? ', ' + fails + ' failed (skipped)' : '') + ' · ' + (total/1048576).toFixed(1) + ' MB total. Tap Download ZIP.');
+      dlB.disabled = !outs.length; runB.disabled = false; busy = false;
+    });
+    dlB.addEventListener('click', async function(){
+      if(!outs.length || busy) return;
+      var st; try{ st = await window.__apicBatchAuth(); } catch(e){ st = 'network'; }
+      if(st === 'signedout'){
+        bxStatus.innerHTML = 'Sign in to download your ZIP — your results are kept, just tap Download ZIP again afterwards. ';
+        var b = document.createElement('button'); b.type = 'button'; b.className = 'btn btn-gold btn-sm'; b.textContent = 'Sign in';
+        b.addEventListener('click', function(){ window.__apicBatchSignIn(); }); bxStatus.appendChild(b); return;
+      }
+      if(st !== 'ok'){ say(bxStatus, '✕ Could not verify sign-in right now (blocker or connection). Try again.'); return; }
+      busy = true; dlB.disabled = true; say(bxStatus, 'Building ZIP…', true); await yieldUI();
+      try{
+        var list = []; for(var i=0;i<outs.length;i++) list.push({ name: outs[i].name, data: new Uint8Array(await outs[i].blob.arrayBuffer()) });
+        window.__apicBatchSave(zipStore(list), 'apic-batch.zip'); say(bxStatus, '✓ ZIP downloaded (' + list.length + ' files).');
+      } catch(e){ console.error(e); say(bxStatus, '✕ Could not build the ZIP.'); }
+      busy = false; dlB.disabled = false;
+    });
+
+    /* ---- AI tools ---- */
+    var aiSt = byId('aiStatus'), aiBusy = false;
+    function guard(btn, fn){
+      btn.addEventListener('click', async function(){
+        if(aiBusy || !originalImg) return; aiBusy = true; var all = document.querySelectorAll('#panel-ai button'); all.forEach(function(x){ x.disabled = true; });
+        try{ await fn(); } catch(err){ console.error(err); var m = window.__apicModelErrMsg && window.__apicModelErrMsg(err); say(aiSt, '✕ ' + (m || (err && err.message) || 'failed') + ' Your image was not changed.'); }
+        all.forEach(function(x){ x.disabled = false; }); aiBusy = false;
+      });
+    }
+    function bakeThen(){ return new Promise(function(res){ bakeToOriginal(function(){ render(); syncOverlay(); syncResizeFields(); res(); }); }); }
+
+    guard(byId('aiAuto'), async function(){
+      var W = canvas.width, H = canvas.height, id = ctx.getImageData(0,0,W,H), d = id.data, n = W*H, hist = new Uint32Array(256), i, tot = 0;
+      for(i=0;i<n;i++){ if(d[i*4+3] < 8) continue; hist[(d[i*4]*77 + d[i*4+1]*150 + d[i*4+2]*29) >> 8]++; tot++; }
+      if(tot < 16){ say(aiSt, 'Nothing to enhance.'); return; }
+      var lo = 0, hi = 255, acc = 0, cut = tot*0.005;
+      for(i=0;i<256;i++){ acc += hist[i]; if(acc > cut){ lo = i; break; } }
+      acc = 0; for(i=255;i>=0;i--){ acc += hist[i]; if(acc > cut){ hi = i; break; } }
+      if(hi - lo < 8){ say(aiSt, 'Already flat — nothing to stretch.'); return; }
+      var sum = 0; for(i=0;i<256;i++) sum += hist[i]*Math.min(1, Math.max(0, (i-lo)/(hi-lo)));
+      var mean = Math.min(0.95, Math.max(0.05, sum/tot)), g = Math.min(1.4, Math.max(0.7, Math.log(0.46)/Math.log(mean)));
+      var lut = new Float32Array(256); for(i=0;i<256;i++) lut[i] = 255*Math.pow(Math.min(1, Math.max(0, (i-lo)/(hi-lo))), g);
+      for(i=0;i<n;i++){
+        var p = i*4, r = d[p], gg = d[p+1], b = d[p+2], L = (r*77 + gg*150 + b*29) >> 8, nl = lut[L], s = Math.min(4, nl/Math.max(L, 1));
+        r *= s; gg *= s; b *= s; var nL = 0.299*r + 0.587*gg + 0.114*b;
+        d[p] = nL + (r - nL)*1.1; d[p+1] = nL + (gg - nL)*1.1; d[p+2] = nL + (b - nL)*1.1;
+      }
+      ctx.putImageData(id, 0, 0); await bakeThen(); say(aiSt, '✓ Auto-enhanced (levels, exposure and a touch of colour). Undo with Ctrl+Z.');
+    });
+
+    guard(byId('aiCrop'), async function(){
+      var W = canvas.width, H = canvas.height, ratio = parseFloat(byId('aiCropRatio').value) || 0, box = null;
+      say(aiSt, 'Finding the subject…', true); await yieldUI();
+      try{
+        var m = (await subjectMatte(flatOf(canvas), 'lite')).m, bx = bgSubjectBox(m.data, m.w, m.h);
+        if(bx) box = { x0: bx.x0/m.w*W, x1: bx.x1/m.w*W, y0: bx.y0/m.h*H, y1: bx.y1/m.h*H };
+      } catch(e){ console.warn('Subject detection unavailable:', e); }
+      var found = !!box; if(!box) box = { x0: W*0.2, x1: W*0.8, y0: H*0.2, y1: H*0.8 };
+      var cw = (box.x1 - box.x0)*1.16, ch = (box.y1 - box.y0)*1.16, cx = (box.x0 + box.x1)/2, cy = (box.y0 + box.y1)/2;
+      if(ratio){ if(cw/ch < ratio) cw = ch*ratio; else ch = cw/ratio; if(cw > W){ cw = W; ch = cw/ratio; } if(ch > H){ ch = H; cw = ch*ratio; } }
+      cw = Math.min(W, cw); ch = Math.min(H, ch);
+      var x = Math.round(Math.min(W - cw, Math.max(0, cx - cw/2))), y = Math.round(Math.min(H - ch, Math.max(0, cy - ch/2)));
+      cw = Math.max(1, Math.round(cw)); ch = Math.max(1, Math.round(ch));
+      var t = document.createElement('canvas'); t.width = cw; t.height = ch; t.getContext('2d').drawImage(canvas, x, y, cw, ch, 0, 0, cw, ch);
+      canvas.width = cw; canvas.height = ch; ctx.clearRect(0,0,cw,ch); ctx.drawImage(t, 0, 0);
+      await bakeThen(); say(aiSt, found ? '✓ Cropped to the detected subject (' + cw + '×' + ch + ').' : '✓ Subject not detected — centre crop applied (' + cw + '×' + ch + ').');
+    });
+
+    var UPM = { max: { mb: 64, url: 'https://huggingface.co/jonathanst29/tinier-upscale-models/resolve/main/realesrgan-x4plus.onnx' },
+                fast: { mb: 5, url: 'https://huggingface.co/jonathanst29/tinier-upscale-models/resolve/main/realesr-general-x4v3.onnx' } };
+    if(MOB) byId('aiUpQ').value = 'fast';
+    var upW = null, upCb = {}, upSeq = 0, upKey = null, upEp = 'wasm';
+    var UP_SRC = [
+      'var ses=null,ep="wasm",B="https://cdnjs.cloudflare.com/ajax/libs/onnxruntime-web/1.23.2/";',
+      'function cfg(){ort.env.wasm.wasmPaths=B;ort.env.wasm.numThreads=1;ort.env.wasm.proxy=false;}',
+      'self.onmessage=async function(e){var d=e.data;try{',
+      ' if(d.type==="load"){var gpu=false;try{gpu=!!(self.navigator.gpu&&await self.navigator.gpu.requestAdapter());}catch(x){}',
+      '  ep="wasm";if(gpu){try{importScripts(B+"ort.webgpu.min.js");ep="webgpu";}catch(x){}}',
+      '  if(ep==="wasm")importScripts(B+"ort.min.js");cfg();var bytes=new Uint8Array(d.buf);',
+      '  try{ses=await ort.InferenceSession.create(bytes,{executionProviders:[ep]});}',
+      '  catch(x){if(ep!=="webgpu")throw x;importScripts(B+"ort.min.js");cfg();ep="wasm";ses=await ort.InferenceSession.create(bytes,{executionProviders:["wasm"]});}',
+      '  self.postMessage({id:d.id,ok:true,ep:ep});}',
+      ' else{var t=new ort.Tensor("float32",d.data,[1,3,d.h,d.w]),f={};f[ses.inputNames[0]]=t;var r=await ses.run(f),o=r[ses.outputNames[0]],a=new Float32Array(o.data);',
+      '  self.postMessage({id:d.id,ok:true,out:a},[a.buffer]);}',
+      '}catch(err){self.postMessage({id:d.id,ok:false,error:String(err&&err.message||err)});}};'
+    ].join('\n');
+    function upCall(msg, tr){
+      return new Promise(function(res, rej){
+        if(!upW){
+          upW = new Worker(URL.createObjectURL(new Blob([UP_SRC], { type: 'application/javascript' })));
+          upW.onmessage = function(e){ var c = upCb[e.data.id]; if(!c) return; delete upCb[e.data.id]; e.data.ok ? c.res(e.data) : c.rej(new Error(e.data.error)); };
+          upW.onerror = function(ev){ var er = new Error('upscaler crashed' + (ev && ev.message ? ': ' + ev.message : '')); for(var k in upCb) upCb[k].rej(er); upCb = {}; try{ upW.terminate(); }catch(x){} upW = null; upKey = null; };
+        }
+        msg.id = ++upSeq; upCb[msg.id] = { res: res, rej: rej }; upW.postMessage(msg, tr || []);
+      });
+    }
+    guard(byId('aiUp'), async function(){
+      var scale = parseInt(byId('aiScale').value, 10), key = byId('aiUpQ').value, W = canvas.width, H = canvas.height, ow = W*scale, oh = H*scale;
+      var capPx = MOB ? 8e6 : 24e6;
+      if(ow*oh > capPx){ say(aiSt, '✕ Result would be ' + ow + '×' + oh + ' (' + (ow*oh/1e6).toFixed(0) + ' MP) — too large for this device. Pick 2× or crop first. Your image was not changed.'); return; }
+      if(upKey !== key){
+        say(aiSt, 'Loading AI model (' + UPM[key].mb + ' MB, cached after first time)…', true);
+        var buf = await window.__apicFetchModel(UPM[key].url, UPM[key].mb*1e6, function(p){ say(aiSt, 'Downloading AI model ' + p + '%…', true); });
+        say(aiSt, 'Starting AI engine…', true);
+        var r0 = await upCall({ type: 'load', buf: buf }, [buf]); upKey = key; upEp = r0.ep;
+      }
+      var T = upEp === 'webgpu' ? 192 : 96, PAD = 12, src = ctx.getImageData(0,0,W,H).data;
+      var O = document.createElement('canvas'); O.width = ow; O.height = oh; var octx = O.getContext('2d');
+      octx.imageSmoothingEnabled = true; octx.imageSmoothingQuality = 'high'; octx.drawImage(canvas, 0, 0, ow, oh);
+      var oi = octx.getImageData(0,0,ow,oh), od = oi.data, tilesX = Math.ceil(W/T), tilesY = Math.ceil(H/T), done = 0, t0 = Date.now();
+      for(var ty=0; ty<tilesY; ty++) for(var tx=0; tx<tilesX; tx++){
+        var x0 = tx*T, y0 = ty*T, w = Math.min(T, W - x0), h = Math.min(T, H - y0);
+        var sx0 = Math.max(0, x0 - PAD), sy0 = Math.max(0, y0 - PAD), sx1 = Math.min(W, x0 + w + PAD), sy1 = Math.min(H, y0 + h + PAD), tw = sx1 - sx0, th = sy1 - sy0, tn = tw*th;
+        var inp = new Float32Array(3*tn), x, y;
+        for(y=0;y<th;y++) for(x=0;x<tw;x++){ var s = ((sy0+y)*W + sx0 + x)*4, q = y*tw + x; inp[q] = src[s]/255; inp[tn+q] = src[s+1]/255; inp[2*tn+q] = src[s+2]/255; }
+        var res = (await upCall({ type: 'run', data: inp, w: tw, h: th }, [inp.buffer])).out, S4 = tw*4, N4 = S4*th*4, offX = (x0 - sx0)*4, offY = (y0 - sy0)*4;
+        if(scale === 4){
+          for(y=0;y<h*4;y++) for(x=0;x<w*4;x++){ var a = (offY+y)*S4 + offX + x, dd = ((y0*4+y)*ow + x0*4 + x)*4; od[dd] = res[a]*255; od[dd+1] = res[N4+a]*255; od[dd+2] = res[2*N4+a]*255; }
+        } else {
+          for(y=0;y<h*2;y++) for(x=0;x<w*2;x++){
+            var a0 = (offY + y*2)*S4 + offX + x*2, a1 = a0 + S4, dq = ((y0*2+y)*ow + x0*2 + x)*4;
+            od[dq] = (res[a0]+res[a0+1]+res[a1]+res[a1+1])*63.75; od[dq+1] = (res[N4+a0]+res[N4+a0+1]+res[N4+a1]+res[N4+a1+1])*63.75; od[dq+2] = (res[2*N4+a0]+res[2*N4+a0+1]+res[2*N4+a1]+res[2*N4+a1+1])*63.75;
+          }
+        }
+        done++; say(aiSt, 'Upscaling ' + scale + '× on ' + (upEp === 'webgpu' ? 'GPU' : 'CPU') + ': ' + Math.round(done/(tilesX*tilesY)*100) + '% (' + Math.round((Date.now()-t0)/1000) + 's)', true); await yieldUI();
+      }
+      octx.putImageData(oi, 0, 0);
+      canvas.width = ow; canvas.height = oh; ctx.clearRect(0,0,ow,oh); ctx.drawImage(O, 0, 0);
+      await bakeThen(); say(aiSt, '✓ Upscaled to ' + ow + '×' + oh + ' on-device (' + (upEp === 'webgpu' ? 'WebGPU' : 'CPU') + '). Undo with Ctrl+Z.');
+    });
+  })();
 
   /* ======================= FLOATING LIVE PREVIEW (Advanced tab) =======================
      While you tweak sliders far below the photo, a live mirror of the image flies out to the
