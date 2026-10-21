@@ -1140,7 +1140,7 @@
             <button class="tb-dot p" id="btnClose" title="Minimize"><span>×</span></button>
           </div>
           <span class="tb-title"><b>apic</b>@studio ~ %</span>
-          <button class="hist-btn" id="undoBtn" title="Undo (Ctrl+Z)" disabled>↺</button>
+          <button class="hist-btn" id="undoBtn" title="Undo (Ctrl+Z) — up to 39 steps on desktop, fewer on phones" disabled>↺</button>
           <button class="hist-btn" id="redoBtn" title="Redo (Ctrl+Y)" disabled>↻</button>
         </div>
         <span class="tb-title" id="toolTitle">edit.exe</span>
@@ -1312,7 +1312,7 @@
             </select>
           </div>
           <div class="row" id="rowQuality"><label>Quality</label><input type="range" id="compressQ" min="10" max="98" value="82"><span class="val" id="compressQVal">82%</span></div>
-          <div class="row" id="rowTarget" style="display:none;"><label>Target KB</label><input type="number" id="targetKB" min="5" value="200"><span class="filesize">auto-finds the highest quality that fits</span></div>
+          <div class="row" id="rowTarget" style="display:none;"><label>Target KB</label><input type="number" id="targetKB" min="5" value="200"><span class="filesize">auto-finds the highest quality that fits; if impossible, it shrinks the image and tells you the real size</span></div>
           <p class="hint">Compress runs a smart search across quality levels so you keep the most detail for the smallest file — not just a flat quality cut.</p>
         </div>
 
@@ -1901,7 +1901,10 @@
   fileInput.addEventListener('change', function(e){ if(e.target.files[0]) loadImage(e.target.files[0]); });
 
   // Phones: a 48-108MP photo as a canvas (plus the brush mask + overlay canvases) is
-  // enough to get the tab killed. Normal phone photos (<= ~12.6MP) are untouched;
+  // enough to get the tab killed. Mobile images are limited by BOTH a pixel count
+  // (mobilePixelCap: 12.6MP normal / 8.4MP low-tier) AND a long-side limit (mobileSideCap,
+  // ~1400–2560px depending on screen & tier), so an image under the MP cap can still be
+  // downscaled if its longest side is too large. Desktop is never capped. Normal phone photos that satisfy both are untouched;
   // only oversize ones are downsized, and only on phones. Desktop is never capped.
   function mobilePixelCap(){
     var t = deviceTier();
@@ -2016,20 +2019,25 @@
   // canvas (Remove Background, Object Removal) would get silently wiped
   // out the moment any slider was touched again, because render() always
   // redraws from the pristine originalImg. Called after those two ops.
+  // Reset every adjustment that render() would otherwise re-apply on top of pixels that
+  // already contain it (basic sliders, filter preset, and the whole Advanced panel incl. curves/white balance).
+  function resetAdjustmentState(){
+    rotation = 0; flipH = 1; flipV = 1;
+    document.getElementById('editFilter').value = 'none';
+    document.getElementById('editBright').value = 100;
+    document.getElementById('editContrast').value = 100;
+    document.getElementById('editSaturate').value = 100;
+    document.getElementById('editBlur').value = 0;
+    ['editBrightVal','editContrastVal','editSaturateVal'].forEach(function(id){ document.getElementById(id).textContent='100%'; });
+    document.getElementById('editBlurVal').textContent = '0px';
+    resetAdvancedUI();
+  }
   function bakeToOriginal(done){
     canvasToUrl(canvas, function(url){
       var snap = new Image();
       snap.onload = function(){
         originalImg = snap;
-        rotation = 0; flipH = 1; flipV = 1;
-        document.getElementById('editFilter').value = 'none';
-        document.getElementById('editBright').value = 100;
-        document.getElementById('editContrast').value = 100;
-        document.getElementById('editSaturate').value = 100;
-        document.getElementById('editBlur').value = 0;
-        ['editBrightVal','editContrastVal','editSaturateVal'].forEach(function(id){ document.getElementById(id).textContent='100%'; });
-        document.getElementById('editBlurVal').textContent = '0px';
-        resetAdvancedUI();
+        resetAdjustmentState();
         commitHistory();
         if(typeof done === 'function') done();
       };
@@ -2043,7 +2051,10 @@
      A real edit history, the way Photoshop's history panel works: every
      committed action (load, crop, object removal, background removal,
      rotate/flip, and every slider once you let go of it) is a snapshot you
-     can step backward and forward through with buttons or Ctrl+Z / Ctrl+Y. */
+     can step backward and forward through with buttons or Ctrl+Z / Ctrl+Y.
+     CAPACITY: main-photo history is device-dependent — 40 snapshots on desktop, 10 on normal
+     mobile, 5 on low-tier mobile. The initial (loaded) state occupies one snapshot, so the number
+     of undoable operations is HIST_MAX - 1. Layers keep a SEPARATE history (60 snapshots). */
   var HIST_MAX = (function(){ var t = deviceTier(); return t === 'desktop' ? 40 : (t === 'low' ? 5 : 10); })();
   var history = [];
   var histIndex = -1;
@@ -2256,7 +2267,11 @@
     out.getContext('2d').drawImage(canvas, cx, cy, cw, ch, 0, 0, cw, ch);
     var snap = new Image();
     snap.onload = function(){
-      originalImg = snap; rotation = 0; flipH = 1; flipV = 1;
+      // The cropped pixels were copied from the already-adjusted canvas, so they have the
+      // brightness/contrast/curves/white-balance etc. baked in. Reset those controls (same model
+      // as resize / bakeToOriginal) so render() doesn't apply them a second time.
+      originalImg = snap;
+      resetAdjustmentState();
       cropRect = null;
       render(); syncOverlay();
       fileInfo.textContent = snap.naturalWidth + '×' + snap.naturalHeight + ' (cropped)';
@@ -3922,8 +3937,31 @@
       if(blob.size <= targetBytes){ best = {blob:blob, q:mid}; lo = mid; }
       else { hi = mid; }
     }
-    if(!best){ best = {blob: await canvasToBlob(c, 'image/jpeg', 0.05), q:0.05}; }
+    if(!best){
+      // Nothing in the search fit. Encode at the floor quality and report honestly that the target was missed.
+      var floor = await canvasToBlob(c, 'image/jpeg', 0.05);
+      return {blob: floor, q: 0.05, met: floor.size <= targetBytes};
+    }
+    best.met = best.blob.size <= targetBytes;
     return best;
+  }
+
+  // Target-size mode: if the target is unreachable at the current dimensions, progressively
+  // downscale (up to 8 steps of ~0.8x) and re-search, so we either meet the limit or say plainly that we couldn't.
+  async function compressToTarget(c, targetBytes){
+    var res = await findQualityForTarget(c, targetBytes);
+    var cur = c, scaled = false;
+    for(var i=0; i<8 && !res.met; i++){
+      var nw = Math.max(1, Math.round(cur.width*0.8)), nh = Math.max(1, Math.round(cur.height*0.8));
+      if(nw === cur.width && nh === cur.height) break;
+      var next = document.createElement('canvas'); next.width = nw; next.height = nh;
+      var nctx = next.getContext('2d'); nctx.imageSmoothingQuality = 'high';
+      nctx.drawImage(cur, 0, 0, nw, nh);
+      cur = next; scaled = true;
+      res = await findQualityForTarget(cur, targetBytes);
+    }
+    res.width = cur.width; res.height = cur.height; res.scaled = scaled;
+    return res;
   }
 
   /* ---------------- export gate ----------------
@@ -4093,7 +4131,16 @@
           download(await canvasToBlob(flattenToWhite(canvas), 'image/jpeg', q), 'apic-compressed.jpg');
         } else {
           var targetKB = parseFloat(document.getElementById('targetKB').value) || 200;
-          var result = await findQualityForTarget(flattenToWhite(canvas), targetKB*1024);
+          var result = await compressToTarget(flattenToWhite(canvas), targetKB*1024);
+          var actualKB = (result.blob.size/1024).toFixed(1);
+          if(!result.met){
+            // Even after downscaling we couldn't fit — never present this as a successful target-size export.
+            if(!confirm('Could not reach '+targetKB+' KB. The smallest result is '+actualKB+' KB ('+result.width+'×'+result.height+'). Download it anyway?')){
+              exportBtn.disabled = false; exportBtn.textContent = origText; return;
+            }
+          } else if(result.scaled){
+            alert('The target of '+targetKB+' KB could not be met at full size, so the image was reduced to '+result.width+'×'+result.height+'. Final size: '+actualKB+' KB.');
+          }
           download(result.blob, 'apic-compressed.jpg');
         }
       } else {
@@ -5359,7 +5406,7 @@ COSTS AT SMALL SCALE: $0 across all of the above.
     count: function(){ return L.length; }
   };
 
-  /* ---------- history (layers only; the photo keeps APIC's own undo) ---------- */
+  /* ---------- history (layers only; the photo keeps APIC's own undo: 40 desktop / 10 mobile / 5 low-tier snapshots; this layer history is a separate 60-snapshot stack) ---------- */
   function pushHist(){
     H = H.slice(0, hi+1); H.push({l:L.map(clone), sel:sel}); if(H.length > 60) H.shift(); hi = H.length-1; btns();
   }
