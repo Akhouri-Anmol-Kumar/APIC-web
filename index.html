@@ -1011,7 +1011,7 @@
     background:color-mix(in srgb, var(--bg-2) 90%, transparent);
     -webkit-backdrop-filter:blur(14px) saturate(1.3); backdrop-filter:blur(14px) saturate(1.3);
     box-shadow:0 30px 70px -28px rgba(0,0,0,.7), 0 2px 0 rgba(255,255,255,.03) inset;
-    visibility:hidden; opacity:0; pointer-events:none; cursor:pointer; user-select:none; -webkit-user-select:none;
+    visibility:hidden; opacity:0; pointer-events:none; cursor:grab; user-select:none; -webkit-user-select:none;
     transform-origin:0 0; will-change:transform, opacity; -webkit-tap-highlight-color:transparent;
     transition:transform .8s var(--ease-out), opacity .45s ease, width .5s var(--ease-out), height .5s var(--ease-out), top .35s var(--ease-out), left .35s var(--ease-out), box-shadow .3s ease;
     contain:layout style;
@@ -1020,6 +1020,27 @@
   #apicDock.on{visibility:visible; opacity:1; pointer-events:auto;}
   #apicDock.on:hover{box-shadow:0 36px 80px -26px rgba(0,0,0,.75), var(--glow-green);}
   #apicDock.on.pip{pointer-events:none;}
+  /* draggable: whole card on tablet/desktop; on phones only the caption bar is the grab handle (the photo area stays click-through) */
+  #apicDock.on:not(.pip){touch-action:none;}
+  #apicDock.on.pip .ad-cap{pointer-events:auto; cursor:grab; touch-action:none;}
+  #apicDock.on.leaving .ad-cap{pointer-events:none !important;}
+  #apicDock.gliding{transition:transform .8s var(--ease-out), opacity .45s ease, width .5s var(--ease-out), height .5s var(--ease-out), top .6s var(--ease-out), left .6s var(--ease-out), box-shadow .3s ease;}
+  #apicDock.dragging{cursor:grabbing; transition:opacity .45s ease, width .5s var(--ease-out), height .5s var(--ease-out), box-shadow .25s ease; box-shadow:0 46px 90px -26px rgba(0,0,0,.8), var(--glow-green), var(--glow-cyan);}
+  #apicDock.dragging::before{opacity:1;}
+  #apicDock.dragging .ad-cap, #apicDock.on.pip.dragging .ad-cap{cursor:grabbing;}
+  html.apic-dragging, html.apic-dragging *{cursor:grabbing !important; -webkit-user-select:none !important; user-select:none !important;}
+  #apicDock .ad-grip{opacity:.55; letter-spacing:0; font-size:11px; line-height:1; margin-right:-1px;}
+  #apicDock .ad-right{display:flex; align-items:center; gap:6px; min-width:0;}
+  #apicDock .ad-home{
+    display:none; align-items:center; justify-content:center; width:18px; height:18px; padding:0; flex:none;
+    border-radius:50%; border:1px solid var(--line); background:transparent; color:var(--text-muted);
+    font-family:var(--mono); font-size:11px; line-height:1; cursor:pointer;
+    transition:color .15s ease, border-color .15s ease, box-shadow .15s ease, transform .15s var(--ease-out);
+  }
+  #apicDock.moved .ad-home{display:inline-flex;}
+  #apicDock .ad-home:hover{color:var(--green); border-color:var(--green); box-shadow:var(--glow-green); transform:rotate(-40deg);}
+  #apicDock .ad-home:focus-visible{outline:2px solid var(--cyan); outline-offset:2px;}
+  @media (pointer:coarse){ #apicDock .ad-home{width:24px; height:24px; font-size:13px;} }
   #apicDock.on.leaving{opacity:0; pointer-events:none; transition:transform .65s var(--ease-out), opacity .34s ease .26s, width .5s var(--ease-out), height .5s var(--ease-out);}
   #apicDock.on.leaving.fade{transition:transform .42s ease, opacity .3s ease;}
   #apicDock:focus-visible{outline:2px solid var(--cyan); outline-offset:3px;}
@@ -1060,10 +1081,10 @@
   html.apic-fast #apicDock{-webkit-backdrop-filter:none; backdrop-filter:none; background:var(--bg-2);}
   html.apic-fast #apicDock::after{display:none;}
   /* controls glide right to make room for the docked preview */
-  .studio .bench-tools, .studio .bench-panel, .studio .bench-footer{transition:margin-left .8s var(--ease-out);}
-  .studio.apic-docked-side .bench-tools, .studio.apic-docked-side .bench-panel, .studio.apic-docked-side .bench-footer{margin-left:var(--apic-dock-shift, 0px);}
+  .studio .bench-tools, .studio .bench-panel, .studio .bench-footer{transition:margin-left .8s var(--ease-out), margin-right .8s var(--ease-out);}
+  .studio.apic-docked-side .bench-tools, .studio.apic-docked-side .bench-panel, .studio.apic-docked-side .bench-footer{margin-left:var(--apic-dock-shift, 0px); margin-right:var(--apic-dock-shift-r, 0px);}
   @media (prefers-reduced-motion:reduce){
-    #apicDock{transition:opacity .2s ease;}
+    #apicDock, #apicDock.gliding, #apicDock.dragging{transition:opacity .2s ease;}
     #apicDock.on.leaving, #apicDock.on.leaving.fade{transition:opacity .2s ease;}
     #apicDock .ad-img{transition:none;}
     .studio .bench-tools, .studio .bench-panel, .studio .bench-footer{transition:none;}
@@ -4737,16 +4758,19 @@
     var el = document.createElement('div');
     el.id = 'apicDock';
     el.setAttribute('role', 'button'); el.tabIndex = 0;
-    el.setAttribute('aria-label', 'Live preview of your image. Activate to jump back to the image.');
-    el.title = 'Jump back to image';
+    el.setAttribute('aria-label', 'Live preview of your image. Drag to move it, use the arrow keys to nudge it, or activate to jump back to the image.');
+    el.title = 'Drag to move · click to jump back to the image';
     el.innerHTML = '<div class="ad-img"><canvas aria-hidden="true"></canvas></div>' +
-      '<div class="ad-cap"><span class="ad-live"><i></i>Live preview</span><span class="ad-dim"></span></div>';
+      '<div class="ad-cap"><span class="ad-live"><span class="ad-grip" aria-hidden="true">⠿</span><i></i>Live preview</span>' +
+      '<span class="ad-right"><button type="button" class="ad-home" title="Back to default spot" aria-label="Reset preview position">↺</button><span class="ad-dim"></span></span></div>';
     document.body.appendChild(el);
-    var imgBox = el.querySelector('.ad-img'), cv = el.querySelector('canvas'), dimEl = el.querySelector('.ad-dim');
+    var imgBox = el.querySelector('.ad-img'), cv = el.querySelector('canvas'), dimEl = el.querySelector('.ad-dim'), homeBtn = el.querySelector('.ad-home');
     var cx = cv.getContext('2d');
     var mid = document.createElement('canvas'), mx = mid.getContext('2d');
     var header = document.querySelector('header.top');
     var on = false, g = null, lastKey = '', hideT = 0, drawRaf = 0, evalRaf = 0;
+    var userPos = null;          // {left, top} once the person has dragged the card; cleared whenever it flies home
+    var drag = null, dragging = false, glideT = 0;
     var rmq = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
     function reduced(){ return !!(rmq && rmq.matches); }
 
@@ -4756,6 +4780,35 @@
         return studio.getBoundingClientRect().top + (tb ? tb.offsetHeight : 40);
       }
       return header && !header.classList.contains('apic-hide') ? header.offsetHeight : 0;
+    }
+    // Keep a dragged card fully on screen (below the header, inside the viewport edges).
+    function clampPos(l, t, w, h, snap){
+      var vw = window.innerWidth, vh = window.innerHeight, M = 8;
+      var minL = M, maxL = Math.max(minL, vw - w - M);
+      var minT = Math.max(M, Math.round(topLimit()) + 6), maxT = Math.max(minT, vh - h - M);
+      var L = Math.min(maxL, Math.max(minL, l)), T = Math.min(maxT, Math.max(minT, t));
+      if(snap){                                   // soft magnet to the viewport edges
+        var S = 14;
+        if(L - minL < S) L = minL; else if(maxL - L < S) L = maxL;
+        if(T - minT < S) T = minT; else if(maxT - T < S) T = maxT;
+      }
+      return { left: Math.round(L), top: Math.round(T) };
+    }
+    // Where the controls have to go so a card placed anywhere never covers them:
+    // they slide to whichever side of the card has more room (never narrower than ~300px). If even that
+    // is not enough, the card is asked to shrink (`w`) so everything stays usable.
+    function controlShifts(sr, left, w){
+      var cL = sr.left + 15, cR = sr.right - 15, gap = 18;
+      var avail = Math.max(0, cR - cL), minC = Math.min(avail, 300), maxShift = Math.max(0, avail - minC);
+      var cardL = left, cardR = left + w;
+      if(cardR + gap <= cL || cardL - gap >= cR) return { l: 0, r: 0, w: w, anchorRight: false };
+      var freeL = cardL - gap - cL, freeR = cR - (cardR + gap), need, over;
+      if(freeR >= freeL){                                   // controls go to the right of the card
+        need = Math.max(0, Math.round(cardR + gap - cL)); over = Math.max(0, need - maxShift);
+        return { l: Math.min(maxShift, need), r: 0, w: w - over, anchorRight: false };
+      }
+      need = Math.max(0, Math.round(cR - (cardL - gap))); over = Math.max(0, need - maxShift);   // controls go to the left
+      return { l: 0, r: Math.min(maxShift, need), w: w - over, anchorRight: true };
     }
     function geometry(){
       var vw = window.innerWidth, vh = window.innerHeight;
@@ -4791,12 +4844,28 @@
       imgW = Math.round(imgW); imgH = Math.max(24, Math.round(imgH));
       var h = imgH + 6 + cap + 2;
       if(!side) top = Math.round(vh - h - 14);
-      return { left: left, top: top, w: w, h: h, iw: imgW, ih: imgH, side: side, shift: shift, maxed: maxed };
+      var shiftR = 0, moved = false;
+      if(userPos){                                // the person placed it: honour that spot, adapt the controls around it
+        var p = clampPos(userPos.left, userPos.top, w, h, false);
+        left = p.left; top = p.top; moved = true;
+        if(side){
+          var sh = controlShifts(sr, left, w);
+          if(sh.w < w - 0.5){                       // not enough room beside it: shrink the card just enough
+            var nw = Math.max(170, Math.round(sh.w));
+            if(sh.anchorRight) left = left + w - nw;
+            w = nw; imgW = w - 14; imgH = Math.max(24, Math.round(imgW / aspect)); h = imgH + 6 + cap + 2;
+            p = clampPos(left, top, w, h, false); left = p.left; top = p.top;
+            sh = controlShifts(sr, left, w);
+          }
+          shift = sh.l; shiftR = sh.r;
+        } else { shift = 0; }
+      }
+      return { left: left, top: top, w: w, h: h, iw: imgW, ih: imgH, side: side, shift: shift, shiftR: shiftR, moved: moved, maxed: maxed };
     }
     function applyGeometry(){
       var n = geometry();
       g = n;
-      var key = [n.left, n.top, n.w, n.h, n.iw, n.ih, n.side, n.shift, n.maxed].join('|');
+      var key = [n.left, n.top, n.w, n.h, n.iw, n.ih, n.side, n.shift, n.shiftR, n.moved, n.maxed].join('|');
       if(key === lastKey) return;
       lastKey = key;
       el.style.left = n.left + 'px'; el.style.top = n.top + 'px';
@@ -4804,8 +4873,17 @@
       imgBox.style.width = n.iw + 'px'; imgBox.style.height = n.ih + 'px';
       el.classList.toggle('pip', !n.side);
       el.classList.toggle('max', n.maxed);
-      studio.style.setProperty('--apic-dock-shift', n.shift + 'px');
-      if(on) studio.classList.toggle('apic-docked-side', n.side);
+      el.classList.toggle('moved', n.moved);
+      if(!dragging){                              // while dragging, the controls wait; they glide into place on release
+        studio.style.setProperty('--apic-dock-shift', n.shift + 'px');
+        studio.style.setProperty('--apic-dock-shift-r', n.shiftR + 'px');
+        if(on) studio.classList.toggle('apic-docked-side', n.side);
+      }
+    }
+    function glide(){
+      el.classList.add('gliding');
+      clearTimeout(glideT);
+      glideT = setTimeout(function(){ el.classList.remove('gliding'); }, 900);
     }
     function flip(s){
       return 'translate3d(' + (s.left - g.left) + 'px,' + (s.top - g.top) + 'px,0) scale(' +
@@ -4877,6 +4955,9 @@
     function hide(instant, frac){
       on = false;
       clearTimeout(hideT);
+      cancelDrag();
+      // flying home: forget the custom spot (g still describes where the card is right now, so the flight starts from there)
+      userPos = null; clearTimeout(glideT); el.classList.remove('moved', 'gliding');
       studio.classList.remove('apic-docked-side');
       if(!el.classList.contains('on')) return;
       if(instant || !g){ finishHide(); return; }
@@ -4912,8 +4993,76 @@
     function sync(){ if(on){ applyGeometry(); requestDraw(); } schedule(); }
 
     function jump(){ dropEl.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'start' }); }
-    el.addEventListener('click', function(e){ e.preventDefault(); jump(); });
-    el.addEventListener('keydown', function(e){ if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); jump(); } });
+
+    /* ---- drag to place the card anywhere ---- */
+    function setHtmlDragging(v){ document.documentElement.classList.toggle('apic-dragging', v); }
+    function cancelDrag(){
+      if(!drag) return;
+      try{ el.releasePointerCapture(drag.id); }catch(x){}
+      drag = null; dragging = false;
+      el.classList.remove('dragging'); setHtmlDragging(false);
+    }
+    function endDrag(e, cancelled){
+      if(!drag || (e && e.pointerId !== drag.id)) return;
+      var d = drag, moved = d.moved;
+      try{ el.releasePointerCapture(d.id); }catch(x){}
+      drag = null; dragging = false;
+      el.classList.remove('dragging'); setHtmlDragging(false);
+      if(moved){
+        glide(); lastKey = ''; applyGeometry();       // now the controls glide to make room
+        if(!reduced()){ el.classList.remove('sheen'); void el.offsetWidth; el.classList.add('sheen'); }
+        requestDraw(); schedule();
+      } else if(!cancelled && !el.classList.contains('pip')){
+        jump();                                       // a plain click still jumps back to the image
+      }
+    }
+    el.addEventListener('pointerdown', function(e){
+      if(!on || drag || e.button > 0 || el.classList.contains('leaving')) return;
+      if(e.target.closest && e.target.closest('.ad-home')) return;
+      var r = el.getBoundingClientRect();
+      drag = { id: e.pointerId, x: e.clientX, y: e.clientY, l: r.left, t: r.top, moved: false, thr: e.pointerType === 'mouse' ? 4 : 8 };
+      try{ el.setPointerCapture(e.pointerId); }catch(x){}
+    });
+    el.addEventListener('pointermove', function(e){
+      if(!drag || e.pointerId !== drag.id || !g) return;
+      var dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+      if(!drag.moved){
+        if(Math.abs(dx) < drag.thr && Math.abs(dy) < drag.thr) return;
+        drag.moved = true; dragging = true;
+        clearTimeout(glideT); el.classList.remove('gliding', 'sheen');
+        el.classList.add('dragging'); setHtmlDragging(true);
+      }
+      e.preventDefault();
+      var p = clampPos(drag.l + dx, drag.t + dy, g.w, g.h, true);
+      userPos = p; g.left = p.left; g.top = p.top; g.moved = true;
+      el.style.left = p.left + 'px'; el.style.top = p.top + 'px';
+      el.classList.add('moved');
+    });
+    el.addEventListener('pointerup', function(e){ endDrag(e, false); });
+    el.addEventListener('pointercancel', function(e){ endDrag(e, true); });
+    el.addEventListener('lostpointercapture', function(e){ if(drag && e.pointerId === drag.id) endDrag(e, true); });
+    el.addEventListener('contextmenu', function(e){ if(dragging) e.preventDefault(); });
+    el.addEventListener('click', function(e){
+      e.preventDefault();
+      if(e.detail === 0 && e.target === el) jump();   // keyboard / assistive-tech activation only; mouse & touch are handled on pointerup
+    });
+    homeBtn.addEventListener('click', function(e){
+      e.preventDefault(); e.stopPropagation();
+      userPos = null; glide(); lastKey = ''; applyGeometry(); requestDraw(); schedule();
+    });
+    el.addEventListener('keydown', function(e){
+      if(e.target !== el) return;
+      if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); jump(); return; }
+      var step = e.shiftKey ? 60 : 20, dx = 0, dy = 0;
+      if(e.key === 'ArrowLeft') dx = -step; else if(e.key === 'ArrowRight') dx = step;
+      else if(e.key === 'ArrowUp') dy = -step; else if(e.key === 'ArrowDown') dy = step;
+      else if(e.key === 'Escape' && userPos){ e.preventDefault(); userPos = null; glide(); lastKey = ''; applyGeometry(); requestDraw(); return; }
+      else return;
+      if(!on || !g) return;
+      e.preventDefault();
+      userPos = clampPos(g.left + dx, g.top + dy, g.w, g.h, false);
+      glide(); lastKey = ''; applyGeometry(); requestDraw();
+    });
 
     window.addEventListener('scroll', schedule, { passive: true, capture: true });   // capture: also catches the maximized studio's inner scroll
     window.addEventListener('resize', function(){ lastKey = ''; schedule(); }, { passive: true });
