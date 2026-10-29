@@ -6045,7 +6045,7 @@ COSTS AT SMALL SCALE: $0 across all of the above.
 })();
 </script>
 
-<!-- ADSTERRA BANNER (320x50) -- loaded in a sandboxed iframe so the ad script can never
+<!-- ADSTERRA BANNER (320x50) -- ad.html (same folder) is loaded in a sandboxed iframe so the ad script can never
      touch APIC's page, your images, canvas, or the signed-in user data in localStorage.
      sandbox has NO allow-same-origin and NO allow-top-navigation: the ad cannot read the
      page or redirect it. Clicks open in a new tab only. Loaded after the page is idle. -->
@@ -6059,10 +6059,7 @@ COSTS AT SMALL SCALE: $0 across all of the above.
     f.setAttribute('scrolling','no');
     f.setAttribute('loading','lazy');
     f.setAttribute('referrerpolicy','no-referrer-when-downgrade');
-    f.srcdoc = '<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;padding:0;background:transparent;overflow:hidden}</style></head><body>'
-      + '<scr'+'ipt>atOptions = {"key":"f8ad411a7481e11534d010043913442f","format":"iframe","height":50,"width":320,"params":{}};</scr'+'ipt>'
-      + '<scr'+'ipt src="https://bauval.org/22/f8ad411a7481e11534d010043913442f"></scr'+'ipt>'
-      + '</body></html>';
+    f.src = 'ad.html';
     slot.appendChild(f);
     slot.classList.add('show');
   }
