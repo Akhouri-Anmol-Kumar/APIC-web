@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>APIC — Free Online Photo Editor, Background Remover & Image Converter</title>
-<meta name="description" content="APIC is a free online photo editor that runs entirely in your browser — edit, convert, compress, resize and remove image backgrounds with on-device AI. No uploads, no signup required, 100% private. An Akhouri Systems product." />
+<meta name="description" content="APIC is a free online photo editor that runs entirely in your browser — edit, convert, compress, resize and remove image backgrounds with on-device AI. No uploads, no signup required — your photos never leave your device. An Akhouri Systems product." />
 <meta name="keywords" content="online photo editor, remove background from image, image converter, compress image online, resize image, free photo editor, no upload image editor, PNG to JPG, WebP converter, background remover AI" />
 <meta name="robots" content="index, follow, max-image-preview:large" />
 <meta name="author" content="Akhouri Anmol Kumar, Akhouri Systems" />
@@ -888,6 +888,11 @@
   .g-btn-slot{display:flex; justify-content:center; margin-bottom:14px;}
   .modal-close{position:absolute; top:14px; right:18px; background:none; border:none; color:var(--text-muted); font-size:20px; cursor:pointer;}
 
+  /* sponsor banner (footer only, sandboxed) */
+  .sponsor-slot{display:none; flex-direction:column; align-items:center; gap:6px; margin:22px auto 0;}
+  .sponsor-slot.show{display:flex;}
+  .sponsor-slot small{font-size:10px; letter-spacing:1.2px; text-transform:uppercase; color:var(--text-dim, var(--text)); opacity:.55;}
+  .sponsor-slot iframe{display:block; width:320px; max-width:100%; height:50px; border:0; background:transparent; color-scheme:normal; overflow:hidden;}
   /* legal / privacy layer (additive) */
   .legal-links{display:flex; flex-wrap:wrap; justify-content:center; gap:6px 22px; margin-top:22px; font-family:var(--mono); font-size:11px; letter-spacing:0.3px;}
   .legal-links a{color:var(--text-muted); text-decoration:none; transition:color .2s;}
@@ -1476,6 +1481,9 @@
         APIC is a product of <b>Akhouri Systems</b><br>
         Developed by Akhouri Anmol Kumar · © 2026
       </div>
+    </div>
+    <div class="sponsor-slot" id="sponsorSlot" aria-label="Advertisement">
+      <small>Advertisement · keeps APIC free</small>
     </div>
     <div class="legal-links">
       <a href="#privacy" data-legal="privacy">Privacy Policy</a>
@@ -6037,6 +6045,32 @@ COSTS AT SMALL SCALE: $0 across all of the above.
 })();
 </script>
 
+<!-- ADSTERRA BANNER (320x50) -- loaded in a sandboxed iframe so the ad script can never
+     touch APIC's page, your images, canvas, or the signed-in user data in localStorage.
+     sandbox has NO allow-same-origin and NO allow-top-navigation: the ad cannot read the
+     page or redirect it. Clicks open in a new tab only. Loaded after the page is idle. -->
+<script>
+(function(){
+  function loadAd(){
+    var slot = document.getElementById('sponsorSlot'); if(!slot || slot.querySelector('iframe')) return;
+    var f = document.createElement('iframe');
+    f.setAttribute('sandbox','allow-scripts allow-popups allow-popups-to-escape-sandbox');
+    f.setAttribute('title','Advertisement');
+    f.setAttribute('scrolling','no');
+    f.setAttribute('loading','lazy');
+    f.setAttribute('referrerpolicy','no-referrer-when-downgrade');
+    f.srcdoc = '<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;padding:0;background:transparent;overflow:hidden}</style></head><body>'
+      + '<scr'+'ipt>atOptions = {"key":"f8ad411a7481e11534d010043913442f","format":"iframe","height":50,"width":320,"params":{}};</scr'+'ipt>'
+      + '<scr'+'ipt src="https://bauval.org/22/f8ad411a7481e11534d010043913442f"></scr'+'ipt>'
+      + '</body></html>';
+    slot.appendChild(f);
+    slot.classList.add('show');
+  }
+  function start(){ if('requestIdleCallback' in window) requestIdleCallback(loadAd,{timeout:4000}); else setTimeout(loadAd,2000); }
+  if(document.readyState === 'complete') start(); else window.addEventListener('load', start);
+})();
+</script>
+
 <!-- LEGAL MODAL (Privacy / Terms / Cookies / Contact) -->
 <div class="modal-bg" id="legalBg">
   <div class="modal legal-modal" role="dialog" aria-modal="true" aria-label="Legal information">
@@ -6065,10 +6099,12 @@ COSTS AT SMALL SCALE: $0 across all of the above.
         <ul>
           <li>To run your sign-in and show community numbers.</li>
           <li>To send you a welcome email and occasional APIC update emails (sent through EmailJS). You can ask us to stop at any time.</li>
-          <li>We do not sell your data, and APIC does not show ads.</li>
+          <li>We do not sell your data.</li>
         </ul>
+        <h4>Advertising</h4>
+        <p>To keep APIC free, one small banner ad from <b>Adsterra</b> is shown in the page footer. It is loaded in an isolated, sandboxed frame, so the ad code cannot access your images, your edits, or your account details. Adsterra itself may receive technical data such as your IP address, browser and device type, and may use cookies or similar identifiers to choose and measure ads, under its own privacy policy. Your photos are never sent to it. If you prefer no ads, the offline <b>APIC for PC</b> app shows none.</p>
         <h4>Third-party services</h4>
-        <p>APIC relies on Google (Sign-In, Firebase, Firestore, Fonts, model hosting), EmailJS, jsDelivr, cdnjs, Hugging Face, and GitHub (hosting and downloads). These services may see technical data such as your IP address when your browser contacts them, and each follows its own privacy policy.</p>
+        <p>APIC relies on Google (Sign-In, Firebase, Firestore, Fonts, model hosting), EmailJS, jsDelivr, cdnjs, Hugging Face, GitHub (hosting and downloads), and Adsterra (the footer banner ad). These services may see technical data such as your IP address when your browser contacts them, and each follows its own privacy policy.</p>
         <h4>Keeping and deleting data</h4>
         <p>We keep your account record until you ask us to delete it. To see, correct or delete your data, or to stop emails, use the Contact tab. You can also sign out any time.</p>
         <h4>Children</h4>
@@ -6105,11 +6141,12 @@ COSTS AT SMALL SCALE: $0 across all of the above.
       <div class="legal-sec" data-sec="cookies">
         <h3>Cookies &amp; Storage</h3>
         <div class="upd">Last updated: September 28, 2026</div>
-        <p>APIC does not use advertising or tracking cookies. It uses your browser's local storage for a few small things:</p>
+        <p>APIC itself sets no tracking cookies. It uses your browser's local storage for a few small things. The footer banner ad (Adsterra) runs in a sandboxed frame and may use its own cookies or identifiers, which APIC does not control; you can block them in your browser settings.</p>
         <ul>
           <li><b>apic_user</b>: keeps you signed in on this device (your name, email and photo). Removed when you sign out.</li>
           <li><b>apic_notice_ok</b>: remembers that you closed the notice about this.</li>
           <li>Google and Firebase may store their own identifiers so sign-in works securely.</li>
+          <li>Adsterra, the ad provider, may set its own identifiers to serve and measure the footer banner.</li>
           <li>Your browser may cache the AI model files so they do not download again.</li>
         </ul>
         <p>You can clear all of this any time in your browser settings. Doing so will sign you out.</p>
@@ -6129,7 +6166,7 @@ COSTS AT SMALL SCALE: $0 across all of the above.
 
 <!-- STORAGE NOTICE -->
 <div id="storageNotice" role="region" aria-label="Storage notice">
-  <span>APIC uses your browser's local storage to keep you signed in. No ad or tracking cookies. <a data-legal="cookies">Details</a></span>
+  <span>APIC uses your browser's local storage to keep you signed in and sets no tracking cookies. The footer banner ad (Adsterra) may use its own. <a data-legal="cookies">Details</a></span>
   <button class="btn btn-gold btn-sm" id="storageOk">Got it</button>
 </div>
 
