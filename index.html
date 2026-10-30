@@ -653,13 +653,13 @@
   /* ===== Image loaded: frameless, tight, full-screen workspace =====
      --apic-img-max (below) caps the photo height so the whole image + first controls fit on screen. */
   :root{
-    --apic-header:62px;
+    --apic-header:66px;
     /* Max display height of the photo (portrait or landscape): never taller than 60% of the screen,
        and always leaves ~330px (header + title bar + tool tabs + a few controls) so the WHOLE image
        and the first controls are visible at the very top of the site. Tweak 60vh / 330px to taste. */
-    --apic-img-max:max(260px, min(60vh, calc(100vh - 330px)));
+    --apic-img-max:max(260px, min(60vh, calc(100vh - 330px - (var(--apic-header) - 62px))));
   }
-  @supports (height:100svh){ :root{ --apic-img-max:max(260px, min(60svh, calc(100svh - 330px))); } }
+  @supports (height:100svh){ :root{ --apic-img-max:max(260px, min(60svh, calc(100svh - 330px - (var(--apic-header) - 62px)))); } }
   .studio-wrap{min-height:0; transition:padding .5s var(--ease-out), min-height .5s var(--ease-out);}
   .studio-wrap > .eyebrow{
     max-height:40px; overflow:hidden; opacity:1; transform:none; visibility:visible;
@@ -1009,7 +1009,7 @@
 </style>
 <style id="apic-dock-css">
   /* ---------- Floating live preview dock (Advanced tab) ---------- */
-  #drop{scroll-margin-top:84px;}
+  #drop{scroll-margin-top:calc(var(--apic-header) + 18px);}
   #apicDock{
     position:fixed; left:0; top:0; z-index:55; box-sizing:border-box; margin:0;
     padding:6px 6px 0; border-radius:16px; border:1px solid var(--line);
@@ -1094,6 +1094,37 @@
     #apicDock .ad-img{transition:none;}
     .studio .bench-tools, .studio .bench-panel, .studio .bench-footer{transition:none;}
   }
+<style id="apic-anchor-ad-css">
+  /* ---------- Anchor ad: lives in the sticky header, so it is always on screen ---------- */
+  .top-inner{padding:8px 22px; gap:14px;}
+  .hdr-ad{flex:0 0 auto; display:block;}
+  .hdr-ad-box{
+    position:relative; width:320px; max-width:100%; height:50px; box-sizing:border-box;
+    border:1px solid var(--line); border-radius:8px; background:color-mix(in srgb, var(--bg-2) 70%, transparent);
+    display:flex; align-items:center; justify-content:center; overflow:visible;
+    transition:border-color .25s var(--ease-out), box-shadow .25s var(--ease-out);
+  }
+  .hdr-ad-box:hover{border-color:color-mix(in srgb, var(--green) 40%, var(--line));}
+  .hdr-ad-box::before{
+    content:attr(data-tag); position:absolute; top:-6px; right:8px; z-index:2; padding:0 5px; border-radius:3px;
+    font-family:var(--mono); font-size:8px; letter-spacing:1.4px; text-transform:uppercase; line-height:11px;
+    color:var(--text-muted); background:var(--bg); pointer-events:none;
+  }
+  .hdr-ad-fb{position:absolute; inset:0; z-index:0; display:flex; align-items:center; justify-content:center; padding:0 10px; text-align:center;
+    font-family:var(--mono); font-size:10px; letter-spacing:.4px; color:var(--text-muted); opacity:.75; pointer-events:none;}
+  .hdr-ad-box iframe{position:relative; z-index:1; display:block; width:100%; height:48px; border:0; border-radius:7px; background:transparent; color-scheme:normal; overflow:hidden;}
+  /* nav links only when there is genuinely room beside the ad */
+  @media (max-width:1099px){ nav.top-links{display:none;} }
+  /* phones & small tablets: ad becomes a slim second row of the sticky header */
+  @media (max-width:900px){
+    :root{--apic-header:113px;}
+    .top-inner{flex-wrap:wrap; padding:0 14px; gap:0;}
+    .brand, .top-actions{min-height:54px;}
+    .hdr-ad{order:3; flex:0 0 100%; display:flex; justify-content:center; padding:0 0 9px;}
+    /* when scrolling down, the brand row slides away but the ad row stays anchored */
+    html.apic-motion header.top.apic-hide{transform:translate3d(0,-54px,0);}
+  }
+  @media (max-width:360px){ .hdr-ad-box{width:100%;} }
 </style>
 </head>
 <body>
@@ -1119,6 +1150,11 @@
       <a href="#counter">Community</a>
       <a href="#download">Desktop App</a>
     </nav>
+    <div class="hdr-ad">
+      <div class="hdr-ad-box" id="sponsorSlot" role="complementary" aria-label="Advertisement" data-tag="Ad">
+        <span class="hdr-ad-fb" aria-hidden="true">Free forever &middot; ads keep APIC running</span>
+      </div>
+    </div>
     <div class="top-actions">
       <button class="theme-toggle" id="themeToggle" title="Theme: System (auto)" aria-label="Theme: System (auto)">
         <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
@@ -1481,9 +1517,6 @@
         APIC is a product of <b>Akhouri Systems</b><br>
         Developed by Akhouri Anmol Kumar · © 2026
       </div>
-    </div>
-    <div class="sponsor-slot" id="sponsorSlot" aria-label="Advertisement">
-      <small>Advertisement · keeps APIC free</small>
     </div>
     <div class="legal-links">
       <a href="#privacy" data-legal="privacy">Privacy Policy</a>
@@ -5097,7 +5130,7 @@
         var tb = studio.querySelector('.title-bar');
         return studio.getBoundingClientRect().top + (tb ? tb.offsetHeight : 40);
       }
-      return header && !header.classList.contains('apic-hide') ? header.offsetHeight : 0;
+      return header ? Math.max(0, Math.round(header.getBoundingClientRect().bottom)) : 0;
     }
     // Keep a dragged card fully on screen (below the header, inside the viewport edges).
     function clampPos(l, t, w, h, snap){
@@ -6065,7 +6098,7 @@ COSTS AT SMALL SCALE: $0 across all of the above.
     f.setAttribute('referrerpolicy','no-referrer-when-downgrade');
     f.src = AD_SRC;
     slot.appendChild(f);
-    slot.classList.add('show');
+    slot.classList.add('show', 'loaded');
   }
   function start(){ if('requestIdleCallback' in window) requestIdleCallback(loadAd,{timeout:4000}); else setTimeout(loadAd,2000); }
   if(document.readyState === 'complete') start(); else window.addEventListener('load', start);
@@ -6105,7 +6138,7 @@ COSTS AT SMALL SCALE: $0 across all of the above.
         <h4>Advertising</h4>
         <p>To keep APIC free, one small banner ad from <b>Adsterra</b> is shown in the page footer. It is loaded in its own frame, separate from the editor, and APIC never sends your photos to it. Adsterra may receive technical data such as your IP address, browser and device type, and may use cookies or similar identifiers to choose and measure ads, under its own privacy policy. As with any ad network, we rely on Adsterra to follow its own privacy policy. If you prefer no ads, the offline <b>APIC for PC</b> app shows none.</p>
         <h4>Third-party services</h4>
-        <p>APIC relies on Google (Sign-In, Firebase, Firestore, Fonts, model hosting), EmailJS, jsDelivr, cdnjs, Hugging Face, GitHub (hosting and downloads), and Adsterra (the footer banner ad). These services may see technical data such as your IP address when your browser contacts them, and each follows its own privacy policy.</p>
+        <p>APIC relies on Google (Sign-In, Firebase, Firestore, Fonts, model hosting), EmailJS, jsDelivr, cdnjs, Hugging Face, GitHub (hosting and downloads), and Adsterra (the header banner ad). These services may see technical data such as your IP address when your browser contacts them, and each follows its own privacy policy.</p>
         <h4>Keeping and deleting data</h4>
         <p>We keep your account record until you ask us to delete it. To see, correct or delete your data, or to stop emails, use the Contact tab. You can also sign out any time.</p>
         <h4>Children</h4>
@@ -6142,12 +6175,12 @@ COSTS AT SMALL SCALE: $0 across all of the above.
       <div class="legal-sec" data-sec="cookies">
         <h3>Cookies &amp; Storage</h3>
         <div class="upd">Last updated: September 28, 2026</div>
-        <p>APIC itself sets no tracking cookies. It uses your browser's local storage for a few small things. The footer banner ad (Adsterra) runs in its own frame and may use its own cookies or identifiers, which APIC does not control; you can block them in your browser settings.</p>
+        <p>APIC itself sets no tracking cookies. It uses your browser's local storage for a few small things. The header banner ad (Adsterra) runs in its own frame and may use its own cookies or identifiers, which APIC does not control; you can block them in your browser settings.</p>
         <ul>
           <li><b>apic_user</b>: keeps you signed in on this device (your name, email and photo). Removed when you sign out.</li>
           <li><b>apic_notice_ok</b>: remembers that you closed the notice about this.</li>
           <li>Google and Firebase may store their own identifiers so sign-in works securely.</li>
-          <li>Adsterra, the ad provider, may set its own identifiers to serve and measure the footer banner.</li>
+          <li>Adsterra, the ad provider, may set its own identifiers to serve and measure the header banner.</li>
           <li>Your browser may cache the AI model files so they do not download again.</li>
         </ul>
         <p>You can clear all of this any time in your browser settings. Doing so will sign you out.</p>
@@ -6167,7 +6200,7 @@ COSTS AT SMALL SCALE: $0 across all of the above.
 
 <!-- STORAGE NOTICE -->
 <div id="storageNotice" role="region" aria-label="Storage notice">
-  <span>APIC uses your browser's local storage to keep you signed in and sets no tracking cookies. The footer banner ad (Adsterra) may use its own. <a data-legal="cookies">Details</a></span>
+  <span>APIC uses your browser's local storage to keep you signed in and sets no tracking cookies. The header banner ad (Adsterra) may use its own. <a data-legal="cookies">Details</a></span>
   <button class="btn btn-gold btn-sm" id="storageOk">Got it</button>
 </div>
 
