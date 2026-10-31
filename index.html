@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>APIC — Free Online Photo Editor, Background Remover & Image Converter</title>
 <meta name="description" content="APIC is a free online photo editor that runs entirely in your browser — edit, convert, compress, resize and remove image backgrounds with on-device AI. No uploads, no signup required — your photos never leave your device. An Akhouri Systems product." />
-<meta name="keywords" content="online photo editor, remove background from image, image converter, compress image online, resize image, free photo editor, no upload image editor, PNG to JPG, WebP converter, background remover AI" />
+<meta name="keywords" content="online photo editor, remove background from image, image converter, compress image online, resize image, free photo editor, no upload image editor, PNG to JPG, WebP converter, background remover AI, social media image resizer, profile picture maker, banner maker, YouTube banner size, Instagram post size" />
 <meta name="robots" content="index, follow, max-image-preview:large" />
 <meta name="author" content="Akhouri Anmol Kumar, Akhouri Systems" />
 <meta name="theme-color" content="#07070a" />
@@ -63,7 +63,8 @@
     "Format conversion between PNG, JPEG, WebP, BMP, ICO and PDF",
     "Smart image compression to a target file size",
     "On-device AI background removal",
-    "Precise pixel or percentage image resizing"
+    "Precise pixel or percentage image resizing",
+    "Social media presets: exact-size profile pictures, banners, covers, posts and stories for Instagram, YouTube, Facebook, X, TikTok, LinkedIn and more, with safe-zone guides and ZIP export"
   ]
 }
 </script>
@@ -134,6 +135,14 @@
       "acceptedAnswer": {
         "@type": "Answer",
         "text": "Yes. APIC for PC is a Windows app that runs fully offline with the same edit, convert and compress tools. You can download it from the section below with no account needed."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Does APIC have presets for social media profile pictures and banners?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. The Social tab has exact-size presets for profile pictures, banners and covers, posts and stories on Instagram, YouTube, Facebook, X, TikTok, LinkedIn, Pinterest, Snapchat, Threads, Bluesky, Discord, Twitch, Spotify, Google Business and more. Drag and zoom to frame your photo, see where each platform crops or covers it, and download one size or a ZIP of every size. Everything runs on your device."
       }
     }
   ]
@@ -831,7 +840,7 @@
   .faq-item p{margin:0; padding:0 22px 20px; color:var(--text-muted); font-size:14.5px; line-height:1.65;}
 
   .features{border-top:1px solid var(--line);}
-  .frame-grid{display:grid; grid-template-columns:repeat(5,1fr); gap:0; border:1px solid var(--line); border-radius:var(--radius); overflow:hidden;}
+  .frame-grid{display:grid; grid-template-columns:repeat(6,1fr); gap:0; border:1px solid var(--line); border-radius:var(--radius); overflow:hidden;}
   .frame{padding:30px 22px; border-right:1px solid var(--line); transition:background .25s var(--ease-out), transform .25s var(--ease-out), box-shadow .25s var(--ease-out); position:relative; z-index:1;}
   .frame:last-child{border-right:none;}
   .frame::before{content:""; position:absolute; top:0; left:0; right:0; height:2px; background:var(--grad-brand); transform:scaleX(0); transform-origin:left; transition:transform .3s var(--ease-out);}
@@ -1418,7 +1427,7 @@
     <div class="wrap">
       <div class="section-head">
         <div class="eyebrow">The Stack</div>
-        <h2>Five tools. Zero uploads.</h2>
+        <h2>Six tools. Zero uploads.</h2>
         <p>Everything above runs in your browser, on your device — the same engine the desktop app uses, rebuilt for the web.</p>
       </div>
       <div class="frame-grid">
@@ -1427,6 +1436,7 @@
         <div class="frame reveal"><span class="frame-num">03</span><h3>Compress</h3><p>Smart target-size search keeps maximum quality at your file size budget.</p></div>
         <div class="frame reveal"><span class="frame-num">04</span><h3>Remove BG</h3><p>On-device AI segmentation cuts your subject out — no upload, no wait in a queue.</p></div>
         <div class="frame reveal"><span class="frame-num">05</span><h3>Resize</h3><p>Exact pixel or percent dimensions with step-down resampling for crisp, accurate results.</p></div>
+        <div class="frame reveal"><span class="frame-num">06</span><h3>Social</h3><p>Exact-size profile pictures, banners, posts and stories for 15 networks, with safe-zone guides.</p></div>
       </div>
     </div>
   </section>
@@ -1448,6 +1458,7 @@
         <details class="faq-item"><summary>What can the Remove Object tool do?</summary><p>Paint over something you want gone, such as a person, sign or blemish, and an on-device AI inpainting model fills the area to match its surroundings. Larger or more complex areas work best with the Ultra engine on desktop-class devices.</p></details>
         <details class="faq-item"><summary>Why is the first AI run slower?</summary><p>AI tools need to download their model the first time. After that it is cached in your browser, so repeat use is fast. If the download fails, APIC retries automatically and shows a Retry button if it still can't connect.</p></details>
         <details class="faq-item"><summary>Is there a version that works offline?</summary><p>Yes. APIC for PC is a Windows app that runs fully offline with the same edit, convert and compress tools. You can download it from the section below with no account needed.</p></details>
+        <details class="faq-item"><summary>Does APIC have presets for social media profile pictures and banners?</summary><p>Yes. Open the Social tab to pick an exact-size preset for a profile picture, banner or cover, post or story on Instagram, YouTube, Facebook, X, TikTok, LinkedIn, Pinterest, Snapchat, Threads, Bluesky, Discord, Twitch, Spotify and more. Drag and zoom to frame your photo, check the safe-zone guides to see where each platform crops or covers your image, then download one size or a ZIP of every size for a network. Everything runs on your device, and APIC keeps files under each platform’s size limit automatically.</p></details>
       </div>
     </div>
   </section>
@@ -6335,6 +6346,915 @@ COSTS AT SMALL SCALE: $0 across all of the above.
     window.addEventListener('load', function(){ measure(); onScroll(); });
     if('ResizeObserver' in window){ new ResizeObserver(function(){ measure(); }).observe(document.body); }
   } catch(e){ /* motion is purely cosmetic — never let it break the app */ }
+})();
+</script>
+
+<!-- ============ APIC SOCIAL STUDIO ============ -->
+<style id="apic-social-css">
+  /* ===== APIC Social Studio ===== */
+  #socialTab .so-new{font-size:8.5px; letter-spacing:.8px; padding:1px 6px; margin-left:6px; border-radius:99px; background:var(--green); color:#04140c; vertical-align:middle; font-weight:700;}
+  @media (min-width:901px){ #socialTab{grid-column:1 / -1;} }
+  #panel-social .so-bar{display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:10px;}
+  #panel-social .so-bar select, #panel-social .so-bar input[type=search]{flex:1; min-width:130px; background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:4px; padding:9px 10px; font-family:var(--mono); font-size:12px; width:auto;}
+  #panel-social .so-chips{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px;}
+  #panel-social .so-chip, #panel-social .so-seg button{padding:7px 12px; border:1px solid var(--line); border-radius:99px; background:transparent; color:var(--text-muted); font-family:var(--sans); font-size:11.5px; cursor:pointer; min-height:34px; transition:all .15s;}
+  #panel-social .so-chip:hover, #panel-social .so-seg button:hover:not(:disabled){border-color:var(--green); color:var(--text);}
+  #panel-social .so-chip.on, #panel-social .so-seg button.on{border-color:var(--green); color:var(--green); background:color-mix(in srgb, var(--green) 10%, transparent);}
+  #panel-social .so-seg{display:flex; gap:6px; flex-wrap:wrap; flex:1;}
+  #panel-social .so-seg button{border-radius:6px;}
+  #panel-social .so-seg button:disabled{opacity:.35; cursor:not-allowed;}
+  #panel-social .so-list{border:1px solid var(--line); border-radius:8px; max-height:260px; overflow:auto; margin-bottom:10px; overscroll-behavior:contain;}
+  #panel-social .so-grp{position:sticky; top:0; z-index:1; padding:6px 10px; font-family:var(--mono); font-size:10px; letter-spacing:1px; text-transform:uppercase; color:var(--text-muted); background:var(--bg-2); border-bottom:1px solid var(--line);}
+  #panel-social .so-item{display:flex; width:100%; align-items:center; gap:10px; padding:9px 10px; background:transparent; border:none; border-bottom:1px solid var(--line); color:var(--text); font-family:var(--sans); font-size:12.5px; cursor:pointer; text-align:left; min-height:42px;}
+  #panel-social .so-item:last-child{border-bottom:none;}
+  #panel-social .so-item:hover, #panel-social .so-item:focus-visible{background:color-mix(in srgb, var(--green) 8%, transparent); outline:none;}
+  #panel-social .so-item .nm{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  #panel-social .so-item .nm i{font-style:normal; color:var(--text-muted); font-size:11px; margin-right:6px;}
+  #panel-social .so-item .dm{font-family:var(--mono); font-size:11px; color:var(--green); white-space:nowrap;}
+  #panel-social .so-item .rt{font-family:var(--mono); font-size:10px; color:var(--text-muted); width:40px; text-align:right;}
+  #panel-social .so-empty{padding:18px 12px; text-align:center; font-size:12.5px; color:var(--text-muted);}
+  #panel-social .so-sel{display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:10px 12px; border:1px solid var(--line); border-radius:8px; margin-bottom:10px; background:color-mix(in srgb, var(--green) 6%, transparent);}
+  #panel-social .so-sel .tx{flex:1; min-width:150px; font-size:13px; color:var(--text); line-height:1.35;}
+  #panel-social .so-sel .tx small{display:block; font-family:var(--mono); font-size:11px; color:var(--green); margin-top:2px;}
+  #panel-social .so-stage{display:flex; justify-content:center; margin:6px 0 10px;}
+  #soPrev{display:block; max-width:100%; border-radius:6px; border:1px solid var(--line); touch-action:none; cursor:grab; outline:none; -webkit-user-select:none; user-select:none; background-color:#6a6a6a; background-image:repeating-conic-gradient(#8a8a8a 0% 25%, #5c5c5c 0% 50%); background-size:16px 16px;}
+  #soPrev.grab{cursor:grabbing;}
+  #soPrev:focus-visible{box-shadow:0 0 0 2px var(--green);}
+  #panel-social .row label.so-chk{width:auto; text-transform:none; letter-spacing:0; font-family:var(--sans); font-size:12px; color:var(--text); display:inline-flex; align-items:center; gap:6px; cursor:pointer;}
+  #panel-social .row label.so-chk input{accent-color:var(--green); width:16px; height:16px;}
+  #panel-social .row input[type=color]{width:42px; height:32px; padding:0; border:1px solid var(--line); border-radius:4px; background:none; cursor:pointer;}
+  #panel-social .row input[type=number]{width:92px;}
+  #panel-social .so-actions{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:8px; margin:12px 0 8px;}
+  #panel-social .so-actions .btn{justify-content:center; text-align:center;}
+  #panel-social .so-status{min-height:20px; margin-top:6px; line-height:1.5; word-break:break-word;}
+  #panel-social.so-busy .so-list, #panel-social.so-busy #soPrev{pointer-events:none; opacity:.7;}
+  #panel-social button:disabled{opacity:.45; cursor:not-allowed;}
+  @media (pointer:coarse){ #panel-social .so-item{min-height:48px;} }
+</style>
+<script>
+/* =====================================================================
+   APIC SOCIAL STUDIO — presets for profile pictures, banners, covers,
+   posts and stories on the most popular networks.
+   Self-contained module (same pattern as Layers): adds a "Social" tab,
+   previews on its own canvas, and only touches the photo when you press
+   "Apply to editor" (undoable). Downloads reuse APIC's sign-in gate.
+   ===================================================================== */
+(function(){
+  "use strict";
+  var cv = document.getElementById('canvas'), dropEl = document.getElementById('drop'),
+      bench = document.querySelector('.bench-tools'), foot = document.querySelector('.bench-footer'),
+      toolTitle = document.getElementById('toolTitle'), exportBtn = document.getElementById('exportBtn'),
+      fileInfo = document.getElementById('fileInfo');
+  if(!cv || !dropEl || !bench || !foot || !toolTitle) return;
+  var t0 = bench.querySelector('.tool-btn');
+  if(!t0) return;
+
+  /* ---------------------------------------------------------------
+     PRESET DATA — sizes follow each platform's published guidance
+     (cross-checked against current 2026 specs). Platforms change these
+     now and then, so every size can also be set manually via "Custom".
+  --------------------------------------------------------------- */
+  var NETS = [
+    ['instagram','Instagram'], ['youtube','YouTube'], ['facebook','Facebook'], ['x','X (Twitter)'],
+    ['tiktok','TikTok'], ['linkedin','LinkedIn'], ['pinterest','Pinterest'], ['snapchat','Snapchat'],
+    ['threads','Threads'], ['bluesky','Bluesky'], ['discord','Discord'], ['twitch','Twitch'],
+    ['spotify','Spotify'], ['google','Google Business'], ['web','Web & general']
+  ];
+  var NETNAME = {}; NETS.forEach(function(n){ NETNAME[n[0]] = n[1]; });
+  var TYPES = [['all','All'], ['profile','Profile pictures'], ['banner','Banners & covers'], ['post','Posts & thumbnails'], ['story','Stories & vertical'], ['other','Other']];
+  var TYPE_ICON = {profile:'◉', banner:'▭', post:'▢', story:'▯', other:'◇'};
+  var ALIASES = {profile:'avatar pfp dp icon logo photo picture', banner:'header cover', post:'thumbnail image', story:'reel shorts vertical', other:''};
+  var MB = 1048576;
+  var PRESETS = [];
+  function slug(s){ return String(s).toLowerCase().replace(/&/g,'and').replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,''); }
+  function add(net, type, name, w, h, o){
+    o = o || {};
+    PRESETS.push({ id: net + '-' + slug(name) + '-' + w + 'x' + h, net: net, type: type, name: name, w: w, h: h,
+      mask: o.mask || '', guides: o.guides || [], note: o.note || '', max: o.max || 0 });
+  }
+  // guide helpers (all values are fractions of the image: x,w of width · y,h of height · r of width)
+  function R(x, y, w, h, label, dim){ return {k:'rect', x:x, y:y, w:w, h:h, label:label || '', dim:!!dim}; }
+  function C(cx, cy, r, label){ return {k:'circle', cx:cx, cy:cy, r:r, label:label || ''}; }
+  function B(side, f, label){ return {k:'band', side:side, f:f, label:label || ''}; }
+  var STORY_NOTE = 'Keep text and logos out of the shaded zones — app buttons and the profile bar cover them.';
+  var CIRCLE_NOTE = 'Shown as a circle — keep the face or logo centred.';
+
+  /* Instagram */
+  add('instagram','profile','Profile picture',320,320,{mask:'circle', note:CIRCLE_NOTE});
+  add('instagram','post','Portrait post (4:5)',1080,1350,{guides:[R(0.03125,0,0.9375,1,'Profile-grid crop (3:4)',false)], note:'The feed shows all of it; your profile grid crops to the centre 3:4.', max:30*MB});
+  add('instagram','post','Square post',1080,1080,{guides:[R(0.125,0,0.75,1,'Profile-grid crop (3:4)',false)], note:'Your profile grid shows the centre 3:4 of a square post.', max:30*MB});
+  add('instagram','post','Grid post (3:4)',1080,1440,{note:'Instagram now supports 3:4 natively, matching the profile grid.', max:30*MB});
+  add('instagram','post','Landscape post (1.91:1)',1080,566,{max:30*MB});
+  add('instagram','story','Story / Reel (9:16)',1080,1920,{guides:[B('top',0.14,'Profile bar'), B('bottom',0.20,'Buttons & caption')], note:STORY_NOTE, max:30*MB});
+  /* YouTube */
+  add('youtube','profile','Channel icon',800,800,{mask:'circle', note:CIRCLE_NOTE, max:15*MB});
+  add('youtube','banner','Channel banner',2560,1440,{guides:[
+      R((2560-1235)/2/2560,(1440-338)/2/1440,1235/2560,338/1440,'Always visible (1235×338)',true),
+      R((2560-1855)/2/2560,(1440-423)/2/1440,1855/2560,423/1440,'Tablet',false),
+      R(0,(1440-423)/2/1440,1,423/1440,'Desktop (2560×423)',false)],
+    note:'Put text and logos inside the bright centre box so they show on every device (phone, tablet, desktop, TV).', max:6*MB});
+  add('youtube','post','Video thumbnail',1280,720,{note:'Minimum width 640 px, 16:9. Keep key text away from the bottom-right corner (the duration badge).', max:2*MB});
+  add('youtube','story','Shorts (9:16)',1080,1920);
+  /* Facebook */
+  add('facebook','profile','Profile picture',720,720,{mask:'circle', note:CIRCLE_NOTE + ' 720 px stays sharp when opened (minimum 320).', max:30*MB});
+  add('facebook','banner','Page cover photo',851,315,{guides:[R((1-0.658)/2,0,0.658,1,'Mobile crop (approx.)',true)], note:'On phones the sides are cropped, and your profile picture covers the lower-left corner.'});
+  add('facebook','banner','Event cover',1920,1005,{note:'An event cover can\u2019t be changed after the event is created.'});
+  add('facebook','post','Portrait post (4:5)',1080,1350,{max:30*MB});
+  add('facebook','post','Square post',1080,1080,{max:30*MB});
+  add('facebook','post','Link / shared image',1200,630,{max:30*MB});
+  add('facebook','story','Story (9:16)',1080,1920,{guides:[B('top',0.14,'Profile bar'), B('bottom',0.14,'Reply bar')], note:STORY_NOTE, max:30*MB});
+  /* X */
+  add('x','profile','Profile photo',400,400,{mask:'circle', note:CIRCLE_NOTE, max:2*MB});
+  add('x','banner','Header photo',1500,500,{guides:[C(0.138,1.0,0.111,'Profile photo (approx.)')], note:'Your profile photo overlaps the lower-left of the header.', max:5*MB});
+  add('x','post','Image post (16:9)',1600,900,{max:5*MB});
+  add('x','post','Square image',1200,1200,{max:5*MB});
+  /* TikTok */
+  add('tiktok','profile','Profile photo',200,200,{mask:'circle', note:CIRCLE_NOTE + ' Use 2× scale for extra sharpness.'});
+  add('tiktok','story','Video / photo mode (9:16)',1080,1920);
+  /* LinkedIn */
+  add('linkedin','profile','Profile photo',400,400,{mask:'circle', note:CIRCLE_NOTE, max:3*MB});
+  add('linkedin','banner','Profile banner',1584,396,{note:'Your profile photo covers the lower-left area — keep text right of centre.', max:8*MB});
+  add('linkedin','profile','Company logo',400,400,{mask:'rounded', note:'Shown as a square with softly rounded corners.', max:3*MB});
+  add('linkedin','banner','Company cover',1512,256,{max:3*MB});
+  add('linkedin','post','Landscape post',1200,627);
+  add('linkedin','post','Square post',1080,1080);
+  /* Pinterest */
+  add('pinterest','profile','Profile picture',280,280,{mask:'circle', note:CIRCLE_NOTE, max:10*MB});
+  add('pinterest','banner','Profile cover',800,450);
+  add('pinterest','post','Standard Pin (2:3)',1000,1500,{note:'Pins taller than 2:3 can be cut off in the feed.', max:20*MB});
+  add('pinterest','post','Square Pin',1000,1000,{max:20*MB});
+  /* Snapchat */
+  add('snapchat','profile','Profile picture',320,320,{mask:'circle', note:CIRCLE_NOTE, max:2*MB});
+  add('snapchat','story','Story / Spotlight (9:16)',1080,1920,{guides:[B('top',0.14,'App bar'), B('bottom',0.14,'Reply bar')], note:STORY_NOTE});
+  /* Threads */
+  add('threads','profile','Profile picture',320,320,{mask:'circle', note:CIRCLE_NOTE});
+  add('threads','post','Square post',1080,1080,{max:8*MB});
+  add('threads','post','Portrait post (4:5)',1440,1800,{max:8*MB});
+  /* Bluesky */
+  add('bluesky','profile','Profile picture',1000,1000,{mask:'circle', note:CIRCLE_NOTE + ' Bluesky limits images to about 1 MB.', max:1000000});
+  add('bluesky','banner','Banner',3000,1000,{note:'Wide 3:1 crop — keep key details near the centre. Your avatar overlaps the lower-left.', max:1000000});
+  add('bluesky','post','Portrait post (4:5)',1080,1350,{max:2*MB});
+  add('bluesky','post','Square post',1080,1080,{max:2*MB});
+  /* Discord */
+  add('discord','profile','Avatar',512,512,{mask:'circle', note:CIRCLE_NOTE});
+  add('discord','banner','Profile banner',600,240);
+  add('discord','profile','Server icon',512,512,{mask:'circle', note:CIRCLE_NOTE});
+  add('discord','banner','Server banner',960,540);
+  add('discord','other','Invite splash',1920,1080);
+  /* Twitch */
+  add('twitch','profile','Profile picture',256,256,{mask:'circle', note:CIRCLE_NOTE, max:10*MB});
+  add('twitch','banner','Channel banner',1200,480,{max:10*MB});
+  add('twitch','banner','Video player banner',1920,480);
+  add('twitch','other','Offline screen',1920,1080,{note:'Also works for your Starting Soon / BRB screens.'});
+  /* Spotify */
+  add('spotify','banner','Artist header',2660,1140,{note:'Keep important content in the centre.'});
+  add('spotify','other','Playlist / album cover',3000,3000,{note:'Spotify shows this anywhere from 64 px up to full screen — keep the design bold and simple.'});
+  /* Google Business Profile */
+  add('google','profile','Logo / photo',720,720,{note:'Recommended 720×720 (minimum 250×250).', max:5*MB});
+  add('google','banner','Cover photo',1024,576,{max:5*MB});
+  /* Web & general */
+  add('web','other','Open Graph / link preview',1200,630,{note:'The image that appears when your page is shared (Facebook, LinkedIn, X, Slack, WhatsApp…).'});
+  add('web','other','GitHub social preview',1280,640,{note:'Repository settings → Social preview (minimum 640×320).', max:MB});
+  add('web','other','Favicon / app icon',512,512,{note:'Use 512×512 — browsers and phones scale it down.'});
+  add('web','other','HD wallpaper / video (16:9)',1920,1080);
+  add('web','post','Square (works everywhere)',1080,1080);
+  add('web','story','Vertical (works everywhere)',1080,1920);
+
+  /* ---------------------------------------------------------------
+     STATE
+  --------------------------------------------------------------- */
+  var S = { net:'all', type:'all', q:'', preset:null, cw:1080, ch:1080,
+            mode:'fill', zoom:1, fx:0.5, fy:0.5,
+            bg:'blur', bgTouched:false, color:'#ffffff', srcAlpha:false,
+            gSafe:true, gThirds:false, scale:1, fmt:'auto' };
+  var open = false, busy = false, raf = 0, hqTimer = 0, pendingFast = false, stamp = 0, srcCache = null, bgCache = null,
+      selfEdit = false, alphaTimer = 0, ptrs = {}, pinchD = 0, pinchZ = 1;
+  var coarse = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches);
+  var PX_BUDGET = coarse ? 16e6 : 48e6, SIDE_MAX = 8192;
+
+  /* ---------------------------------------------------------------
+     SMALL HELPERS
+  --------------------------------------------------------------- */
+  function mk(w, h){ var c = document.createElement('canvas'); c.width = Math.max(1, Math.round(w)); c.height = Math.max(1, Math.round(h)); return c; }
+  function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
+  function gcd(a, b){ return b ? gcd(b, a % b) : a; }
+  function ratioText(w, h){ var g = gcd(w, h), a = w/g, b = h/g; return (a <= 21 && b <= 21) ? (a + ':' + b) : ((w/h).toFixed(2).replace(/\.?0+$/, '') + ':1'); }
+  function fmtBytes(n){ return n >= MB ? (n/MB).toFixed(n >= 10*MB ? 0 : 1).replace(/\.0$/, '') + ' MB' : Math.max(1, Math.round(n/1024)) + ' KB'; }
+  function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function $(id){ return document.getElementById(id); }
+  function yieldUI(){ return new Promise(function(r){ setTimeout(r, 0); }); }
+  function free(c){ try{ if(c){ c.width = 1; c.height = 1; } }catch(e){} }
+
+  function hasTransparency(c){
+    try{
+      var t = mk(Math.min(64, c.width), Math.min(64, c.height)), g = t.getContext('2d');
+      g.drawImage(c, 0, 0, t.width, t.height);
+      var d = g.getImageData(0, 0, t.width, t.height).data;
+      for(var i = 3; i < d.length; i += 4) if(d[i] < 250){ free(t); return true; }
+      free(t);
+    }catch(e){}
+    return false;
+  }
+
+  /* Photo + visible layers = what the social image is cut from. */
+  function layersOn(){ try{ return !!(window.__apicLayers && window.__apicLayers.count() > 0); }catch(e){ return false; } }
+  function getSource(fast){
+    if(!layersOn()){ if(srcCache){ free(srcCache); srcCache = null; } return cv; }
+    var ok = srcCache && srcCache.width === cv.width && srcCache.height === cv.height;
+    if(fast && ok) return srcCache;
+    var c = ok ? srcCache : mk(cv.width, cv.height), g = c.getContext('2d');
+    g.clearRect(0, 0, c.width, c.height); g.drawImage(cv, 0, 0);
+    try{ window.__apicLayers.draw(g, 1); }catch(e){}
+    srcCache = c; return c;
+  }
+
+  /* ---------------------------------------------------------------
+     PLACEMENT MATH (resolution-independent: focus is a point of the
+     SOURCE in 0..1, so preview and export always agree)
+  --------------------------------------------------------------- */
+  function placement(Sw, Sh, Tw, Th, mode, zoom, fx, fy){
+    var s0 = mode === 'fit' ? Math.min(Tw/Sw, Th/Sh) : Math.max(Tw/Sw, Th/Sh);
+    var s = s0 * zoom, iw = Sw * s, ih = Sh * s, dx, dy, panX = true, panY = true;
+    if(Math.abs(iw - Tw) < 1e-3) iw = Tw;
+    if(Math.abs(ih - Th) < 1e-3) ih = Th;
+    if(iw <= Tw){ dx = (Tw - iw) / 2; panX = false; } else { dx = clamp(Tw/2 - fx*iw, Tw - iw, 0); }
+    if(ih <= Th){ dy = (Th - ih) / 2; panY = false; } else { dy = clamp(Th/2 - fy*ih, Th - ih, 0); }
+    return { s:s, dx:dx, dy:dy, iw:iw, ih:ih, panX:panX, panY:panY };
+  }
+
+  /* Step-down resampling (halve repeatedly, then one exact pass) — the
+     same approach APIC's Resize tool uses to avoid soft/aliased shrinks. */
+  function needsSteps(sw, sh, dw, dh){ return sw > dw * 2 || sh > dh * 2; }
+  function resampleTo(src, sx, sy, sw, sh, dw, dh){
+    var cur = src, cx = sx, cy = sy, cw = sw, ch = sh, tmp = [];
+    while(needsSteps(cw, ch, dw, dh)){
+      var nw = Math.max(dw, Math.round(cw / 2)), nh = Math.max(dh, Math.round(ch / 2));
+      var t = mk(nw, nh), g = t.getContext('2d');
+      g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
+      g.drawImage(cur, cx, cy, cw, ch, 0, 0, nw, nh);
+      if(cur !== src) tmp.push(cur);
+      cur = t; cx = 0; cy = 0; cw = nw; ch = nh;
+    }
+    var out = mk(dw, dh), og = out.getContext('2d');
+    og.imageSmoothingEnabled = true; og.imageSmoothingQuality = 'high';
+    og.drawImage(cur, cx, cy, cw, ch, 0, 0, dw, dh);
+    if(cur !== src) tmp.push(cur);
+    tmp.forEach(free);
+    return out;
+  }
+
+  function paintBg(g, src, Tw, Th, o, fast){
+    if(o.bg === 'color'){ g.fillStyle = o.color; g.fillRect(0, 0, Tw, Th); return; }
+    if(o.bg !== 'blur' || o.alpha) return;
+    var big = 40, w = Tw >= Th ? big : Math.max(2, Math.round(big * Tw / Th)), h = Tw >= Th ? Math.max(2, Math.round(big * Th / Tw)) : big;
+    var key = stamp + ':' + src.width + 'x' + src.height + ':' + w + 'x' + h, sm = null;
+    if(fast && bgCache && bgCache.key === key) sm = bgCache.c;
+    if(!sm){
+      var q = placement(src.width, src.height, w, h, 'fill', 1, 0.5, 0.5);
+      var sx = Math.max(0, -q.dx / q.s), sy = Math.max(0, -q.dy / q.s);
+      var sw = Math.min(src.width - sx, w / q.s), sh = Math.min(src.height - sy, h / q.s);
+      if(fast){ sm = mk(w, h); var sg = sm.getContext('2d'); sg.imageSmoothingEnabled = true; sg.imageSmoothingQuality = 'low'; sg.drawImage(src, sx, sy, sw, sh, 0, 0, w, h); }
+      else sm = resampleTo(src, sx, sy, sw, sh, w, h);
+      if(fast){ if(bgCache) free(bgCache.c); bgCache = { key: key, c: sm }; }
+    }
+    g.save();
+    g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
+    g.drawImage(sm, 0, 0, Tw, Th);
+    g.fillStyle = 'rgba(0,0,0,0.26)'; g.fillRect(0, 0, Tw, Th);
+    g.restore();
+    if(!fast) free(sm);
+  }
+
+  function paintImage(g, src, p, Tw, Th, fast){
+    var s = p.s;
+    var sx = Math.max(0, -p.dx / s), sy = Math.max(0, -p.dy / s);
+    var ex = Math.min(src.width, (Tw - p.dx) / s), ey = Math.min(src.height, (Th - p.dy) / s);
+    var sw = ex - sx, sh = ey - sy;
+    if(!(sw > 0 && sh > 0)) return;
+    var x0 = Math.round(p.dx + sx * s), y0 = Math.round(p.dy + sy * s), x1 = Math.round(p.dx + ex * s), y1 = Math.round(p.dy + ey * s);
+    var dw = x1 - x0, dh = y1 - y0;
+    if(dw < 1 || dh < 1) return;
+    g.imageSmoothingEnabled = true;
+    if(!fast && needsSteps(sw, sh, dw, dh)){
+      var piece = resampleTo(src, sx, sy, sw, sh, dw, dh);
+      g.imageSmoothingQuality = 'high'; g.drawImage(piece, x0, y0); free(piece);
+    } else {
+      g.imageSmoothingQuality = fast ? 'low' : 'high';
+      g.drawImage(src, sx, sy, sw, sh, x0, y0, dw, dh);
+    }
+  }
+
+  /* Draw the social image into g at Tw×Th. Returns the placement used. */
+  function drawInto(g, Tw, Th, o, fast){
+    var src = getSource(fast);
+    var p = placement(src.width, src.height, Tw, Th, o.mode, o.zoom, o.fx, o.fy);
+    g.clearRect(0, 0, Tw, Th);
+    var letter = (p.iw < Tw - 0.5) || (p.ih < Th - 0.5);
+    if(letter || (o.alpha && o.bg === 'color')) paintBg(g, src, Tw, Th, o, fast);
+    paintImage(g, src, p, Tw, Th, fast);
+    return p;
+  }
+  function curOpts(zoom){
+    return { mode:S.mode, zoom: zoom === undefined ? S.zoom : zoom, fx:S.fx, fy:S.fy, bg:S.bg, color:S.color, alpha:S.srcAlpha };
+  }
+
+  /* ---------------------------------------------------------------
+     TARGET SIZE / SCALE
+  --------------------------------------------------------------- */
+  function base(){ var p = S.preset; return p ? { w:p.w, h:p.h } : { w:S.cw, h:S.ch }; }
+  function allowedScales(w, h){
+    var out = [];
+    [1, 2, 3].forEach(function(s){ if(w*s*h*s <= PX_BUDGET && Math.max(w, h)*s <= SIDE_MAX) out.push(s); });
+    return out.length ? out : [1];
+  }
+  function scaleFor(p, want){ var a = allowedScales(p.w, p.h), s = 1; a.forEach(function(v){ if(v <= want) s = v; }); return s; }
+
+  /* ---------------------------------------------------------------
+     PANEL (built once)
+  --------------------------------------------------------------- */
+  var tab = document.createElement('button');
+  tab.className = 'tool-btn'; tab.id = 'socialTab'; tab.type = 'button'; tab.disabled = t0.disabled;
+  tab.innerHTML = 'Social <span class="so-new">New</span>';
+  bench.appendChild(tab);
+
+  var panel = document.createElement('div'); panel.className = 'bench-panel'; panel.id = 'panel-social';
+  panel.innerHTML =
+    '<p class="hint" style="margin-top:0;">Exact-size profile pictures, banners, covers, posts and stories for the most popular networks. Pick a size, drag to frame it, and see where each platform crops or covers your image. Everything runs on your device — nothing is uploaded.</p>' +
+    '<div id="soPick" style="margin-top:12px;">' +
+      '<div class="so-bar"><select id="soNet" aria-label="Network"></select><input type="search" id="soQ" placeholder="Search: e.g. youtube banner" aria-label="Search sizes" autocomplete="off" spellcheck="false"></div>' +
+      '<div class="so-chips" id="soChips" role="group" aria-label="Type of image"></div>' +
+      '<div class="so-list" id="soList"></div>' +
+    '</div>' +
+    '<div id="soWork" style="display:none; margin-top:12px;">' +
+      '<div class="so-sel"><div class="tx" id="soSelTx"></div><button type="button" class="quick-btn" id="soChange" style="padding:9px 12px;">Change size</button></div>' +
+      '<div class="row" id="soCustomRow" style="display:none;"><label>Size</label><input type="number" id="soCW" min="16" max="8192" inputmode="numeric" aria-label="Width in pixels"><span class="filesize">×</span><input type="number" id="soCH" min="16" max="8192" inputmode="numeric" aria-label="Height in pixels"><span class="filesize" id="soCNote"></span></div>' +
+      '<div class="so-stage" id="soStage"><canvas id="soPrev" tabindex="0" role="img" aria-label="Preview. Drag to move the photo. Arrow keys move, plus and minus zoom."></canvas></div>' +
+      '<p class="hint" id="soNote" style="margin:0 0 12px;"></p>' +
+      '<div class="row"><label>Framing</label><div class="so-seg" id="soMode"><button type="button" data-m="fill">Fill (crop to fit)</button><button type="button" data-m="fit">Fit whole photo</button></div></div>' +
+      '<div class="row"><label>Zoom</label><input type="range" id="soZoom" min="100" max="400" value="100" aria-label="Zoom"><span class="val" id="soZoomV">100%</span></div>' +
+      '<div class="row" id="soBgRow"><label>Background</label><div class="so-seg" id="soBg"><button type="button" data-b="blur">Blur</button><button type="button" data-b="color">Colour</button><button type="button" data-b="clear">Clear</button></div><input type="color" id="soColor" value="#ffffff" aria-label="Background colour"></div>' +
+      '<div class="row"><label>Guides</label><label class="so-chk"><input type="checkbox" id="soG1" checked> Safe zones &amp; mask</label><label class="so-chk"><input type="checkbox" id="soG2"> Thirds</label></div>' +
+      '<div class="row"><label>Output</label><select id="soScale" aria-label="Scale"></select><select id="soFmt" aria-label="Format"><option value="auto">Auto — best for this platform</option><option value="png">PNG</option><option value="jpeg">JPEG</option><option value="webp">WebP</option></select></div>' +
+      '<div class="so-actions"><button type="button" class="btn btn-gold btn-sm" id="soDl">Download this size</button><button type="button" class="btn btn-ghost btn-sm" id="soApply" title="Crop your photo to this size so you can keep editing it (undo with Ctrl+Z)">Apply to editor</button><button type="button" class="btn btn-ghost btn-sm" id="soCenter">Reset framing</button></div>' +
+      '<div class="so-actions"><button type="button" class="btn btn-ghost btn-sm" id="soZipNet">Download all sizes (ZIP)</button><button type="button" class="btn btn-ghost btn-sm" id="soZipAll">Every network (ZIP)</button></div>' +
+      '<p class="hint" style="margin:0;">ZIPs use your current focus point at 100% zoom for every size. The <b>Export image</b> button below also downloads the selected size.</p>' +
+      '<div class="filesize so-status" id="soStatus" role="status" aria-live="polite"></div>' +
+    '</div>';
+  foot.parentNode.insertBefore(panel, foot);
+
+  var netEl = $('soNet'), qEl = $('soQ'), chipsEl = $('soChips'), listEl = $('soList'), pickEl = $('soPick'), workEl = $('soWork'),
+      selTx = $('soSelTx'), customRow = $('soCustomRow'), cwEl = $('soCW'), chEl = $('soCH'), cNote = $('soCNote'),
+      prev = $('soPrev'), noteEl = $('soNote'), zoomEl = $('soZoom'), zoomV = $('soZoomV'), bgRow = $('soBgRow'),
+      colorEl = $('soColor'), g1El = $('soG1'), g2El = $('soG2'), scaleEl = $('soScale'), fmtEl = $('soFmt'),
+      dlBtn = $('soDl'), applyBtn = $('soApply'), centerBtn = $('soCenter'), zipNetBtn = $('soZipNet'), zipAllBtn = $('soZipAll'),
+      statusEl = $('soStatus'), modeEl = $('soMode'), bgEl = $('soBg');
+
+  function say(msg, spin){ statusEl.innerHTML = (spin ? '<span class="spinner"></span> ' : '') + esc(msg); }
+  function setBusy(b){
+    busy = b; panel.classList.toggle('so-busy', b);
+    [dlBtn, applyBtn, centerBtn, zipNetBtn, zipAllBtn, $('soChange'), scaleEl, fmtEl, zoomEl, colorEl, g1El, g2El, cwEl, chEl].forEach(function(el){ if(el) el.disabled = b; });
+    Array.prototype.forEach.call(panel.querySelectorAll('#soMode button, #soBg button'), function(el){ el.disabled = b; });
+    if(!b) refreshControls();
+  }
+
+  /* ---------- list ---------- */
+  function buildStatic(){
+    var h = '<option value="all">All networks (' + PRESETS.length + ' sizes)</option>';
+    NETS.forEach(function(n){ var c = PRESETS.filter(function(p){ return p.net === n[0]; }).length; h += '<option value="' + n[0] + '">' + esc(n[1]) + ' (' + c + ')</option>'; });
+    netEl.innerHTML = h;
+    chipsEl.innerHTML = TYPES.map(function(t){ return '<button type="button" class="so-chip' + (t[0] === S.type ? ' on' : '') + '" data-t="' + t[0] + '" aria-pressed="' + (t[0] === S.type) + '">' + esc(t[1]) + '</button>'; }).join('');
+  }
+  function filtered(){
+    var toks = S.q.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    return PRESETS.filter(function(p){
+      if(S.net !== 'all' && p.net !== S.net) return false;
+      if(S.type !== 'all' && p.type !== S.type) return false;
+      var hay = (NETNAME[p.net] + ' ' + p.name + ' ' + p.w + 'x' + p.h + ' ' + p.w + '\u00d7' + p.h + ' ' + p.type + ' ' + ALIASES[p.type]).toLowerCase();
+      return toks.every(function(t){ return hay.indexOf(t) > -1; });
+    });
+  }
+  function renderList(){
+    var items = filtered(), h = '', last = '';
+    if(!S.q.trim() && S.type === 'all' || /custom/.test(S.q.toLowerCase())){
+      h += '<button type="button" class="so-item" data-id="custom"><span class="nm"><i>' + TYPE_ICON.other + '</i>Custom size…</span><span class="dm">any W×H</span></button>';
+    }
+    items.forEach(function(p){
+      if(S.net === 'all' && p.net !== last){ last = p.net; h += '<div class="so-grp">' + esc(NETNAME[p.net]) + '</div>'; }
+      h += '<button type="button" class="so-item" data-id="' + p.id + '"><span class="nm"><i>' + TYPE_ICON[p.type] + '</i>' + esc(S.net === 'all' ? p.name : NETNAME[p.net] + ' · ' + p.name) + '</span><span class="dm">' + p.w + '\u00d7' + p.h + '</span><span class="rt">' + ratioText(p.w, p.h) + '</span></button>';
+    });
+    if(!items.length && !h) h = '<div class="so-empty">No sizes match. Try another word, or use <b>Custom size</b>.</div>';
+    listEl.innerHTML = h;
+  }
+
+  /* ---------- selection ---------- */
+  var CUSTOM = { id:'custom', net:'web', type:'other', name:'Custom size', w:1080, h:1080, mask:'', guides:[], note:'Type any width and height (16–8192 px).', max:0 };
+  function findPreset(id){ if(id === 'custom') return CUSTOM; for(var i = 0; i < PRESETS.length; i++) if(PRESETS[i].id === id) return PRESETS[i]; return null; }
+  function selectPreset(p){
+    if(!p || busy) return;
+    S.preset = p; S.zoom = 1;
+    if(p.id === 'custom'){ p.w = S.cw; p.h = S.ch; }
+    S.scale = 1;                       // every new size starts at its exact pixel dimensions
+    pickEl.style.display = 'none'; workEl.style.display = 'block';
+    statusEl.textContent = '';
+    refreshControls(); schedule(false);
+    try{ var rm = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches; workEl.scrollIntoView({ block:'nearest', behavior: rm ? 'auto' : 'smooth' }); }catch(e){}
+  }
+  function showPicker(){
+    if(busy) return;
+    S.preset = null; workEl.style.display = 'none'; pickEl.style.display = 'block';
+    renderList(); statusEl.textContent = '';
+  }
+
+  /* ---------- controls <-> state ---------- */
+  function refreshControls(){
+    var p = S.preset; if(!p) return;
+    var net = p.id === 'custom' ? 'Custom' : NETNAME[p.net];
+    selTx.innerHTML = esc(net) + ' \u00b7 <b>' + esc(p.id === 'custom' ? 'your own size' : p.name) + '</b><small>' + p.w + '\u00d7' + p.h + ' px \u00b7 ' + ratioText(p.w, p.h) + '</small>';
+    customRow.style.display = p.id === 'custom' ? 'flex' : 'none';
+    if(p.id === 'custom'){ if(document.activeElement !== cwEl) cwEl.value = p.w; if(document.activeElement !== chEl) chEl.value = p.h; }
+    noteEl.textContent = (p.note ? p.note + ' ' : '') + (p.max ? 'File limit on this platform: ' + fmtBytes(p.max) + ' (APIC fits under it automatically).' : '');
+    var mn = S.mode === 'fit' ? 50 : 100;
+    S.zoom = clamp(S.zoom, mn / 100, 4);
+    zoomEl.min = mn; zoomEl.max = 400; zoomEl.value = Math.round(S.zoom * 100); zoomV.textContent = Math.round(S.zoom * 100) + '%';
+    Array.prototype.forEach.call(modeEl.querySelectorAll('button'), function(b){ var on = b.dataset.m === S.mode; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); });
+    var needBg = S.mode === 'fit' || S.srcAlpha;
+    bgRow.style.display = needBg ? 'flex' : 'none';
+    Array.prototype.forEach.call(bgEl.querySelectorAll('button'), function(b){
+      var k = b.dataset.b, on = (k === S.bg);
+      if(k === 'blur'){ b.disabled = busy || S.srcAlpha; b.title = S.srcAlpha ? 'Blur needs a photo without transparency' : ''; }
+      b.classList.toggle('on', on); b.setAttribute('aria-pressed', on);
+    });
+    colorEl.value = S.color; colorEl.style.display = (S.bg === 'color' || !needBg) ? '' : 'none';
+    g1El.checked = S.gSafe; g2El.checked = S.gThirds;
+    var sc = allowedScales(p.w, p.h);
+    scaleEl.innerHTML = sc.map(function(s){ return '<option value="' + s + '">' + s + '\u00d7 \u2014 ' + (p.w * s) + '\u00d7' + (p.h * s) + ' px' + (s === 1 ? ' (exact size)' : ' (sharper)') + '</option>'; }).join('');
+    if(sc.indexOf(S.scale) < 0) S.scale = 1;
+    scaleEl.value = S.scale; fmtEl.value = S.fmt;
+    var multi = filteredForNet(p).length;
+    zipNetBtn.textContent = p.id === 'custom' ? 'Download all sizes (ZIP)' : 'All ' + NETNAME[p.net] + ' sizes (ZIP)';
+    zipNetBtn.disabled = busy || p.id === 'custom' || multi < 1;
+    zipAllBtn.style.display = coarse ? 'none' : '';
+    zipAllBtn.textContent = 'Every network (' + PRESETS.length + ' sizes, ZIP)';
+    applyBtn.disabled = busy;
+  }
+  function filteredForNet(p){ return p.id === 'custom' ? [] : PRESETS.filter(function(q){ return q.net === p.net; }); }
+
+  /* ---------------------------------------------------------------
+     PREVIEW
+  --------------------------------------------------------------- */
+  function schedule(fast){
+    if(!open || !S.preset) return;
+    if(fast) pendingFast = true;
+    if(raf) return;
+    raf = requestAnimationFrame(function(){
+      raf = 0; var f = pendingFast; pendingFast = false;
+      renderPreview(f);
+      clearTimeout(hqTimer);
+      if(f) hqTimer = setTimeout(function(){ if(open && S.preset && !busy) renderPreview(false); }, 180);
+    });
+  }
+  var prevDpr = 1;
+  function renderPreview(fast){
+    if(!open || !S.preset || !cv.width || !cv.height) return;
+    var b = base();
+    var wrapW = clamp(workEl.clientWidth || 320, 200, 560), maxH = coarse ? 320 : 380;
+    var cs = Math.min(wrapW / b.w, maxH / b.h);
+    var cssW = Math.max(1, Math.round(b.w * cs)), cssH = Math.max(1, b.h * cs);
+    prevDpr = Math.min(window.devicePixelRatio || 1, 2);
+    var pw = Math.max(1, Math.round(cssW * prevDpr)), ph = Math.max(1, Math.round(pw * b.h / b.w));
+    if(prev.width !== pw) prev.width = pw;
+    if(prev.height !== ph) prev.height = ph;
+    prev.style.width = cssW + 'px'; prev.style.height = (cssW * b.h / b.w) + 'px';
+    var g = prev.getContext('2d');
+    try{ drawInto(g, pw, ph, curOpts(), fast); }catch(e){ console.error(e); }
+    try{ drawGuides(g, pw, ph, S.preset, prevDpr); }catch(e){ console.error(e); }
+  }
+
+  /* ---------- guides (preview only — never baked into output) ---------- */
+  function tag(g, text, x, y, k, maxW){
+    g.save(); g.font = '600 ' + Math.round(10.5 * k) + 'px ui-monospace, Menlo, Consolas, monospace';
+    var tw = g.measureText(text).width, pad = 4 * k, hh = 15 * k;
+    if(tw + pad * 2 <= maxW){
+      x = clamp(x, 0, maxW - tw - pad * 2);
+      g.fillStyle = 'rgba(0,0,0,0.74)'; g.fillRect(x, y, tw + pad * 2, hh);
+      g.fillStyle = '#39ff9d'; g.textBaseline = 'middle'; g.fillText(text, x + pad, y + hh / 2 + 0.5);
+    }
+    g.restore();
+  }
+  function dimOutside(g, w, h, shape){
+    g.save(); g.beginPath(); g.rect(0, 0, w, h); shape(g); g.fillStyle = 'rgba(0,0,0,0.58)'; g.fill('evenodd'); g.restore();
+  }
+  function roundRectPath(g, x, y, w, h, r){
+    g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
+  }
+  function drawGuides(g, w, h, p, k){
+    if(S.gSafe){
+      if(p.mask === 'circle'){
+        var r = Math.min(w, h) / 2;
+        dimOutside(g, w, h, function(c){ c.moveTo(w / 2 + r, h / 2); c.arc(w / 2, h / 2, r, 0, Math.PI * 2, true); });
+        g.save(); g.beginPath(); g.arc(w / 2, h / 2, r - 0.5 * k, 0, Math.PI * 2); g.strokeStyle = 'rgba(255,255,255,0.75)'; g.lineWidth = k; g.stroke(); g.restore();
+      } else if(p.mask === 'rounded'){
+        var rr = Math.min(w, h) * 0.14;
+        dimOutside(g, w, h, function(c){ roundRectPath(c, 0, 0, w, h, rr); });
+      }
+      (p.guides || []).forEach(function(q){
+        g.save(); g.lineWidth = 1.5 * k;
+        if(q.k === 'rect'){
+          var x = q.x * w, y = q.y * h, rw = q.w * w, rh = q.h * h;
+          if(q.dim) dimOutside(g, w, h, function(c){ c.rect(x, y, rw, rh); });
+          g.setLineDash([6 * k, 4 * k]); g.strokeStyle = '#39ff9d'; g.strokeRect(x + 0.5, y + 0.5, rw - 1, rh - 1);
+          if(q.label) tag(g, q.label, x + 3 * k, y + 3 * k, k, w);
+        } else if(q.k === 'circle'){
+          var cx = q.cx * w, cy = q.cy * h, rad = q.r * w;
+          g.beginPath(); g.rect(0, 0, w, h); g.clip();
+          g.beginPath(); g.arc(cx, cy, rad, 0, Math.PI * 2); g.fillStyle = 'rgba(255,70,70,0.28)'; g.fill();
+          g.setLineDash([6 * k, 4 * k]); g.strokeStyle = '#ff6b6b'; g.stroke();
+          g.setLineDash([]); if(q.label) tag(g, q.label, cx + rad * 0.15, Math.max(3 * k, cy - rad - 17 * k), k, w);
+        } else if(q.k === 'band'){
+          var bh = q.f * h, by = q.side === 'top' ? 0 : h - bh;
+          g.fillStyle = 'rgba(255,70,70,0.30)'; g.fillRect(0, by, w, bh);
+          g.setLineDash([6 * k, 4 * k]); g.strokeStyle = '#ff6b6b'; g.beginPath(); var ly = q.side === 'top' ? bh : by; g.moveTo(0, ly); g.lineTo(w, ly); g.stroke();
+          if(q.label) tag(g, q.label, 3 * k, q.side === 'top' ? 3 * k : h - 18 * k, k, w);
+        }
+        g.restore();
+      });
+    }
+    if(S.gThirds){
+      g.save(); g.strokeStyle = 'rgba(255,255,255,0.6)'; g.lineWidth = k; g.beginPath();
+      for(var i = 1; i < 3; i++){ g.moveTo(w * i / 3, 0); g.lineTo(w * i / 3, h); g.moveTo(0, h * i / 3); g.lineTo(w, h * i / 3); }
+      g.stroke(); g.restore();
+    }
+  }
+
+  /* ---------- pointer / keyboard framing ---------- */
+  function panInternal(dxI, dyI){
+    var src = getSource(true), p = placement(src.width, src.height, prev.width, prev.height, S.mode, S.zoom, S.fx, S.fy);
+    if(p.panX) S.fx = (prev.width / 2 - (p.dx + dxI)) / p.iw;
+    if(p.panY) S.fy = (prev.height / 2 - (p.dy + dyI)) / p.ih;
+    schedule(true);
+  }
+  function setZoom(z){
+    var mn = S.mode === 'fit' ? 0.5 : 1;
+    S.zoom = clamp(z, mn, 4);
+    zoomEl.value = Math.round(S.zoom * 100); zoomV.textContent = Math.round(S.zoom * 100) + '%';
+    schedule(true);
+  }
+  function ptrCount(){ return Object.keys(ptrs).length; }
+  function ptrDist(){ var k = Object.keys(ptrs); if(k.length < 2) return 0; var a = ptrs[k[0]], b = ptrs[k[1]]; return Math.hypot(a.x - b.x, a.y - b.y); }
+  prev.addEventListener('pointerdown', function(e){
+    if(!S.preset || busy || (e.pointerType === 'mouse' && e.button > 0)) return;
+    e.preventDefault();
+    try{ prev.setPointerCapture(e.pointerId); }catch(_){}
+    ptrs[e.pointerId] = { x:e.clientX, y:e.clientY };
+    if(ptrCount() === 2){ pinchD = ptrDist(); pinchZ = S.zoom; }
+    prev.classList.add('grab');
+    getSource(false);            // refresh the layers composite once, then drag against the cached copy
+  });
+  prev.addEventListener('pointermove', function(e){
+    var pt = ptrs[e.pointerId]; if(!pt) return;
+    e.preventDefault();
+    var dx = e.clientX - pt.x, dy = e.clientY - pt.y; pt.x = e.clientX; pt.y = e.clientY;
+    if(ptrCount() >= 2){
+      var d = ptrDist(); if(pinchD > 0 && d > 0) setZoom(pinchZ * d / pinchD);
+    } else {
+      var rect = prev.getBoundingClientRect(), r = rect.width ? prev.width / rect.width : 1;
+      panInternal(dx * r, dy * r);
+    }
+  });
+  function endPtr(e){
+    if(!ptrs[e.pointerId]) return;
+    delete ptrs[e.pointerId]; pinchD = 0;
+    if(!ptrCount()){ prev.classList.remove('grab'); schedule(true); }
+  }
+  prev.addEventListener('pointerup', endPtr); prev.addEventListener('pointercancel', endPtr); prev.addEventListener('lostpointercapture', endPtr);
+  prev.addEventListener('wheel', function(e){
+    if(!(e.ctrlKey || e.altKey || e.metaKey) || !S.preset) return;
+    e.preventDefault(); setZoom(S.zoom * Math.exp(-e.deltaY * 0.0015));
+  }, { passive:false });
+  prev.addEventListener('dblclick', function(){ if(S.preset && !busy) resetFraming(); });
+  prev.addEventListener('keydown', function(e){
+    if(!S.preset || busy || e.ctrlKey || e.metaKey || e.altKey) return;
+    var step = prev.width * 0.03, handled = true;
+    if(e.key === 'ArrowLeft') panInternal(step, 0);
+    else if(e.key === 'ArrowRight') panInternal(-step, 0);
+    else if(e.key === 'ArrowUp') panInternal(0, step);
+    else if(e.key === 'ArrowDown') panInternal(0, -step);
+    else if(e.key === '+' || e.key === '=') setZoom(S.zoom * 1.1);
+    else if(e.key === '-' || e.key === '_') setZoom(S.zoom / 1.1);
+    else if(e.key === '0' || e.key === 'Home') resetFraming();
+    else handled = false;
+    if(handled) e.preventDefault();
+  });
+  function resetFraming(){ S.fx = 0.5; S.fy = 0.5; S.zoom = 1; refreshControls(); schedule(false); }
+
+  /* ---------------------------------------------------------------
+     CONTROL EVENTS
+  --------------------------------------------------------------- */
+  netEl.addEventListener('change', function(){ S.net = netEl.value; renderList(); });
+  var qTimer = 0;
+  qEl.addEventListener('input', function(){ clearTimeout(qTimer); qTimer = setTimeout(function(){ S.q = qEl.value; renderList(); }, 80); });
+  chipsEl.addEventListener('click', function(e){
+    var b = e.target.closest ? e.target.closest('.so-chip') : null; if(!b) return;
+    S.type = b.dataset.t;
+    Array.prototype.forEach.call(chipsEl.querySelectorAll('.so-chip'), function(c){ var on = c === b; c.classList.toggle('on', on); c.setAttribute('aria-pressed', on); });
+    renderList();
+  });
+  listEl.addEventListener('click', function(e){
+    var b = e.target.closest ? e.target.closest('.so-item') : null; if(!b) return;
+    selectPreset(findPreset(b.dataset.id));
+  });
+  $('soChange').addEventListener('click', showPicker);
+  modeEl.addEventListener('click', function(e){
+    var b = e.target.closest ? e.target.closest('button') : null; if(!b || busy) return;
+    S.mode = b.dataset.m; S.zoom = clamp(S.zoom, S.mode === 'fit' ? 0.5 : 1, 4);
+    refreshControls(); schedule(false);
+  });
+  bgEl.addEventListener('click', function(e){
+    var b = e.target.closest ? e.target.closest('button') : null; if(!b || busy || b.disabled) return;
+    S.bg = b.dataset.b; S.bgTouched = true; refreshControls(); schedule(false);
+  });
+  colorEl.addEventListener('input', function(){ S.color = colorEl.value; if(S.bg !== 'color'){ S.bg = 'color'; S.bgTouched = true; refreshControls(); } schedule(true); });
+  colorEl.addEventListener('change', function(){ schedule(false); });
+  zoomEl.addEventListener('input', function(){ setZoom(parseInt(zoomEl.value, 10) / 100); });
+  zoomEl.addEventListener('change', function(){ schedule(false); });
+  zoomEl.addEventListener('dblclick', function(){ setZoom(1); schedule(false); });
+  g1El.addEventListener('change', function(){ S.gSafe = g1El.checked; schedule(false); });
+  g2El.addEventListener('change', function(){ S.gThirds = g2El.checked; schedule(false); });
+  scaleEl.addEventListener('change', function(){ S.scale = parseInt(scaleEl.value, 10) || 1; });
+  fmtEl.addEventListener('change', function(){ S.fmt = fmtEl.value; });
+  centerBtn.addEventListener('click', function(){ if(!busy) resetFraming(); });
+
+  function applyCustom(final){
+    if(S.preset !== CUSTOM) return;
+    var w = parseInt(cwEl.value, 10), h = parseInt(chEl.value, 10), note = '';
+    if(!(w >= 16 && h >= 16)){ if(final){ w = clamp(w || CUSTOM.w, 16, SIDE_MAX); h = clamp(h || CUSTOM.h, 16, SIDE_MAX); } else return; }
+    w = clamp(w, 16, SIDE_MAX); h = clamp(h, 16, SIDE_MAX);
+    if(w * h > PX_BUDGET){ var f = Math.sqrt(PX_BUDGET / (w * h)); w = Math.max(16, Math.floor(w * f)); h = Math.max(16, Math.floor(h * f)); note = 'Reduced to fit this device\u2019s memory.'; }
+    S.cw = w; S.ch = h; CUSTOM.w = w; CUSTOM.h = h; cNote.textContent = note;
+    if(final){ cwEl.value = w; chEl.value = h; }
+    S.scale = scaleFor(CUSTOM, S.scale);
+    refreshControls(); schedule(false);
+  }
+  cwEl.addEventListener('input', function(){ applyCustom(false); }); chEl.addEventListener('input', function(){ applyCustom(false); });
+  cwEl.addEventListener('change', function(){ applyCustom(true); }); chEl.addEventListener('change', function(){ applyCustom(true); });
+
+  /* ---------------------------------------------------------------
+     RENDER + ENCODE
+  --------------------------------------------------------------- */
+  function renderPreset(p, view, scale){
+    var W = p.w * scale, H = p.h * scale;
+    var c = mk(W, H), g = c.getContext('2d');
+    if(!g) throw new Error('This device can\u2019t create an image that large');
+    drawInto(g, W, H, { mode:S.mode, zoom:view.zoom, fx:S.fx, fy:S.fy, bg:S.bg, color:S.color, alpha:S.srcAlpha }, false);
+    return c;
+  }
+  function toBlob(c, type, q){
+    return new Promise(function(res){ try{ c.toBlob(function(b){ res(b); }, type, q); }catch(e){ res(null); } });
+  }
+  function flatten(c, color){
+    var o = mk(c.width, c.height), g = o.getContext('2d');
+    g.fillStyle = color || '#ffffff'; g.fillRect(0, 0, o.width, o.height); g.drawImage(c, 0, 0);
+    return o;
+  }
+  // Highest quality that still fits under maxBytes (binary search); null maxBytes = plain high quality.
+  async function fitQuality(c, type, maxBytes){
+    var hi = 0.95, b = await toBlob(c, type, hi);
+    if(!b) return null;
+    if(!maxBytes || b.size <= maxBytes) return { blob:b, q:hi, over:false };
+    var lo = 0.35, bl = await toBlob(c, type, lo);
+    if(!bl) return { blob:b, q:hi, over:true };
+    if(bl.size > maxBytes) return { blob:bl, q:lo, over:true };
+    var best = { blob:bl, q:lo, over:false };
+    for(var i = 0; i < 7; i++){
+      var mid = (lo + hi) / 2, bm = await toBlob(c, type, mid);
+      if(bm && bm.size <= maxBytes){ best = { blob:bm, q:mid, over:false }; lo = mid; } else hi = mid;
+    }
+    return best;
+  }
+  async function encodeFor(c, p){
+    var alpha = hasTransparency(c), f = S.fmt, max = p.max || 0, note = '';
+    if(f === 'auto') f = alpha ? 'png' : 'jpeg';
+    if(f === 'png'){
+      var pb = await toBlob(c, 'image/png');
+      if(!pb) throw new Error('PNG encoding failed');
+      if(max && pb.size > max){
+        if(S.fmt === 'auto' && alpha){
+          var w = await fitQuality(c, 'image/webp', max);
+          if(w && w.blob && w.blob.type === 'image/webp' && !w.over) return { blob:w.blob, ext:'webp', note:'PNG was over the ' + fmtBytes(max) + ' limit, so WebP (keeps transparency) was used' };
+        }
+        note = 'PNG is ' + fmtBytes(pb.size) + ', over this platform\u2019s ' + fmtBytes(max) + ' limit \u2014 try JPEG or WebP';
+      }
+      return { blob:pb, ext:'png', note:note };
+    }
+    if(f === 'jpeg'){
+      var src = alpha ? flatten(c, S.color) : c;
+      var r = await fitQuality(src, 'image/jpeg', max);
+      if(src !== c) free(src);
+      if(!r || !r.blob) throw new Error('JPEG encoding failed');
+      if(alpha) note = 'transparent areas filled with ' + S.color;
+      if(r.over) note = (note ? note + ' \u00b7 ' : '') + 'still ' + fmtBytes(r.blob.size) + ', over the ' + fmtBytes(max) + ' limit \u2014 try a smaller scale';
+      else if(max && r.q < 0.94) note = (note ? note + ' \u00b7 ' : '') + 'quality tuned to ' + Math.round(r.q * 100) + '% to fit the ' + fmtBytes(max) + ' limit';
+      return { blob:r.blob, ext:'jpg', note:note };
+    }
+    var wr = await fitQuality(c, 'image/webp', max);
+    if(!wr || !wr.blob || wr.blob.type !== 'image/webp'){
+      var fb = await toBlob(c, 'image/png');
+      if(!fb) throw new Error('Encoding failed');
+      return { blob:fb, ext:'png', note:'this browser can\u2019t save WebP, so PNG was used' };
+    }
+    if(wr.over) note = 'still ' + fmtBytes(wr.blob.size) + ', over the ' + fmtBytes(max) + ' limit \u2014 try a smaller scale';
+    else if(max && wr.q < 0.94) note = 'quality tuned to ' + Math.round(wr.q * 100) + '% to fit the ' + fmtBytes(max) + ' limit';
+    return { blob:wr.blob, ext:'webp', note:note };
+  }
+  function fileName(p, scale, ext){
+    var n = p.id === 'custom' ? 'custom-' + p.w + 'x' + p.h : slug(NETNAME[p.net]) + '-' + slug(p.name) + '-' + p.w + 'x' + p.h;
+    return 'apic-' + n + (scale > 1 ? '-' + scale + 'x' : '') + '.' + ext;
+  }
+
+  /* ---------- sign-in gate (same checks as Export & Batch) ---------- */
+  async function authed(){
+    if(typeof window.__apicBatchAuth !== 'function' || typeof window.__apicBatchSave !== 'function'){ say('\u2715 Downloads aren\u2019t available right now. Reload the page and try again.'); return false; }
+    var st; try{ st = await window.__apicBatchAuth(); }catch(e){ st = 'network'; }
+    if(st === 'signedout'){
+      statusEl.innerHTML = 'Sign in to download \u2014 your framing is kept, just press download again afterwards. ';
+      var b = document.createElement('button'); b.type = 'button'; b.className = 'btn btn-gold btn-sm'; b.textContent = 'Sign in';
+      b.addEventListener('click', function(){ try{ window.__apicBatchSignIn(); }catch(e){} }); statusEl.appendChild(b);
+      return false;
+    }
+    if(st !== 'ok'){ say('\u2715 Could not verify sign-in right now (a blocker or your connection). Try again.'); return false; }
+    return true;
+  }
+
+  async function downloadOne(){
+    if(busy || !S.preset) return;
+    busy = true; var ok = await authed(); busy = false;      // `busy` also blocks a second click while the sign-in check runs
+    if(!ok || !S.preset) return;
+    var p = S.preset, scale = scaleFor(p, S.scale), c = null;
+    setBusy(true); say('Rendering ' + (p.w * scale) + '\u00d7' + (p.h * scale) + '\u2026', true); await yieldUI();
+    try{
+      c = renderPreset(p, { zoom:S.zoom }, scale);
+      var enc = await encodeFor(c, p), name = fileName(p, scale, enc.ext);
+      window.__apicBatchSave(enc.blob, name);
+      say('\u2713 Downloaded ' + name + ' \u00b7 ' + c.width + '\u00d7' + c.height + ' \u00b7 ' + fmtBytes(enc.blob.size) + (enc.note ? ' \u00b7 ' + enc.note : ''));
+    }catch(err){ console.error(err); say('\u2715 Could not create this image' + (err && err.message ? ' (' + err.message + ')' : '') + '. Try a smaller scale.'); }
+    free(c); setBusy(false);
+  }
+
+  /* ---------- store-only ZIP writer ---------- */
+  var CRC = (function(){ var t = new Uint32Array(256); for(var n = 0; n < 256; n++){ var c = n; for(var k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+  function crc32(u){ var c = -1; for(var i = 0; i < u.length; i++) c = CRC[(c ^ u[i]) & 255] ^ (c >>> 8); return (c ^ -1) >>> 0; }
+  function zipStore(list){
+    var enc = new TextEncoder(), parts = [], cd = [], off = 0, cdSize = 0;
+    list.forEach(function(f){
+      var nm = enc.encode(f.name), crc = crc32(f.data), sz = f.data.length;
+      var h = new DataView(new ArrayBuffer(30));
+      h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(6, 0x0800, true); h.setUint16(12, 0x21, true);
+      h.setUint32(14, crc, true); h.setUint32(18, sz, true); h.setUint32(22, sz, true); h.setUint16(26, nm.length, true);
+      parts.push(h.buffer, nm, f.data);
+      var d = new DataView(new ArrayBuffer(46));
+      d.setUint32(0, 0x02014b50, true); d.setUint16(4, 20, true); d.setUint16(6, 20, true); d.setUint16(8, 0x0800, true); d.setUint16(14, 0x21, true);
+      d.setUint32(16, crc, true); d.setUint32(20, sz, true); d.setUint32(24, sz, true); d.setUint16(28, nm.length, true); d.setUint32(42, off, true);
+      cd.push(d.buffer, nm); off += 30 + nm.length + sz; cdSize += 46 + nm.length;
+    });
+    var e = new DataView(new ArrayBuffer(22));
+    e.setUint32(0, 0x06054b50, true); e.setUint16(8, list.length, true); e.setUint16(10, list.length, true); e.setUint32(12, cdSize, true); e.setUint32(16, off, true);
+    return new Blob(parts.concat(cd, [e.buffer]), { type:'application/zip' });
+  }
+
+  async function zipPresets(list, label){
+    if(busy || !list.length) return;
+    busy = true; var ok = await authed(); busy = false;
+    if(!ok) return;
+    setBusy(true);
+    var files = [], skipped = 0, used = {}, multiNet = list.some(function(p){ return p.net !== list[0].net; });
+    try{
+      for(var i = 0; i < list.length; i++){
+        var p = list[i], c = null;
+        say('Rendering ' + (i + 1) + ' of ' + list.length + ' \u00b7 ' + NETNAME[p.net] + ' ' + p.name + '\u2026', true);
+        await yieldUI();
+        try{
+          var scale = scaleFor(p, S.scale);
+          c = renderPreset(p, { zoom:1 }, scale);
+          var enc = await encodeFor(c, p), nm = fileName(p, scale, enc.ext);
+          if(multiNet) nm = NETNAME[p.net].replace(/[^A-Za-z0-9 &]+/g, '').replace(/&/g, 'and').trim() + '/' + nm;
+          if(used[nm]){ var k = 2; while(used[nm.replace(/(\.\w+)$/, '-' + k + '$1')]) k++; nm = nm.replace(/(\.\w+)$/, '-' + k + '$1'); }
+          used[nm] = 1;
+          files.push({ name:nm, data:new Uint8Array(await enc.blob.arrayBuffer()) });
+        }catch(err){ skipped++; console.error('Social preset failed:', p.id, err); }
+        free(c);
+      }
+      if(!files.length) throw new Error('none of the sizes could be created');
+      say('Building ZIP\u2026', true); await yieldUI();
+      var zip = zipStore(files), total = files.reduce(function(s, f){ return s + f.data.length; }, 0);
+      window.__apicBatchSave(zip, 'apic-' + slug(label) + '-sizes.zip');
+      say('\u2713 ZIP downloaded \u00b7 ' + files.length + ' images \u00b7 ' + fmtBytes(total) + (skipped ? ' \u00b7 ' + skipped + ' skipped (couldn\u2019t be created)' : '') + '.');
+    }catch(err){ console.error(err); say('\u2715 Could not build the ZIP' + (err && err.message ? ' (' + err.message + ')' : '') + '.'); }
+    setBusy(false);
+  }
+  zipNetBtn.addEventListener('click', function(){ var p = S.preset; if(p && p.id !== 'custom') zipPresets(filteredForNet(p), NETNAME[p.net]); });
+  zipAllBtn.addEventListener('click', function(){ zipPresets(PRESETS.slice(), 'all-networks'); });
+  dlBtn.addEventListener('click', downloadOne);
+
+  /* ---------- Apply to editor (undoable) ---------- */
+  function applyToEditor(){
+    if(busy || !S.preset) return;
+    if(layersOn()){ say('Flatten your layers first (Layers tab \u2192 Flatten into photo), then apply \u2014 otherwise they would end up misaligned.'); return; }
+    if(typeof window.__apicBake !== 'function'){ say('\u2715 Apply isn\u2019t available right now.'); return; }
+    var p = S.preset, scale = scaleFor(p, S.scale), out = null, backup = null, bw = cv.width, bh = cv.height, g = cv.getContext('2d');
+    setBusy(true); say('Applying\u2026', true);
+    try{
+      out = renderPreset(p, { zoom:S.zoom }, scale);
+      backup = mk(bw, bh); backup.getContext('2d').drawImage(cv, 0, 0);
+    }catch(err){ console.error(err); free(out); free(backup); setBusy(false); say('\u2715 Not enough memory to apply this size. Try a smaller scale.'); return; }
+    var done = false, failed = false, guard = 0;
+    function restore(){
+      try{ cv.width = bw; cv.height = bh; cv.getContext('2d').drawImage(backup, 0, 0); }catch(e){}
+      free(backup); setBusy(false); say('\u2715 Couldn\u2019t apply this size. Your photo was not changed.');
+    }
+    cv.width = out.width; cv.height = out.height; g.clearRect(0, 0, cv.width, cv.height); g.drawImage(out, 0, 0); free(out);
+    guard = setTimeout(function(){ if(!done){ failed = true; restore(); } }, 30000);
+    try{
+      window.__apicBake(function(){
+        if(failed) return; done = true; clearTimeout(guard);
+        free(backup);
+        try{ dropEl.classList.toggle('has-alpha', hasTransparency(cv)); }catch(e){}
+        selfEdit = true;
+        try{ if(fileInfo) fileInfo.textContent = fileInfo.textContent.replace(/\d+\u00d7\d+/, cv.width + '\u00d7' + cv.height); }catch(e){}
+        setTimeout(function(){ selfEdit = false; }, 50);
+        S.fx = 0.5; S.fy = 0.5; S.zoom = 1;
+        setBusy(false); refreshControls(); schedule(false);
+        say('\u2713 Applied \u2014 your photo is now ' + cv.width + '\u00d7' + cv.height + '. Undo with \u21ba (or Ctrl+Z) to go back to the full photo.');
+      });
+    }catch(err){ clearTimeout(guard); failed = true; restore(); }
+  }
+  applyBtn.addEventListener('click', applyToEditor);
+
+  /* ---------------------------------------------------------------
+     TAB OPEN / CLOSE
+  --------------------------------------------------------------- */
+  function setOpen(v){
+    open = v; panel.classList.toggle('show', v); tab.classList.toggle('active', v);
+    if(v){
+      Array.prototype.forEach.call(document.querySelectorAll('.bench-panel'), function(x){ if(x !== panel) x.classList.remove('show'); });
+      toolTitle.textContent = 'social.exe';
+      checkAlpha(true);
+      if(S.preset){ refreshControls(); schedule(false); } else renderList();
+    } else {
+      ptrs = {}; pinchD = 0; prev.classList.remove('grab');
+      clearTimeout(hqTimer); if(srcCache){ free(srcCache); srcCache = null; } if(bgCache){ free(bgCache.c); bgCache = null; }
+    }
+  }
+  tab.addEventListener('click', function(){
+    if(tab.disabled || open) return;
+    t0.click();                          // park APIC on the Edit tool so crop/brush overlays are off (also closes Layers)
+    t0.classList.remove('active'); setOpen(true);
+  });
+  Array.prototype.forEach.call(bench.querySelectorAll('.tool-btn'), function(b){
+    if(b !== tab) b.addEventListener('click', function(){ if(open) setOpen(false); });
+  });
+  new MutationObserver(function(){ tab.disabled = t0.disabled; if(t0.disabled && open) setOpen(false); }).observe(t0, { attributes:true, attributeFilter:['disabled'] });
+  var rmBtn = $('removeImgBtn');
+  if(rmBtn) rmBtn.addEventListener('click', function(){ if(open) setOpen(false); S.preset = null; S.fx = 0.5; S.fy = 0.5; S.zoom = 1; workEl.style.display = 'none'; pickEl.style.display = 'block'; }, true);
+
+  /* ---------------------------------------------------------------
+     STAY IN STEP WITH THE PHOTO
+  --------------------------------------------------------------- */
+  function checkAlpha(now){
+    clearTimeout(alphaTimer);
+    var run = function(){
+      var a = hasTransparency(cv);
+      if(a !== S.srcAlpha){
+        S.srcAlpha = a;
+        if(!S.bgTouched) S.bg = a ? 'clear' : 'blur';
+        else if(a && S.bg === 'blur') S.bg = 'clear';
+        if(open && S.preset) refreshControls();
+      }
+      if(open) schedule(false);
+    };
+    if(now) run(); else alphaTimer = setTimeout(run, 120);
+  }
+  function onSource(){ stamp++; if(open) checkAlpha(false); }
+  new MutationObserver(onSource).observe(cv, { attributes:true, attributeFilter:['width', 'height'] });
+  if(fileInfo) new MutationObserver(function(){
+    if(selfEdit) return;
+    S.fx = 0.5; S.fy = 0.5; S.zoom = 1; stamp++; if(open){ refreshControls(); checkAlpha(false); }
+  }).observe(fileInfo, { childList:true, characterData:true, subtree:true });
+  (function hook(n){
+    var d = window.__apicDock;
+    if(!d || typeof d.sync !== 'function'){ if(n < 60) setTimeout(function(){ hook(n + 1); }, 300); return; }
+    var o = d.sync; d.sync = function(){ var r = o.apply(this, arguments); try{ onSource(); }catch(e){} return r; };
+  })(0);
+  window.addEventListener('resize', function(){ if(open && S.preset) schedule(false); });
+
+  // The sign-in gate approves the footer "Export image" click first (registered earlier on window/capture);
+  // while a social size is selected, that approved click downloads the social size instead of the full canvas.
+  window.addEventListener('click', function(e){
+    if(e.target !== exportBtn || !open || !S.preset) return;
+    e.stopImmediatePropagation(); e.preventDefault();
+    if(!busy) downloadOne();
+  }, true);
+
+  buildStatic(); renderList();
 })();
 </script>
 </body>
