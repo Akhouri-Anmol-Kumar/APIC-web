@@ -7257,5 +7257,1771 @@ COSTS AT SMALL SCALE: $0 across all of the above.
   buildStatic(); renderList();
 })();
 </script>
+
+<!-- ============ APIC VISUAL INTELLIGENCE (Preflight) ============ -->
+<style id="apic-preflight-css">
+  /* ===== APIC Visual Preflight Intelligence ===== */
+  #preflightTab .pf-new{font-size:8.5px; letter-spacing:.8px; padding:1px 6px; margin-left:6px; border-radius:99px; background:var(--cyan); color:#04141c; vertical-align:middle; font-weight:700;}
+  #panel-preflight{--pf-crit:#ff4d7d; --pf-warn:#ffb020; --pf-info:var(--cyan); --pf-ok:var(--green);}
+  :root[data-theme="light"] #panel-preflight, html.light #panel-preflight{--pf-warn:#b36b00; --pf-info:#0a7a99; --pf-ok:#0a7a45;}
+  #panel-preflight .pf-steps{display:flex; gap:6px; flex-wrap:wrap; margin:0 0 14px; padding:0; list-style:none;}
+  #panel-preflight .pf-steps button{font:600 11px var(--mono); letter-spacing:.4px; padding:8px 10px; border-radius:99px; border:1px solid var(--line); background:transparent; color:var(--text-muted); cursor:pointer; min-height:36px;}
+  #panel-preflight .pf-steps button[aria-current="step"]{background:var(--green); color:#04140c; border-color:var(--green);}
+  #panel-preflight .pf-steps button:disabled{opacity:.4; cursor:not-allowed;}
+  #panel-preflight .pf-sec{display:none;} #panel-preflight .pf-sec.on{display:block;}
+  #panel-preflight h3{font:600 15px var(--display); margin:0 0 6px;}
+  #panel-preflight .pf-card{border:1px solid var(--line); border-radius:var(--card-radius); padding:14px; margin:0 0 12px; background:var(--bg-2);}
+  #panel-preflight .pf-card.tight{padding:10px 12px;}
+  #panel-preflight .pf-src{display:flex; gap:12px; align-items:center; flex-wrap:wrap;}
+  #panel-preflight .pf-src canvas{width:96px; height:96px; object-fit:contain; border-radius:8px; background:repeating-conic-gradient(#8883 0 25%, transparent 0 50%) 0 0/12px 12px; border:1px solid var(--line);}
+  #panel-preflight select, #panel-preflight input[type=number]{background:var(--bg-3); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:9px 10px; font:13px var(--sans); min-height:40px; max-width:100%;}
+  #panel-preflight .pf-opts label{display:flex; gap:8px; align-items:flex-start; font-size:12.5px; margin:8px 0; cursor:pointer; line-height:1.4;}
+  #panel-preflight .pf-opts input{accent-color:var(--green); width:16px; height:16px; margin-top:2px; flex:none;}
+  #panel-preflight .pf-note{font-size:12px; color:var(--text-muted); line-height:1.5; margin:8px 0 0;}
+  #panel-preflight .pf-actions{display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;}
+  #panel-preflight .pf-mod{display:flex; gap:10px; align-items:flex-start; padding:10px 0; border-top:1px solid var(--line); font-size:12.5px;}
+  #panel-preflight .pf-mod:first-child{border-top:0;}
+  #panel-preflight .pf-mod .ic{width:22px; flex:none; text-align:center; font-weight:700;}
+  #panel-preflight .pf-mod .nm{font-weight:600;} #panel-preflight .pf-mod .dt{color:var(--text-muted); font-size:11.5px; margin-top:2px;}
+  #panel-preflight .pf-bar{height:5px; border-radius:99px; background:var(--bg-3); margin-top:6px; overflow:hidden;} #panel-preflight .pf-bar i{display:block; height:100%; background:var(--green); width:0;}
+  #panel-preflight .st-ok{color:var(--pf-ok);} #panel-preflight .st-failed, #panel-preflight .st-unavailable{color:var(--pf-crit);} #panel-preflight .st-skipped, #panel-preflight .st-cancelled{color:var(--text-muted);}
+  #panel-preflight .pf-verdict{border-left:4px solid var(--pf-info); padding:10px 12px; border-radius:8px; background:var(--bg-3); margin:0 0 12px; font-size:13px; line-height:1.5;}
+  #panel-preflight .pf-verdict.critical{border-color:var(--pf-crit);} #panel-preflight .pf-verdict.warning{border-color:var(--pf-warn);} #panel-preflight .pf-verdict.ok{border-color:var(--pf-ok);}
+  #panel-preflight .pf-verdict b{display:block; font:600 14px var(--display); margin-bottom:2px;}
+  #panel-preflight .pf-banner{border:1px dashed var(--pf-warn); border-radius:8px; padding:9px 11px; font-size:12px; margin:0 0 12px; line-height:1.5;}
+  #panel-preflight .pf-cats{display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:8px; margin:0 0 12px;}
+  #panel-preflight .pf-cat{border:1px solid var(--line); border-radius:10px; padding:9px 10px; font-size:11.5px; background:var(--bg-2);}
+  #panel-preflight .pf-cat b{display:block; font:600 12.5px var(--sans); margin-bottom:3px;}
+  #panel-preflight .chip{display:inline-block; font:600 10px var(--mono); letter-spacing:.5px; padding:2px 7px; border-radius:99px; border:1px solid currentColor; text-transform:uppercase; white-space:nowrap;}
+  #panel-preflight .chip.critical{color:var(--pf-crit);} #panel-preflight .chip.warning{color:var(--pf-warn);} #panel-preflight .chip.info, #panel-preflight .chip.none{color:var(--pf-info);} #panel-preflight .chip.passed{color:var(--pf-ok);} #panel-preflight .chip.notassessed, #panel-preflight .chip.undet{color:var(--text-muted);}
+  #panel-preflight .chip.conf{color:var(--text-muted); text-transform:none;}
+  #panel-preflight .pf-prev{position:relative; margin:0 0 12px; border:1px solid var(--line); border-radius:12px; overflow:hidden; background:repeating-conic-gradient(#8882 0 25%, transparent 0 50%) 0 0/14px 14px; text-align:center;}
+  #panel-preflight .pf-prev canvas{max-width:100%; height:auto; display:block; margin:0 auto;}
+  #panel-preflight .pf-f{border:1px solid var(--line); border-left-width:4px; border-radius:10px; margin:0 0 8px; background:var(--bg-2);}
+  #panel-preflight .pf-f.critical{border-left-color:var(--pf-crit);} #panel-preflight .pf-f.warning{border-left-color:var(--pf-warn);} #panel-preflight .pf-f.info{border-left-color:var(--pf-info);} #panel-preflight .pf-f.passed{border-left-color:var(--pf-ok);} #panel-preflight .pf-f.undet{border-left-color:var(--text-muted); border-style:dashed;}
+  #panel-preflight .pf-f summary{cursor:pointer; padding:10px 12px; list-style:none; display:flex; gap:8px; align-items:flex-start; flex-wrap:wrap; font-size:13px; min-height:44px;}
+  #panel-preflight .pf-f summary::-webkit-details-marker{display:none;}
+  #panel-preflight .pf-f summary .tt{flex:1 1 200px; font-weight:600; line-height:1.35;}
+  #panel-preflight .pf-f .bd{padding:0 12px 12px; font-size:12.5px; line-height:1.55;}
+  #panel-preflight .pf-f dl{margin:8px 0 0; display:grid; grid-template-columns:auto 1fr; gap:4px 10px; font-size:12px;} #panel-preflight .pf-f dt{color:var(--text-muted);} #panel-preflight .pf-f dd{margin:0; word-break:break-word;}
+  #panel-preflight .pf-f details.why{margin-top:8px;} #panel-preflight .pf-f details.why summary{padding:4px 0; min-height:0; font-size:12px; color:var(--text-muted);}
+  #panel-preflight .pf-grp{font:600 11px var(--mono); letter-spacing:.8px; text-transform:uppercase; color:var(--text-muted); margin:16px 0 8px;}
+  #panel-preflight .pf-sw{display:inline-flex; gap:6px; flex-wrap:wrap; align-items:center;} #panel-preflight .pf-sw i{display:inline-block; width:22px; height:22px; border-radius:6px; border:1px solid var(--line);}
+  #panel-preflight .pf-cmp{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:0 0 12px; align-items:start;}
+  #panel-preflight .pf-cmp figure{margin:0; border:1px solid var(--line); border-radius:10px; overflow:hidden; background:repeating-conic-gradient(#8882 0 25%, transparent 0 50%) 0 0/14px 14px;}
+  #panel-preflight .pf-cmp figcaption{font:600 10.5px var(--mono); letter-spacing:.6px; padding:6px 8px; background:var(--bg-3); text-transform:uppercase;}
+  #panel-preflight .pf-cmp canvas{width:100%; height:auto; display:block;}
+  @media (max-width:560px){ #panel-preflight .pf-cmp{grid-template-columns:1fr;} }
+  #panel-preflight .pf-fix{border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin:0 0 8px; background:var(--bg-2);}
+  #panel-preflight .pf-fix label.hd{display:flex; gap:8px; align-items:flex-start; cursor:pointer; font-weight:600; font-size:13px;} #panel-preflight .pf-fix input[type=checkbox]{accent-color:var(--green); width:17px; height:17px; margin-top:1px;}
+  #panel-preflight .pf-fix .sub{font-size:12px; color:var(--text-muted); margin:4px 0 0 25px; line-height:1.45;}
+  #panel-preflight .pf-fix .ctl{margin:8px 0 0 25px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; font-size:12px;} #panel-preflight .pf-fix input[type=range]{accent-color:var(--green); flex:1 1 140px; min-width:100px;}
+  #panel-preflight .approx{font:600 9.5px var(--mono); letter-spacing:.5px; color:var(--pf-warn); border:1px solid var(--pf-warn); border-radius:99px; padding:1px 6px; margin-left:6px; text-transform:uppercase; vertical-align:middle;}
+  #panel-preflight .pf-out{display:grid; grid-template-columns:auto 1fr auto; gap:6px 10px; align-items:center; font-size:12.5px; padding:10px 0; border-top:1px solid var(--line);} #panel-preflight .pf-out:first-of-type{border-top:0;}
+  #panel-preflight .pf-out .meta{color:var(--text-muted); font-size:11.5px; grid-column:2 / 4;}
+  #panel-preflight .pf-status{font-size:12px; margin-top:10px; min-height:18px; line-height:1.5;}
+  #panel-preflight a.pf-link, #panel-preflight button.pf-link{color:var(--cyan); background:none; border:0; padding:0; font:inherit; text-decoration:underline; cursor:pointer;}
+  #panel-preflight :focus-visible{outline:2px solid var(--cyan); outline-offset:2px;}
+  #panel-preflight.pf-busy .pf-lock{opacity:.55; pointer-events:none;}
+  @media (prefers-reduced-motion:reduce){ #panel-preflight *{transition:none !important; animation:none !important;} }
+</style>
+<script id="apic-preflight">
+(function(){
+"use strict";
+var PF={};
+/* =====================================================================
+   APIC VISUAL PREFLIGHT — PLATFORM PROFILES (data only, no logic)
+   ---------------------------------------------------------------------
+   Kept separate from the analysis engine so requirements can be updated
+   without touching any analysis code.
+
+   PROVENANCE POLICY
+   * Every profile carries `src`: status, verification date, sources and any
+     CONFLICTS found between sources.
+   * Numeric limits (maxBytes, min sizes) are only set when independent
+     sources AGREE. If sources disagree the limit is left null and the
+     disagreement is recorded in src.conflicts — the engine never checks
+     against a number that could not be verified.
+   * Status 'secondary' = several independent third-party guides agree.
+     No platform's own help page was retrievable in the verification session,
+     so none is marked 'primary'. Amazon's own Seller Central forum text is
+     noted where it was available.
+   ===================================================================== */
+PF.PROFILES_VERIFIED_ON = '2026-11-02';
+PF.PROFILES = (function(){
+  var D = PF.PROFILES_VERIFIED_ON, list = [];
+  function P(o){
+    o.src = o.src || { status:'unverified', date:D, sources:[], conflicts:'' };
+    o.fmt = o.fmt || { prefer:'jpeg', allowed:['jpeg','png'], alphaFormats:['png'] };
+    list.push(o); return o;
+  }
+  function S(status, sources, conflicts){ return { status:status, date:D, sources:sources, conflicts:conflicts || '' }; }
+  var MB = 1000000;
+
+  /* ---------------- Instagram ---------------- */
+  var igSrc = S('secondary', [
+    'picturesizes-com.pages.dev/specs/social-media/instagram',
+    'argil.ai/blog/instagram-story-dimensions',
+    'imresizer.com/blog/instagram-image-sizes-2026-complete-guide',
+    'clippingexpertasia.com (Instagram 2026 sizes)'],
+    'Maximum file size is reported as 8 MB by some guides and 30 MB by others, so no limit is checked. Profile-grid crop behaviour is also reported inconsistently (1:1 vs 3:4) and is not checked.');
+  P({ id:'ig-portrait', group:'Instagram', name:'Portrait post (4:5)', purpose:'social', w:1080, h:1350,
+      aspect:{ mode:'range', min:1.91, max:0.8, target:0.8 }, maxBytes:null, src:igSrc,
+      note:'Feed accepts aspect ratios from 1.91:1 (wide) to 4:5 (tall). 4:5 uses the most feed space.' });
+  P({ id:'ig-square', group:'Instagram', name:'Square post (1:1)', purpose:'social', w:1080, h:1080,
+      aspect:{ mode:'range', min:1.91, max:0.8, target:1 }, maxBytes:null, src:igSrc });
+  P({ id:'ig-landscape', group:'Instagram', name:'Landscape post (1.91:1)', purpose:'social', w:1080, h:566,
+      aspect:{ mode:'range', min:1.91, max:0.8, target:1.91 }, maxBytes:null, src:igSrc });
+  P({ id:'ig-story', group:'Instagram', name:'Story / Reel (9:16)', purpose:'social', w:1080, h:1920,
+      aspect:{ mode:'exact', target:9/16, tol:0.02 }, maxBytes:null, src:igSrc,
+      safe:{ rect:{ x:0, y:250/1920, w:1, h:(1920-250-340)/1920 }, label:'Story safe zone (250 px top, 340 px bottom at 1080×1920)' },
+      note:'Interface elements cover the top 250 px and bottom 340 px of a 1080×1920 story.' });
+
+  /* ---------------- YouTube ---------------- */
+  P({ id:'yt-thumb', group:'YouTube', name:'Video thumbnail (16:9)', purpose:'social', w:1280, h:720,
+      aspect:{ mode:'exact', target:16/9, tol:0.02 }, minW:640, maxBytes:2*MB,
+      fmt:{ prefer:'jpeg', allowed:['jpeg','png'], alphaFormats:['png'] },
+      src:S('secondary', ['thumbnailtest.com/guides/youtube-thumbnail-size/','techsmith.com/blog/youtube-thumbnail-sizes/','havecamerawilltravel.com/youtube-thumbnail-size/'],
+        'Some sources say a rollout of larger (up to 50 MB) TV thumbnails is in progress; 2 MB (2,000,000 bytes used here, the safer reading) is the widely documented limit.'),
+      note:'Minimum width 640 px, 16:9, under 2 MB. Thumbnails are shown very small in some places, so large text matters.' });
+  P({ id:'yt-banner', group:'YouTube', name:'Channel banner (16:9)', purpose:'social', w:2560, h:1440,
+      aspect:{ mode:'exact', target:16/9, tol:0.02 }, minW:2048, minH:1152, maxBytes:6*MB,
+      safe:{ rect:{ x:(1-1235/2048)/2, y:(1-338/1152)/2, w:1235/2048, h:338/1152 }, label:'Always-visible safe area (1235×338 at 2048×1152, scales proportionally)' },
+      src:S('secondary', ['snappa.com/blog/youtube-channel-art-size/','wyzowl.com/youtube-banner-size','ytgrowth.io/blog/youtube-banner-size'],
+        'Guides quote the safe area as 1235×338 (at the 2048×1152 minimum) or 1546×423 (at 2560×1440): these are the same proportions. The existing APIC Social tab applies 1235 px as a fixed width on 2560 px, which is stricter than the documented proportion.'),
+      note:'Keep text and logos inside the centred safe area; the rest is cropped on some devices.' });
+
+  /* ---------------- LinkedIn ---------------- */
+  var liSrc = S('secondary', ['linearity.io/blog/linkedin-size-guide/','nealschaffer.com/linkedin-banner-size/','wavegen.ai/linkedin-banner-size'],
+    'Maximum file size is quoted as 8 MB by most guides and 4 MB by one, so no limit is checked. The profile photo overlaps the banner’s lower-left corner; its exact size is not published, so no region is checked.');
+  P({ id:'li-post', group:'LinkedIn', name:'Shared image post (1.91:1)', purpose:'social', w:1200, h:627,
+      aspect:{ mode:'recommended', target:1200/627, tol:0.03 }, maxBytes:null, src:liSrc });
+  P({ id:'li-banner', group:'LinkedIn', name:'Personal profile banner (4:1)', purpose:'social', w:1584, h:396,
+      aspect:{ mode:'exact', target:4, tol:0.03 }, maxBytes:null, src:liSrc,
+      note:'Your profile photo covers the lower-left of the banner — keep key content right of centre.' });
+  P({ id:'li-profile', group:'LinkedIn', name:'Profile photo (circle)', purpose:'profile', w:400, h:400,
+      aspect:{ mode:'exact', target:1, tol:0.02 }, maxBytes:null, mask:'circle', src:liSrc });
+
+  /* ---------------- Facebook ---------------- */
+  var fbSrc = S('secondary', ['socialbee.com/blog/facebook-cover-photo-size/','linearity.io/blog/facebook-size-guide/','clippingexpertasia.com (Facebook 2026 sizes)'],
+    'File-size limits are quoted as 8 MB, 10 MB, 30 MB or “100 KB” by different guides, so none is checked. Cover aspect is called both 16:9 and ~2.7:1; 851×315 (≈2.7:1) is what every guide recommends.');
+  P({ id:'fb-cover', group:'Facebook', name:'Page cover photo', purpose:'social', w:851, h:315,
+      aspect:{ mode:'exact', target:851/315, tol:0.03 }, maxBytes:null, src:fbSrc,
+      safe:{ rect:{ x:(1-640/851)/2, y:0, w:640/851, h:1 }, label:'Mobile-safe centre (≈640 px wide of 851)' },
+      note:'Phones crop the sides, so keep key content in the centre.' });
+  P({ id:'fb-portrait', group:'Facebook', name:'Portrait post (4:5)', purpose:'social', w:1080, h:1350,
+      aspect:{ mode:'range', min:1.91, max:0.8, target:0.8 }, maxBytes:null, src:fbSrc });
+  P({ id:'fb-square', group:'Facebook', name:'Square post (1:1)', purpose:'social', w:1080, h:1080,
+      aspect:{ mode:'range', min:1.91, max:0.8, target:1 }, maxBytes:null, src:fbSrc });
+  P({ id:'fb-link', group:'Facebook', name:'Link / shared image (1.91:1)', purpose:'social', w:1200, h:630,
+      aspect:{ mode:'recommended', target:1200/630, tol:0.03 }, maxBytes:null, src:fbSrc });
+
+  /* ---------------- Website ---------------- */
+  var webSrc = S('unverified', [], 'There is no platform standard for these. Sizes are common practice, not requirements, and are labelled as recommendations only.');
+  P({ id:'web-hero', group:'Website', name:'Hero image (16:9, recommendation)', purpose:'web', w:1920, h:1080,
+      aspect:{ mode:'recommended', target:16/9, tol:0.03 }, maxBytes:null, fmt:{ prefer:'jpeg', allowed:['jpeg','png','webp'], alphaFormats:['png','webp'] }, src:webSrc,
+      note:'Common practice, not a platform rule. Keep important content away from edges that responsive layouts may crop.' });
+  P({ id:'web-og', group:'Website', name:'Link preview / Open Graph (1.91:1)', purpose:'web', w:1200, h:630,
+      aspect:{ mode:'recommended', target:1200/630, tol:0.03 }, maxBytes:null, src:S('secondary', ['clippingexpertasia.com (Facebook link previews)','linearity.io/blog/linkedin-size-guide/'], 'Facebook and LinkedIn both quote ~1200×627–630; other sites differ.') });
+
+  /* ---------------- E-commerce ---------------- */
+  P({ id:'ecom-amazon', group:'E-commerce', name:'Amazon main product image', purpose:'ecom', w:2000, h:2000,
+      aspect:{ mode:'recommended', target:1, tol:0.02 },
+      minLongSide:1000, hardMinLongSide:500, recLongSide:1600, maxLongSide:10000, maxBytes:null,
+      fmt:{ prefer:'jpeg', allowed:['jpeg','png'], alphaFormats:[] },
+      checks:{ whiteBackground:true, fill:0.85 },
+      src:S('secondary', ['sellercentral.amazon.com (Seller Forums, quoting the Basic Requirements)','e-tailize.com help centre','junglescout.com/resources/articles/amazon-image-requirements/'],
+        'Aspect ratio is not mandated (square is the common choice). Minimum accepted size is quoted as 500 px; 1000 px is needed for zoom; 1600 px+ is recommended. Marketplaces other than Amazon differ.'),
+      note:'Main image: pure white background (RGB 255,255,255), product filling at least 85% of the frame, at least 1000 px on the longest side for zoom, no text or watermarks.' });
+
+  /* ---------------- Profile pictures ---------------- */
+  P({ id:'profile-generic', group:'Profile pictures', name:'Profile picture (square, shown as circle)', purpose:'profile', w:1000, h:1000,
+      aspect:{ mode:'exact', target:1, tol:0.02 }, mask:'circle', maxBytes:null,
+      src:S('unverified', [], 'Generic recommendation: most services crop profile pictures to a circle or rounded square.'),
+      note:'Keep the face centred and away from the corners; most apps show a circular crop.' });
+
+  /* ---------------- General ---------------- */
+  P({ id:'general', group:'General', name:'General-purpose graphic (no target size)', purpose:'general', w:0, h:0, aspect:null, maxBytes:null,
+      src:S('unverified', [], 'No platform target: only technical-quality checks run.') });
+
+  PF.customProfile = function(w, h){
+    return { id:'custom', group:'Custom', name:'Custom ' + w + '×' + h, purpose:'custom', w:w, h:h,
+      aspect:{ mode:'exact', target:w/h, tol:0.02 }, maxBytes:null,
+      fmt:{ prefer:'jpeg', allowed:['jpeg','png','webp'], alphaFormats:['png','webp'] },
+      src:{ status:'user', date:D, sources:[], conflicts:'' } };
+  };
+  PF.getProfile = function(id){ for(var i=0;i<list.length;i++) if(list[i].id===id) return list[i]; return null; };
+  return list;
+})();
+
+/* =====================================================================
+   APIC VISUAL PREFLIGHT — DETERMINISTIC ENGINE
+   ---------------------------------------------------------------------
+   One self-contained factory. It has NO references to outer scope, so the
+   same source runs (a) inside a Web Worker (built from Function.toString),
+   (b) on the main thread as a fallback, and (c) in the Node test-suite.
+   All inputs are plain typed arrays; coordinates leaving this module are
+   fractions of the image (0..1) so they are independent of analysis scale.
+   ===================================================================== */
+PF.engineFactory = function(){
+  'use strict';
+
+  /* ---------- tiny helpers ---------- */
+  function clamp(v, a, b){ return v < a ? a : (v > b ? b : v); }
+  var LIN = new Float32Array(256);
+  (function(){ for(var i = 0; i < 256; i++){ var c = i / 255; LIN[i] = c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); } })();
+  function relLum(r, g, b){ return 0.2126 * LIN[r] + 0.7152 * LIN[g] + 0.0722 * LIN[b]; }       // WCAG relative luminance
+  function pctFromHist(hist, total, p){ var t = total * p, acc = 0; for(var i = 0; i < 256; i++){ acc += hist[i]; if(acc >= t) return i; } return 255; }
+  function sortedPct(arr, p){ if(!arr.length) return 0; var a = Array.prototype.slice.call(arr).sort(function(x, y){ return x - y; }); return a[Math.min(a.length - 1, Math.max(0, Math.floor(p * (a.length - 1) + 0.5)))]; }
+  function labF(t){ return t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116; }
+  function rgbToLab(r, g, b){
+    var R = LIN[r], G = LIN[g], B = LIN[b];
+    var X = (0.4124 * R + 0.3576 * G + 0.1805 * B) / 0.95047, Y = 0.2126 * R + 0.7152 * G + 0.0722 * B, Z = (0.0193 * R + 0.1192 * G + 0.9505 * B) / 1.08883;
+    var fx = labF(X), fy = labF(Y), fz = labF(Z);
+    return [116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)];
+  }
+  function hex2(v){ var s = Math.round(v).toString(16); return s.length < 2 ? '0' + s : s; }
+  // 1-D running-mean blur (window 2r+1, clamped borders) along rows (dir 0) or columns (dir 1)
+  function blur1D(src, w, h, dir, r){
+    var out = new Float32Array(w * h), win = 2 * r + 1, x, y, acc, k;
+    if(dir === 0){
+      for(y = 0; y < h; y++){ var o = y * w; acc = 0; for(k = -r; k <= r; k++) acc += src[o + clamp(k, 0, w - 1)];
+        for(x = 0; x < w; x++){ out[o + x] = acc / win; acc += src[o + clamp(x + r + 1, 0, w - 1)] - src[o + clamp(x - r, 0, w - 1)]; } }
+    } else {
+      for(x = 0; x < w; x++){ acc = 0; for(k = -r; k <= r; k++) acc += src[clamp(k, 0, h - 1) * w + x];
+        for(y = 0; y < h; y++){ out[y * w + x] = acc / win; acc += src[clamp(y + r + 1, 0, h - 1) * w + x] - src[clamp(y - r, 0, h - 1) * w + x]; } }
+    }
+    return out;
+  }
+
+  /* =================================================================
+     1. PIXEL ANALYSIS  (one pass set over an RGBA image)
+     Input : { width, height, data: Uint8ClampedArray RGBA }
+     ================================================================= */
+  function analyze(img){
+    var w = img.width, h = img.height, d = img.data, n = w * h, i, x, y;
+    if(!(w >= 16 && h >= 16)) throw new Error('image too small to analyse (' + w + '×' + h + ')');
+    var L = new Float32Array(n), valid = new Uint8Array(n);
+    var hist = new Uint32Array(256), validN = 0, transN = 0, semiN = 0;
+    var sumS = 0, sumA = 0, sumB = 0, sumC = 0;
+    var cbin = new Uint32Array(4096), cr = new Float64Array(4096), cg = new Float64Array(4096), cb = new Float64Array(4096);
+    var nearWhiteN = 0;
+    for(i = 0; i < n; i++){
+      var p = i * 4, r = d[p], g = d[p + 1], b = d[p + 2], a = d[p + 3];
+      var yy = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      L[i] = yy;
+      if(a < 255){ if(a < 8) transN++; else semiN++; }
+      if(a < 128) continue;
+      valid[i] = 1; validN++;
+      hist[(yy + 0.5) | 0]++;
+      var mx = r > g ? (r > b ? r : b) : (g > b ? g : b), mn = r < g ? (r < b ? r : b) : (g < b ? g : b);
+      if(mx > 25) sumS += (mx - mn) / mx;
+      if((i & 3) === 0){                                    // Lab on every 4th valid pixel: plenty for means, 4× cheaper
+        var lab = rgbToLab(r, g, b); sumA += lab[1]; sumB += lab[2]; sumC++;
+      }
+      var bi = ((r >> 4) << 8) | ((g >> 4) << 4) | (b >> 4);
+      cbin[bi]++; cr[bi] += r; cg[bi] += g; cb[bi] += b;
+      if(r >= 250 && g >= 250 && b >= 250) nearWhiteN++;
+    }
+    if(validN < n * 0.05) throw new Error('image is almost entirely transparent');
+
+    /* ---- luma distribution & clipping ---- */
+    var luma = {
+      mean: 0, std: 0,
+      p005: pctFromHist(hist, validN, 0.005), p01: pctFromHist(hist, validN, 0.01), p05: pctFromHist(hist, validN, 0.05),
+      p50: pctFromHist(hist, validN, 0.5), p95: pctFromHist(hist, validN, 0.95), p99: pctFromHist(hist, validN, 0.99), p995: pctFromHist(hist, validN, 0.995)
+    };
+    var s1 = 0, s2 = 0;
+    for(i = 0; i < 256; i++){ s1 += i * hist[i]; s2 += i * i * hist[i]; }
+    luma.mean = s1 / validN; luma.std = Math.sqrt(Math.max(0, s2 / validN - luma.mean * luma.mean));
+    var HI = 252, LO = 3, clipHi = 0, clipLo = 0, plHi = 0, plLo = 0;
+    for(y = 0; y < h; y++){
+      for(x = 0; x < w; x++){
+        i = y * w + x; if(!valid[i]) continue;
+        var v = L[i], isHi = v >= HI, isLo = v <= LO;
+        if(!isHi && !isLo) continue;
+        var interior = x > 0 && y > 0 && x < w - 1 && y < h - 1;
+        if(isHi){ clipHi++; if(interior && L[i - 1] >= HI && L[i + 1] >= HI && L[i - w] >= HI && L[i + w] >= HI) plHi++; }
+        else { clipLo++; if(interior && L[i - 1] <= LO && L[i + 1] <= LO && L[i - w] <= LO && L[i + w] <= LO) plLo++; }
+      }
+    }
+    luma.clipHiFrac = clipHi / validN; luma.clipLoFrac = clipLo / validN;
+    luma.clipHiPlateau = clipHi ? plHi / clipHi : 1; luma.clipLoPlateau = clipLo ? plLo / clipLo : 1;   // 1 = all clipped pixels sit in flat regions
+
+    /* ---- sharpness (Laplacian variance) & noise (Immerkaer), per 32×32 block ---- */
+    var BS = 32, bx = Math.floor(w / BS), by = Math.floor(h / BS), lapVar = [], sig = [], blurB = [], blocksTotal = 0, flatBlocks = 0;
+    var BH = null, BV = null;
+    if(bx >= 2 && by >= 2){ BH = blur1D(L, w, h, 0, 4); BV = blur1D(L, w, h, 1, 4); }
+    var mcx = 0, mcy = 0, mw = 0;
+    if(bx >= 2 && by >= 2){
+      for(var gy = 0; gy < by; gy++){
+        for(var gx = 0; gx < bx; gx++){
+          var x0 = gx * BS, y0 = gy * BS, cnt = 0, vcount = 0, sl = 0, sl2 = 0, sa = 0, sn = 0, sFh = 0, sDh = 0, sFv = 0, sDv = 0;
+          for(y = y0; y < y0 + BS; y++){
+            for(x = x0; x < x0 + BS; x++){
+              i = y * w + x; if(valid[i]) vcount++;
+              if(x < 1 || y < 1 || x >= w - 1 || y >= h - 1) continue;
+              var c = L[i], lap = L[i - 1] + L[i + 1] + L[i - w] + L[i + w] - 4 * c;
+              var m = L[i - w - 1] - 2 * L[i - w] + L[i - w + 1] - 2 * L[i - 1] + 4 * c - 2 * L[i + 1] + L[i + w - 1] - 2 * L[i + w] + L[i + w + 1];
+              sl += lap; sl2 += lap * lap; sa += Math.abs(lap); sn += Math.abs(m); cnt++;
+              var Fh = Math.abs(c - L[i - 1]), Bh2 = Math.abs(BH[i] - BH[i - 1]), Fv = Math.abs(c - L[i - w]), Bv2 = Math.abs(BV[i] - BV[i - w]);
+              sFh += Fh; if(Fh > Bh2) sDh += Fh - Bh2; sFv += Fv; if(Fv > Bv2) sDv += Fv - Bv2;
+            }
+          }
+          if(vcount < BS * BS * 0.9 || cnt < BS * BS * 0.8) continue;
+          blocksTotal++;
+          var mean = sl / cnt, vr = sl2 / cnt - mean * mean;
+          lapVar.push(vr); sig.push(Math.sqrt(Math.PI / 2) * (sn / cnt) / 6);
+          // Crete et al. 2007 re-blur metric per block: share of gradient energy that survives re-blurring (0 sharp … 1 blurred); only for blocks with real structure
+          if((sFh + sFv) / (2 * cnt) >= 2.0) blurB.push(Math.max(sFh > 0 ? (sFh - sDh) / sFh : 1, sFv > 0 ? (sFv - sDv) / sFv : 1));
+          if(vr < 2) flatBlocks++;
+          var wgt = sa / cnt; mcx += wgt * (x0 + BS / 2); mcy += wgt * (y0 + BS / 2); mw += wgt;
+        }
+      }
+    }
+    var sharp = { usable: false, blocks: blocksTotal, p95: 0, p90: 0, median: 0, texturedFrac: 0, blurP10: 1, blurMedian: 1, structBlocks: 0 };
+    var noise = { usable: false, sigma: 0, blocks: blocksTotal };
+    if(blocksTotal >= 12){
+      var textured = 0; for(i = 0; i < lapVar.length; i++) if(lapVar[i] >= 4) textured++;
+      sharp.p95 = sortedPct(lapVar, 0.95); sharp.p90 = sortedPct(lapVar, 0.90); sharp.median = sortedPct(lapVar, 0.5);
+      sharp.texturedFrac = textured / blocksTotal; sharp.texturedBlocks = textured;
+      sharp.structBlocks = blurB.length;
+      if(blurB.length){ sharp.blurP10 = sortedPct(blurB, 0.10); sharp.blurMedian = sortedPct(blurB, 0.5); }
+      sharp.usable = blurB.length >= Math.max(6, blocksTotal * 0.03);   // enough structure to judge focus at all
+      // Noise: lower quartile of per-block estimates (flat-ish areas) so edges/texture don't inflate it
+      noise.sigma = sortedPct(sig, 0.25); noise.usable = blocksTotal >= 24;
+    }
+    var flat = { blockFrac: blocksTotal ? flatBlocks / blocksTotal : 0, usable: blocksTotal >= 12 };
+    var mass = { usable: mw > 0 && blocksTotal >= 12, cx: mw ? mcx / mw / w : 0.5, cy: mw ? mcy / mw / h : 0.5 };
+
+    /* ---- colour ---- */
+    var color = { meanSat: validN ? sumS / validN : 0, castA: sumC ? sumA / sumC : 0, castB: sumC ? sumB / sumC : 0, dominant: [] };
+    color.castChroma = Math.sqrt(color.castA * color.castA + color.castB * color.castB);
+    var bins = [];
+    for(i = 0; i < 4096; i++) if(cbin[i]) bins.push(i);
+    bins.sort(function(a, b2){ return cbin[b2] - cbin[a]; });
+    var picked = [];
+    for(var bi2 = 0; bi2 < bins.length && picked.length < 6; bi2++){
+      var k = bins[bi2], c1 = cbin[k], mr = cr[k] / c1, mg = cg[k] / c1, mb = cb[k] / c1, lab2 = rgbToLab(mr | 0, mg | 0, mb | 0), near = null;
+      for(var pj = 0; pj < picked.length; pj++){
+        var q = picked[pj].lab, dd = Math.sqrt(Math.pow(q[0] - lab2[0], 2) + Math.pow(q[1] - lab2[1], 2) + Math.pow(q[2] - lab2[2], 2));
+        if(dd < 18){ near = picked[pj]; break; }
+      }
+      if(near) near.count += c1; else if(c1 / validN >= 0.01) picked.push({ lab: lab2, count: c1, hex: '#' + hex2(mr) + hex2(mg) + hex2(mb) });
+      else break;
+    }
+    picked.sort(function(a, b2){ return b2.count - a.count; });
+    color.dominant = picked.slice(0, 5).map(function(pk){ return { hex: pk.hex, frac: pk.count / validN }; });
+
+    /* ---- border whiteness + content bounding box (for white-background product checks) ---- */
+    var t = Math.max(1, Math.round(Math.min(w, h) * 0.01)), bTot = 0, b255 = 0, b250 = 0;
+    var minX = w, minY = h, maxX = -1, maxY = -1;
+    for(y = 0; y < h; y++){
+      for(x = 0; x < w; x++){
+        i = y * w + x; if(!valid[i]) continue;
+        var q4 = i * 4, rr = d[q4], gg = d[q4 + 1], bb = d[q4 + 2];
+        if(x < t || y < t || x >= w - t || y >= h - t){
+          bTot++; if(rr === 255 && gg === 255 && bb === 255) b255++; if(rr >= 250 && gg >= 250 && bb >= 250) b250++;
+        }
+        if(rr < 242 || gg < 242 || bb < 242){ if(x < minX) minX = x; if(x > maxX) maxX = x; if(y < minY) minY = y; if(y > maxY) maxY = y; }
+      }
+    }
+    var bg = { borderPx: bTot, white255Frac: bTot ? b255 / bTot : 0, nearWhiteFrac: bTot ? b250 / bTot : 0,
+               hasContent: maxX >= 0, bbox: maxX >= 0 ? { x: minX / w, y: minY / h, w: (maxX - minX + 1) / w, h: (maxY - minY + 1) / h } : null };
+    if(bg.bbox) bg.fillMax = Math.max(bg.bbox.w, bg.bbox.h);
+
+    return {
+      width: w, height: h, validFrac: validN / n,
+      alpha: { present: transN + semiN > 0, transparentFrac: transN / n, semiFrac: semiN / n },
+      luma: luma, sharp: sharp, noise: noise, flat: flat, mass: mass, color: color, bg: bg,
+      nearWhiteFrac: validN ? nearWhiteN / validN : 0
+    };
+  }
+
+  /* =================================================================
+     2. JPEG BLOCK-GRID EVIDENCE  (needs NATIVE pixels — downscaling destroys the grid)
+     Mean absolute horizontal/vertical gradient, grouped by position mod 8.
+     A decoded JPEG shows one elevated phase in both directions.
+     ================================================================= */
+  function blockiness(img){
+    var w = img.width, h = img.height, d = img.data;
+    if(w < 96 || h < 96) return { usable: false, reason: 'crop too small' };
+    var L = new Float32Array(w * h), i, x, y;
+    for(i = 0; i < w * h; i++){ var p = i * 4; L[i] = 0.2126 * d[p] + 0.7152 * d[p + 1] + 0.0722 * d[p + 2]; }
+    var gx = new Float64Array(8), cx = new Float64Array(8), gy = new Float64Array(8), cy = new Float64Array(8);
+    for(y = 1; y < h; y++){
+      for(x = 1; x < w; x++){
+        var v = L[y * w + x];
+        gx[x & 7] += Math.abs(v - L[y * w + x - 1]); cx[x & 7]++;
+        gy[y & 7] += Math.abs(v - L[(y - 1) * w + x]); cy[y & 7]++;
+      }
+    }
+    function peak(g, c){
+      var m = [], k; for(k = 0; k < 8; k++) m.push(g[k] / Math.max(1, c[k]));
+      var pi = 0; for(k = 1; k < 8; k++) if(m[k] > m[pi]) pi = k;
+      var others = m.filter(function(_, j){ return j !== pi; }).sort(function(a, b){ return a - b; });
+      var med = (others[3] + others[2]) / 2;
+      return { ratio: med > 0.05 ? m[pi] / med : 1, phase: pi };
+    }
+    var H = peak(gx, cx), V = peak(gy, cy);
+    return { usable: true, ratioH: H.ratio, ratioV: V.ratio, phaseH: H.phase, phaseV: V.phase, score: Math.min(H.ratio, V.ratio) };
+  }
+
+  /* =================================================================
+     3. TEXT REGION STATISTICS  (contrast of OCR-found text against its own background)
+     Otsu split of luma inside the box; the minority cluster is assumed to be the strokes.
+     `eta` (between-class variance share) says how bimodal the box is — low eta ⇒ unreliable.
+     ================================================================= */
+  function textStats(img, box){
+    var w = img.width, h = img.height, d = img.data;
+    var x0 = clamp(Math.floor(box.x * w), 0, w - 1), y0 = clamp(Math.floor(box.y * h), 0, h - 1);
+    var x1 = clamp(Math.ceil((box.x + box.w) * w), x0 + 1, w), y1 = clamp(Math.ceil((box.y + box.h) * h), y0 + 1, h);
+    var bw = x1 - x0, bh = y1 - y0;
+    if(bw < 6 || bh < 6) return { usable: false, reason: 'region too small' };
+    var step = Math.max(1, Math.floor(Math.sqrt((bw * bh) / 40000)));
+    var hist = new Float64Array(256), N = 0, x, y;
+    for(y = y0; y < y1; y += step) for(x = x0; x < x1; x += step){
+      var p = (y * w + x) * 4; if(d[p + 3] < 128) continue;
+      hist[(0.2126 * d[p] + 0.7152 * d[p + 1] + 0.0722 * d[p + 2] + 0.5) | 0]++; N++;
+    }
+    if(N < 30) return { usable: false, reason: 'too few opaque pixels' };
+    var sumAll = 0, k; for(k = 0; k < 256; k++) sumAll += k * hist[k];
+    var wB = 0, sumB = 0, best = -1, thr = 0, tot = 0;
+    var mAll = sumAll / N, varAll = 0; for(k = 0; k < 256; k++) varAll += hist[k] * (k - mAll) * (k - mAll); varAll /= N;
+    if(varAll < 25) return { usable: false, reason: 'flat region (no text/background separation)', flat: true };
+    for(k = 0; k < 256; k++){
+      wB += hist[k]; if(!wB) continue; var wF = N - wB; if(!wF) break;
+      sumB += k * hist[k]; var mB = sumB / wB, mF = (sumAll - sumB) / wF, bv = wB * wF * (mB - mF) * (mB - mF);
+      if(bv > best){ best = bv; thr = k; }
+    }
+    var eta = (best / (N * N)) / varAll;
+    var rl = 0, gl = 0, bl = 0, nl = 0, rh = 0, gh = 0, bh2 = 0, nh = 0, vl = 0, vh = 0, lumS1 = [0, 0], lumS2 = [0, 0];
+    for(y = y0; y < y1; y += step) for(x = x0; x < x1; x += step){
+      var q = (y * w + x) * 4; if(d[q + 3] < 128) continue;
+      var yy = 0.2126 * d[q] + 0.7152 * d[q + 1] + 0.0722 * d[q + 2];
+      if(yy <= thr){ rl += LIN[d[q]]; gl += LIN[d[q + 1]]; bl += LIN[d[q + 2]]; nl++; lumS1[0] += yy; lumS2[0] += yy * yy; }
+      else { rh += LIN[d[q]]; gh += LIN[d[q + 1]]; bh2 += LIN[d[q + 2]]; nh++; lumS1[1] += yy; lumS2[1] += yy * yy; }
+    }
+    if(!nl || !nh) return { usable: false, reason: 'single cluster' };
+    var Ldark = 0.2126 * (rl / nl) + 0.7152 * (gl / nl) + 0.0722 * (bl / nl);
+    var Llite = 0.2126 * (rh / nh) + 0.7152 * (gh / nh) + 0.0722 * (bh2 / nh);
+    var textIsLight = nh < nl;                       // minority cluster = strokes
+    var Lt = textIsLight ? Llite : Ldark, Lb = textIsLight ? Ldark : Llite;
+    var hiC = Math.max(Lt, Lb), loC = Math.min(Lt, Lb);
+    var nT = textIsLight ? nh : nl, nB = textIsLight ? nl : nh, sI = textIsLight ? 1 : 0, bI = textIsLight ? 0 : 1;
+    var bgStd = Math.sqrt(Math.max(0, lumS2[bI] / (bI ? nh : nl) - Math.pow(lumS1[bI] / (bI ? nh : nl), 2)));
+    var minorFrac = nT / (nT + nB);
+    return { usable: true, ratio: (hiC + 0.05) / (loC + 0.05), eta: eta, textIsLight: textIsLight, minorFrac: minorFrac, bgStd: bgStd,
+             textLum: Lt, bgLum: Lb, ambiguous: minorFrac > 0.42 };
+  }
+
+  /* =================================================================
+     4. OCR post-processing: filter noise words, group words into lines
+     words: [{ text, conf, x0, y0, x1, y1 }] in pixels of the OCR image
+     ================================================================= */
+  function filterWords(words, imgW, imgH, opt){
+    opt = opt || {}; var minConf = opt.minConf != null ? opt.minConf : 60, out = [];
+    for(var i = 0; i < words.length; i++){
+      var wd = words[i], t = String(wd.text || '').trim(); if(!t) continue;
+      var bw = wd.x1 - wd.x0, bh = wd.y1 - wd.y0;
+      if(wd.conf < minConf) continue;
+      var alnum = (t.match(/[A-Za-z0-9\u00C0-\u024F\u0400-\u04FF\u0900-\u097F]/g) || []).length;
+      if(alnum < 1 || alnum / t.length < 0.6) continue;                          // mostly punctuation/symbol garbage
+      if(alnum < 2 && wd.conf < 85) continue;                                      // lone characters need very high confidence
+      if(bh < (opt.minH || 8) || bw < 4) continue;                                // too small to be a trustworthy detection
+      if(bh > imgH * 0.6 || bw > imgW * 0.98) continue;                           // absurdly large box = texture hallucination
+      if(bw / bh > 40 || bh / bw > 12) continue;                                  // slivers
+      out.push(wd);
+    }
+    return out;
+  }
+  // Merge words found by several OCR passes: when boxes overlap, keep the reading with the most confident characters
+  function mergeWords(words){
+    function alnum(w){ return (String(w.text).match(/[A-Za-z0-9\u00C0-\u024F\u0400-\u04FF\u0900-\u097F]/g) || []).length; }
+    var sorted = words.slice().sort(function(a, b){ return b.conf * alnum(b) - a.conf * alnum(a); }), kept = [];
+    sorted.forEach(function(w){
+      var aw = Math.max(1, (w.x1 - w.x0) * (w.y1 - w.y0)), dup = false;
+      for(var i = 0; i < kept.length && !dup; i++){
+        var k = kept[i], ix = Math.min(w.x1, k.x1) - Math.max(w.x0, k.x0), iy = Math.min(w.y1, k.y1) - Math.max(w.y0, k.y0);
+        if(ix > 0 && iy > 0){ var ak = Math.max(1, (k.x1 - k.x0) * (k.y1 - k.y0)); if(ix * iy / Math.min(aw, ak) > 0.4) dup = true; }
+      }
+      if(!dup) kept.push(w);
+    });
+    return kept;
+  }
+  function groupLines(words, imgW, imgH){
+    var ws = words.slice().sort(function(a, b){ return a.x0 - b.x0; }), lines = [];       // left-to-right so a line grows contiguously
+    ws.forEach(function(wd){
+      var h = wd.y1 - wd.y0, cy = (wd.y0 + wd.y1) / 2, best = null;
+      for(var i = 0; i < lines.length; i++){
+        var ln = lines[i], lh = ln.y1 - ln.y0, lcy = (ln.y0 + ln.y1) / 2;
+        var overlap = Math.min(ln.y1, wd.y1) - Math.max(ln.y0, wd.y0), minH = Math.min(h, lh);
+        var gap = wd.x0 > ln.x1 ? wd.x0 - ln.x1 : (ln.x0 > wd.x1 ? ln.x0 - wd.x1 : 0);
+        if(overlap >= 0.5 * minH && gap <= 1.3 * Math.max(h, lh) && Math.abs(cy - lcy) < 0.7 * Math.max(h, lh)){ best = ln; break; }
+      }
+      if(best){ best.words.push(wd); best.x0 = Math.min(best.x0, wd.x0); best.x1 = Math.max(best.x1, wd.x1); best.y0 = Math.min(best.y0, wd.y0); best.y1 = Math.max(best.y1, wd.y1); }
+      else lines.push({ words: [wd], x0: wd.x0, x1: wd.x1, y0: wd.y0, y1: wd.y1 });
+    });
+    return lines.map(function(ln){
+      ln.words.sort(function(a, b){ return a.x0 - b.x0; });
+      var chars = 0, cs = 0; ln.words.forEach(function(wd){ var c = wd.text.length; chars += c; cs += c * wd.conf; });
+      return { text: ln.words.map(function(wd){ return wd.text; }).join(' '), conf: chars ? cs / chars : 0, wordCount: ln.words.length,
+               box: { x: ln.x0 / imgW, y: ln.y0 / imgH, w: (ln.x1 - ln.x0) / imgW, h: (ln.y1 - ln.y0) / imgH } };
+    });
+  }
+  // Final gate for OCR lines: very short lines are where hallucinated text on photos/textures lives
+  function keepLine(l){ var a = (String(l.text).match(/[A-Za-z0-9\u00C0-\u024F\u0400-\u04FF\u0900-\u097F]/g) || []).length; return a >= 3 && (a >= 5 || l.conf >= 85); }
+  function normText(s){ return String(s || '').toLowerCase().replace(/[^a-z0-9\u00C0-\u024F\u0400-\u04FF\u0900-\u097F]+/g, ''); }
+  function editSim(a, b){                                   // 1 - normalised Levenshtein
+    a = normText(a); b = normText(b); if(!a.length && !b.length) return 1; if(!a.length || !b.length) return 0;
+    var prev = [], cur = [], i, j; for(j = 0; j <= b.length; j++) prev[j] = j;
+    for(i = 1; i <= a.length; i++){ cur[0] = i; for(j = 1; j <= b.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); var t = prev; prev = cur; cur = t; }
+    return 1 - prev[b.length] / Math.max(a.length, b.length);
+  }
+
+  /* =================================================================
+     5. GEOMETRY: boxes, safe zones, smart crop
+     ================================================================= */
+  function boxArea(b){ return Math.max(0, b.w) * Math.max(0, b.h); }
+  function interArea(a, b){
+    var x0 = Math.max(a.x, b.x), y0 = Math.max(a.y, b.y), x1 = Math.min(a.x + a.w, b.x + b.w), y1 = Math.min(a.y + a.h, b.y + b.h);
+    return x1 > x0 && y1 > y0 ? (x1 - x0) * (y1 - y0) : 0;
+  }
+  function insideFrac(box, rect){ var a = boxArea(box); return a > 0 ? interArea(box, rect) / a : 1; }
+  // crop = {x,y,w,h} in SOURCE FRACTIONS (may extend beyond 0..1 when padding); returns box in crop-relative fractions
+  function toCropSpace(box, crop){ return { x: (box.x - crop.x) / crop.w, y: (box.y - crop.y) / crop.h, w: box.w / crop.w, h: box.h / crop.h }; }
+
+  // Largest crop of aspect `ar` (w/h in PIXELS) that fits the source; chosen position minimises weighted loss of boxes.
+  // items: [{ box (source fractions), weight, kind }]; safe (optional): rect in OUTPUT fractions; text items are penalised for leaving it.
+  function smartCrop(srcW, srcH, ar, items, safe){
+    var srcAR = srcW / srcH, cw, ch;
+    if(Math.abs(srcAR - ar) < 1e-3) return { x: 0, y: 0, w: 1, h: 1, cost: 0, includedAll: true, mode: 'none' };
+    if(srcAR > ar){ ch = 1; cw = (ar * srcH) / srcW; } else { cw = 1; ch = (srcW / ar) / srcH; }
+    var horizontal = srcAR > ar, steps = 120, best = null;
+    for(var s = 0; s <= steps; s++){
+      var f = s / steps, cx = horizontal ? (1 - cw) * f : 0, cy = horizontal ? 0 : (1 - ch) * f, crop = { x: cx, y: cy, w: cw, h: ch }, cost = 0, all = true;
+      for(var i = 0; i < items.length; i++){
+        var it = items[i], inFrac = insideFrac(it.box, crop), loss = 1 - inFrac;
+        if(loss > 0.02) all = false;
+        cost += it.weight * loss;
+        if(safe && it.kind === 'text' && inFrac > 0){
+          var rel = toCropSpace(it.box, crop), sf = insideFrac(rel, safe); cost += 0.8 * it.weight * (1 - sf);
+        }
+      }
+      cost += 0.02 * Math.abs(f - 0.5);                          // tie-break toward centre
+      if(!best || cost < best.cost) best = { x: cx, y: cy, w: cw, h: ch, cost: cost, includedAll: all, mode: 'smart' };
+    }
+    return best;
+  }
+  function centerCrop(srcW, srcH, ar){
+    var srcAR = srcW / srcH, cw, ch;
+    if(Math.abs(srcAR - ar) < 1e-3) return { x: 0, y: 0, w: 1, h: 1, mode: 'none' };
+    if(srcAR > ar){ ch = 1; cw = (ar * srcH) / srcW; } else { cw = 1; ch = (srcW / ar) / srcH; }
+    return { x: (1 - cw) / 2, y: (1 - ch) / 2, w: cw, h: ch, mode: 'center' };
+  }
+  // Frame the content bbox (source fractions) inside a crop of aspect `ar` so it fills `fill` of the larger relative dimension.
+  // May return a rect larger than the image (padding).
+  function contentFitCrop(srcW, srcH, ar, bbox, fill){
+    var bw = bbox.w * srcW, bh = bbox.h * srcH, cx = (bbox.x + bbox.w / 2) * srcW, cy = (bbox.y + bbox.h / 2) * srcH;
+    var needW = bw / fill, needH = bh / fill, cw, ch;
+    if(needW / needH > ar){ cw = needW; ch = cw / ar; } else { ch = needH; cw = ch * ar; }
+    return { x: (cx - cw / 2) / srcW, y: (cy - ch / 2) / srcH, w: cw / srcW, h: ch / srcH, mode: 'content' };
+  }
+  // Largest source→output scale factor needed so crop fills (outW×outH). >1 = upscaling.
+  function scaleNeeded(srcW, srcH, crop, outW, outH){ return Math.max(outW / (crop.w * srcW), outH / (crop.h * srcH)); }
+
+  /* =================================================================
+     6. TONE CORRECTION MATHS
+     ================================================================= */
+  // levels: stretch [lo,hi] → [0,255] (blended by strength); gamma: >1 brightens (v^(1/gamma)). Same LUT on R,G,B.
+  function buildLUT(lo, hi, gamma, strength){
+    var lut = new Uint8ClampedArray(256), s = clamp(strength, 0, 1);
+    var lo2 = lo * s, hi2 = 255 - (255 - hi) * s; if(hi2 - lo2 < 16) hi2 = lo2 + 16;
+    for(var i = 0; i < 256; i++){
+      var v = clamp((i - lo2) / (hi2 - lo2), 0, 1);
+      v = Math.pow(v, 1 / (1 + (gamma - 1) * s));
+      lut[i] = Math.round(v * 255);
+    }
+    return lut;
+  }
+  function applyLUT(img, lut){ var d = img.data; for(var i = 0; i < d.length; i += 4){ d[i] = lut[d[i]]; d[i + 1] = lut[d[i + 1]]; d[i + 2] = lut[d[i + 2]]; } return img; }
+  // gamma that moves the median luma toward `target` (0..1), bounded so it can never be extreme
+  function gammaForMedian(p50, target, lo, hi){
+    var m = clamp((p50 - lo) / Math.max(16, hi - lo), 0.02, 0.98);
+    var g = Math.log(m) / Math.log(target);                    // m^(1/g) = target
+    return clamp(g, 0.6, 1.8);
+  }
+  // unsharp mask on RGB (alpha untouched), box-blur based. amount ~0.3–1.0, radius in px.
+  function boxBlurPlane(src, w, h, r){
+    var tmp = new Float32Array(w * h), out = new Float32Array(w * h), x, y, acc, k, win = 2 * r + 1;
+    for(y = 0; y < h; y++){
+      acc = 0; for(k = -r; k <= r; k++) acc += src[y * w + clamp(k, 0, w - 1)];
+      for(x = 0; x < w; x++){ tmp[y * w + x] = acc / win; acc += src[y * w + clamp(x + r + 1, 0, w - 1)] - src[y * w + clamp(x - r, 0, w - 1)]; }
+    }
+    for(x = 0; x < w; x++){
+      acc = 0; for(k = -r; k <= r; k++) acc += tmp[clamp(k, 0, h - 1) * w + x];
+      for(y = 0; y < h; y++){ out[y * w + x] = acc / win; acc += tmp[clamp(y + r + 1, 0, h - 1) * w + x] - tmp[clamp(y - r, 0, h - 1) * w + x]; }
+    }
+    return out;
+  }
+  function unsharp(img, amount, radius){
+    var w = img.width, h = img.height, d = img.data, n = w * h, r = Math.max(1, Math.round(radius)), ch, i;
+    for(ch = 0; ch < 3; ch++){
+      var pl = new Float32Array(n); for(i = 0; i < n; i++) pl[i] = d[i * 4 + ch];
+      var b1 = boxBlurPlane(pl, w, h, r), b2 = boxBlurPlane(b1, w, h, r);          // two passes ≈ Gaussian
+      for(i = 0; i < n; i++){
+        var diff = pl[i] - b2[i]; if(Math.abs(diff) < 2) continue;                  // don't amplify flat-area noise
+        d[i * 4 + ch] = clamp(pl[i] + amount * diff, 0, 255);
+      }
+    }
+    return img;
+  }
+  // Replace border-connected near-white with pure white (flood fill so white INSIDE a product is untouched)
+  function whitenBackground(img, thr){
+    var w = img.width, h = img.height, d = img.data, n = w * h, seen = new Uint8Array(n), stack = new Int32Array(n), sp = 0, changed = 0, i;
+    function ok(idx){ var p = idx * 4; return d[p + 3] > 8 && d[p] >= thr && d[p + 1] >= thr && d[p + 2] >= thr; }
+    function push(idx){ if(!seen[idx] && ok(idx)){ seen[idx] = 1; stack[sp++] = idx; } }
+    for(i = 0; i < w; i++){ push(i); push((h - 1) * w + i); }
+    for(i = 0; i < h; i++){ push(i * w); push(i * w + w - 1); }
+    while(sp){
+      var idx = stack[--sp], p = idx * 4;
+      if(d[p] !== 255 || d[p + 1] !== 255 || d[p + 2] !== 255){ d[p] = d[p + 1] = d[p + 2] = 255; changed++; }
+      var x = idx % w, y = (idx / w) | 0;
+      if(x > 0) push(idx - 1); if(x < w - 1) push(idx + 1); if(y > 0) push(idx - w); if(y < h - 1) push(idx + w);
+    }
+    return { img: img, changed: changed, frac: changed / n };
+  }
+  // Stable cheap fingerprint of a small RGBA image (used to detect "report is for an older version of the image")
+  function fingerprint(img){
+    var d = img.data, hsh = 2166136261 >>> 0;
+    for(var i = 0; i < d.length; i += 4){ var v = ((d[i] >> 4) * 17 + (d[i + 1] >> 4) * 5 + (d[i + 2] >> 4)) & 255; hsh ^= v; hsh = Math.imul(hsh, 16777619) >>> 0; }
+    return (hsh >>> 0).toString(16) + ':' + img.width + 'x' + img.height;
+  }
+
+  return {
+    analyze: analyze, blockiness: blockiness, textStats: textStats,
+    filterWords: filterWords, mergeWords: mergeWords, groupLines: groupLines, keepLine: keepLine, editSim: editSim, normText: normText,
+    smartCrop: smartCrop, centerCrop: centerCrop, contentFitCrop: contentFitCrop, scaleNeeded: scaleNeeded,
+    insideFrac: insideFrac, toCropSpace: toCropSpace, interArea: interArea, boxArea: boxArea,
+    buildLUT: buildLUT, applyLUT: applyLUT, gammaForMedian: gammaForMedian, unsharp: unsharp, whitenBackground: whitenBackground,
+    fingerprint: fingerprint, relLum: relLum
+  };
+};
+
+/* =====================================================================
+   APIC VISUAL PREFLIGHT — METRIC CATALOG, THRESHOLDS, RULE ENGINE
+   ---------------------------------------------------------------------
+   Pure functions: measurements + profile in → findings out. No DOM.
+   Every finding carries: title, explanation, evidence (measured value +
+   threshold), severity, confidence, basis (measured / model / heuristic),
+   suggested correction and whether it can be automated.
+
+   HONESTY RULES ENFORCED HERE
+   * low confidence ⇒ never a warning/critical: shown as "Unable to determine reliably."
+   * descriptive tone/colour measurements are information, never defects
+   * a check whose module failed produces NO finding (the module status says so)
+   ===================================================================== */
+
+/* ---------- thresholds: documented heuristics, calibrated on real photos (see evaluation report) ---------- */
+PF.TH = {
+  blur:   { soft: 0.45, borderline: 0.35 },          // Crete re-blur metric of the sharpest tenth of structured blocks
+  noise:  { warn: 8, info: 4.5 },                    // Immerkaer sigma (8-bit levels), lower-quartile of blocks
+  block:  { evidence: 1.30 },                        // JPEG grid peak ÷ median of other phases (min of H and V)
+  tone:   { darkMedian: 60, darkP95: 150, brightMedian: 190, brightP05: 110, clipInfo: 0.02, lowSpread: 60 },
+  res:    { slight: 1.25, soft: 2.0 },               // required upscale factor
+  text:   { reliableConf: 70, minLineConf: 60, edgeMargin: 0.012, contrastWarn: 3.0, contrastInfo: 4.5, minEta: 0.55, minLinePxAtPhone: 9, phoneWidth: 360, unsafeWarn: 0.15, cutCritical: 0.5 },
+  face:   { edge: 0.006, minScore: 0.6 },
+  obj:    { minScore: 0.5 }
+};
+
+/* ---------- metric catalog: calculation, limitations, interpretation (shown under “Why this finding”) ---------- */
+PF.METRICS = {
+  blur: { name: 'Sharpness (re-blur metric)', basis: 'measured',
+    calc: 'Crête et al. (2007) no-reference blur metric. The luma image is re-blurred with a 9-tap box filter; the share of gradient energy that survives shows how much fine detail existed. It is computed per 32×32 block at the size the image will be delivered, and the sharpest tenth of the structured blocks is reported (0 = sharp, 1 = blurred).',
+    limits: 'Measures local edge sharpness, not artistic focus. Shallow depth-of-field is not penalised because only the sharpest blocks count. Flat graphics and very blurred images contain too little structure to judge and are reported as undetermined. Noise can make a soft image look sharper.',
+    interp: 'Calibrated on real photographs with synthetic Gaussian blur: untouched photos mostly scored 0.12–0.29; blur of σ≥2 px scored ≥0.49.' },
+  noise: { name: 'Noise level', basis: 'measured',
+    calc: 'Immerkaer (1996) fast noise-variance estimate on luma, taken per 32×32 block; the lower quartile is reported so edges and texture do not inflate it. Value is the estimated standard deviation in 8-bit levels at delivery size.',
+    limits: 'Fine natural texture can be mistaken for noise, and downscaling hides noise, so the estimate describes the delivered image. It does not identify the source of the noise.',
+    interp: 'Synthetic noise of σ=14 and σ=30 read about 10 and 21; clean photos mostly read below 3.' },
+  block: { name: 'JPEG block-grid evidence', basis: 'measured',
+    calc: 'On native pixels (a centre crop of up to 1024×1024, no resampling), the mean absolute gradient is grouped by position modulo 8 in both directions. A decoded JPEG shows one elevated phase in both; the score is the weaker of the two peak-to-median ratios (1.0 = none).',
+    limits: 'Only works if the image has not been resized since it was compressed (resizing destroys the grid). Absence of evidence does not mean the image was never compressed, and quality above ~50 usually leaves no detectable grid.',
+    interp: 'Untouched photos scored ≤1.25; JPEG quality 20 scored ≥1.37; quality 8 scored ≥1.88 in tests.' },
+  tone: { name: 'Tonal distribution', basis: 'measured',
+    calc: 'Luma (Rec.709 weights on sRGB values) percentiles P0.5/P5/P50/P95/P99.5 over opaque pixels, plus the share of pixels at ≥252 (highlights) or ≤3 (shadows).',
+    limits: 'Dark, bright and low-contrast images are often deliberate (night scenes, high-key photography, fog). A white studio background and a blown-out sky look identical to these statistics, so tone is reported as information with optional fixes, never as a defect.',
+    interp: 'Informational only.' },
+  color: { name: 'Colour summary', basis: 'measured',
+    calc: 'Dominant colours: 4-bit-per-channel histogram, bins merged when closer than ΔE76 18. Mean saturation: HSV S over pixels with V>10%. Average chroma offset: mean a*/b* in CIELAB.',
+    limits: 'A colour cast cannot be told apart from genuinely coloured scenes (sunsets, stage lighting) so no colour-cast defect is ever reported.',
+    interp: 'Informational only.' },
+  aspect: { name: 'Aspect ratio', basis: 'measured',
+    calc: 'Width ÷ height of the current image compared with the platform profile (exact ratio, accepted range, or recommendation).',
+    limits: 'Platform requirements change; each profile lists its sources and the date they were checked.',
+    interp: 'Exact arithmetic.' },
+  res: { name: 'Resolution suitability', basis: 'measured',
+    calc: 'Upscale factor = the larger of (output width ÷ available crop width) and (output height ÷ available crop height), using the crop that will actually be used.',
+    limits: 'Upscaling cannot create detail. Thresholds (1.25× slight, 2× clearly soft) are heuristics.',
+    interp: '≤1× needs no upscaling.' },
+  alpha: { name: 'Transparency', basis: 'measured',
+    calc: 'Share of pixels with alpha < 8 (transparent) or 8–254 (semi-transparent).',
+    limits: 'None beyond the platform format rules.', interp: 'Exact.' },
+  ocr: { name: 'Text detection (OCR)', basis: 'model',
+    calc: 'Tesseract.js 5.1.1 (LSTM engine, English) in sparse-text mode on a copy of the image no larger than 1800 px. Words are kept only when confidence ≥60, mostly alphanumeric, a plausible size and shape; kept words are grouped into lines. A line counts as reliable at confidence ≥70.',
+    limits: 'OCR confidence is how sure the engine is about the characters, not how readable the text is for a person. English only. Stylised, rotated, very small or low-contrast text may be missed, and “no text found” never proves there is no text. Positions are approximate.',
+    interp: 'Model-based estimate.' },
+  textContrast: { name: 'Text/background contrast', basis: 'heuristic',
+    calc: 'Inside each detected line box, luma is split into two clusters with Otsu’s method; the smaller cluster is taken as the strokes. The WCAG contrast ratio is computed between the clusters’ mean relative luminance. The split’s separability (η) is recorded and low-η boxes are not judged.',
+    limits: 'Assumes strokes are the minority cluster and the background is fairly uniform. Photographic or gradient backgrounds, outlines and shadows break this, and then the result is reported as undetermined. WCAG ratios were written for screen text, so they are a familiar reference here, not a platform rule.',
+    interp: '≥4.5:1 comfortable; 3–4.5:1 acceptable for large text only; <3:1 weak.' },
+  downscale: { name: 'Readability after downscaling (OCR proxy)', basis: 'heuristic',
+    calc: 'The image is shrunk to a typical phone width (360 px) and OCR is run again; a line “survives” if the same text is found again at roughly the same place. The line height at that width is also reported.',
+    limits: 'This tests whether software can still read the text, a proxy for human readability. A line that survives may still be tiring to read; one that does not may still be readable.',
+    interp: 'Survival is encouraging, failure is a warning sign, neither is proof.' },
+  safe: { name: 'Safe-zone / crop geometry', basis: 'measured',
+    calc: 'Detected text and face boxes are mapped into the final frame and compared with the profile’s safe region or circle mask.',
+    limits: 'Boxes come from OCR/face models and are approximate. Platform overlays are taken from the profile’s sources and may change.',
+    interp: 'Share of the box outside the region.' },
+  face: { name: 'Face detection', basis: 'model',
+    calc: 'MediaPipe Tasks Face Detector, BlazeFace short-range (128×128 input, float16), score threshold 0.6.',
+    limits: 'Tuned for faces that fill a reasonable part of the frame (selfie-like). Small, turned, hidden or stylised faces may be missed, so no detection does not mean no face.',
+    interp: 'Model-based estimate.' },
+  obj: { name: 'Object detection', basis: 'model',
+    calc: 'MediaPipe Tasks Object Detector, EfficientDet-Lite0 (320×320, COCO 80 classes), score threshold 0.5.',
+    limits: 'Only knows 80 everyday categories; unusual products, illustrations and abstract art are often not detected. It cannot judge composition quality.',
+    interp: 'Model-based estimate.' },
+  whiteBg: { name: 'Pure-white background', basis: 'measured',
+    calc: 'Share of border pixels (outer 1%) that are exactly RGB 255,255,255, and the share that are at least 250 in every channel.',
+    limits: 'Reads the border only; a white product touching the border looks like background. JPEG compression can leave 254-valued pixels, which is shown separately.',
+    interp: 'Marketplace main images are required to be pure white.' },
+  fill: { name: 'Product fill of frame', basis: 'measured',
+    calc: 'Bounding box of every pixel that is not near-white (any channel below 242); fill = the larger of its width and height as a share of the frame.',
+    limits: 'Shadows and reflections count as content, which can overstate fill; a white product on white cannot be measured.',
+    interp: 'Amazon main images ask for ≥85%.' },
+  density: { name: 'Text density', basis: 'measured',
+    calc: 'Combined area of reliable OCR line boxes as a share of the frame.', limits: 'Counts only detected text.', interp: 'Description only; platforms differ on how much text is too much.' }
+};
+
+/* ---------- geometry helpers that need the profile ---------- */
+PF.outputSize = function(profile, srcW, srcH){
+  if(!profile || !profile.w){ return { w: srcW, h: srcH }; }
+  var a = profile.aspect, srcAR = srcW / srcH;
+  if(a && a.mode === 'range'){
+    if(srcAR <= a.min && srcAR >= a.max) return { w: profile.w, h: Math.round(profile.w / srcAR) };
+    var ar = srcAR > a.min ? a.min : a.max; return { w: profile.w, h: Math.round(profile.w / ar) };
+  }
+  return { w: profile.w, h: profile.h };
+};
+PF.targetAspect = function(profile, srcW, srcH){
+  var o = PF.outputSize(profile, srcW, srcH); return o.w / o.h;
+};
+PF.needsCrop = function(profile, srcW, srcH){
+  if(!profile || !profile.w || !profile.aspect) return false;
+  var a = profile.aspect, srcAR = srcW / srcH;
+  if(a.mode === 'range') return !(srcAR <= a.min * 1.005 && srcAR >= a.max * 0.995);
+  return Math.abs(srcAR / a.target - 1) > (a.tol || 0.02);
+};
+
+// Items that a crop should try to keep: reliable text lines and faces (plus people when detected)
+PF.cropItems = function(ctx){
+  var T = PF.TH, items = [];
+  if(ctx.ocr && ctx.ocr.status === 'ok') ctx.ocr.lines.forEach(function(l, i){ if(l.conf >= T.text.reliableConf) items.push({ box: l.box, weight: 1 + 3 * Math.min(1, l.box.h / 0.08), kind: 'text', ref: i }); });
+  if(ctx.faces && ctx.faces.status === 'ok') ctx.faces.boxes.forEach(function(b, i){ if(b.score >= T.face.minScore) items.push({ box: b, weight: 3, kind: 'face', ref: i }); });
+  if(ctx.objects && ctx.objects.status === 'ok') ctx.objects.boxes.forEach(function(b, i){ if(b.score >= T.obj.minScore && b.label === 'person') items.push({ box: b, weight: 1, kind: 'object', ref: i }); });
+  return items;
+};
+// Decide the crop that would be used. E = engine instance.
+PF.planCrop = function(ctx, E, mode){
+  var P = ctx.profile, W = ctx.srcW, H = ctx.srcH;
+  if(!P || !P.w || !P.aspect || !PF.needsCrop(P, W, H)) return { x: 0, y: 0, w: 1, h: 1, mode: 'none', needed: false };
+  var ar = PF.targetAspect(P, W, H), items = PF.cropItems(ctx);
+  if(P.purpose === 'ecom' && ctx.pix && ctx.pix.bg && ctx.pix.bg.bbox && mode !== 'center'){
+    var cc = E.contentFitCrop(W, H, ar, ctx.pix.bg.bbox, 0.88); cc.needed = true; cc.pads = cc.x < 0 || cc.y < 0 || cc.x + cc.w > 1 || cc.y + cc.h > 1; return cc;
+  }
+  var c = (mode === 'center' || !items.length) ? E.centerCrop(W, H, ar) : E.smartCrop(W, H, ar, items, P.safe ? P.safe.rect : null);
+  c.needed = true; c.mode = (mode === 'center' || !items.length) ? 'center' : 'smart'; return c;
+};
+
+/* =====================================================================
+   FINDINGS
+   ===================================================================== */
+PF.buildFindings = function(ctx, E){
+  var T = PF.TH, P = ctx.profile || PF.getProfile('general'), out = [], pix = ctx.pix, M = PF.METRICS;
+  var W = ctx.srcW, H = ctx.srcH, pct = function(v, d){ return (v * 100).toFixed(d == null ? 0 : d) + '%'; };
+  function add(f){
+    f.metricInfo = f.metric ? M[f.metric] : null;
+    if(f.confidence === 'low' && f.severity !== 'passed'){ f.undetermined = true; f.severity = 'info'; }
+    out.push(f); return f;
+  }
+  var reqNote = function(){ return 'Requirement source: ' + (P.src && P.src.status === 'secondary' ? 'several independent guides agree (checked ' + P.src.date + ')' : (P.src && P.src.status === 'user' ? 'custom size you entered' : 'recommendation, not a verified platform rule')); };
+
+  /* ================= PLATFORM ================= */
+  var plan = ctx.cropPlan || PF.planCrop(ctx, E, 'smart'), cropPx = { w: plan.w * W, h: plan.h * H };
+  var o = PF.outputSize(P, W, H);
+  if(P.w && P.aspect){
+    var srcAR = W / H, a = P.aspect;
+    if(PF.needsCrop(P, W, H)){
+      var sev = a.mode === 'recommended' ? 'info' : 'warning';
+      add({ id: 'aspect', cat: 'platform', title: 'Aspect ratio does not match ' + P.name, severity: sev, confidence: 'high', basis: 'measured', metric: 'aspect',
+        explain: a.mode === 'range'
+          ? 'Your image is ' + srcAR.toFixed(2) + ':1; ' + P.group + ' accepts roughly ' + a.max.toFixed(2) + ':1 to ' + a.min.toFixed(2) + ':1 for this format, so it would be cropped.'
+          : 'Your image is ' + srcAR.toFixed(2) + ':1 but this format uses ' + (a.target).toFixed(2) + ':1. It has to be cropped (or padded) to fit' + (a.mode === 'recommended' ? ' — this ratio is a recommendation rather than a hard rule.' : '.'),
+        evidence: { value: W + '×' + H + ' (' + srcAR.toFixed(3) + ':1)', threshold: 'target ' + (a.mode === 'range' ? a.max.toFixed(2) + '–' + a.min.toFixed(2) : a.target.toFixed(3)) + ':1 (±' + ((a.tol || 0) * 100).toFixed(0) + '%)', note: reqNote() },
+        fix: { id: 'crop', label: 'Crop to ' + P.name, automatable: true, approx: plan.mode === 'smart', detail: plan.mode === 'smart' ? 'Crop position chosen to keep detected text and faces inside.' : 'Centre crop.' } });
+    } else {
+      add({ id: 'aspect', cat: 'platform', title: 'Aspect ratio is acceptable', severity: 'passed', confidence: 'high', basis: 'measured', metric: 'aspect',
+        explain: 'The image proportions already fit ' + P.name + '.', evidence: { value: srcAR.toFixed(3) + ':1', threshold: 'target ' + (a.target).toFixed(3) + ':1', note: reqNote() } });
+    }
+  }
+  if(P.w){
+    var s = E.scaleNeeded(W, H, plan, o.w, o.h), availW = Math.round(cropPx.w), availH = Math.round(cropPx.h);
+    var hardMin = (P.minW && availW < P.minW) || (P.minH && availH < P.minH);
+    var longAvail = Math.max(availW, availH);
+    if(P.hardMinLongSide && longAvail < P.hardMinLongSide){
+      add({ id: 'res-min', cat: 'platform', title: 'Below the platform’s smallest accepted size', severity: 'critical', confidence: 'high', basis: 'measured', metric: 'res',
+        explain: 'The usable image is ' + availW + '×' + availH + ' px; the smallest accepted long side is ' + P.hardMinLongSide + ' px.',
+        evidence: { value: longAvail + ' px long side', threshold: '≥ ' + P.hardMinLongSide + ' px', note: reqNote() }, fix: { id: 'resize', label: 'Upscale (cannot add detail)', automatable: true, approx: true } });
+    } else if(hardMin){
+      add({ id: 'res-min', cat: 'platform', title: 'Smaller than the platform minimum', severity: 'critical', confidence: 'high', basis: 'measured', metric: 'res',
+        explain: 'After cropping, ' + availW + '×' + availH + ' px is available; ' + P.name + ' asks for at least ' + (P.minW || '–') + '×' + (P.minH || '–') + ' px.',
+        evidence: { value: availW + '×' + availH, threshold: '≥ ' + (P.minW || '–') + '×' + (P.minH || '–'), note: reqNote() }, fix: { id: 'resize', label: 'Upscale to the target (cannot add detail)', automatable: true, approx: true } });
+    }
+    if(P.minLongSide && longAvail < P.minLongSide && !(P.hardMinLongSide && longAvail < P.hardMinLongSide)){
+      add({ id: 'res-zoom', cat: 'platform', title: 'Too small for the zoom feature', severity: 'warning', confidence: 'high', basis: 'measured', metric: 'res',
+        explain: 'Marketplace zoom needs at least ' + P.minLongSide + ' px on the longest side; yours is ' + longAvail + ' px.',
+        evidence: { value: longAvail + ' px', threshold: '≥ ' + P.minLongSide + ' px', note: reqNote() }, fix: { id: 'resize', label: 'Upscale (cannot add detail)', automatable: true, approx: true } });
+    } else if(P.recLongSide && longAvail < P.recLongSide && longAvail >= (P.minLongSide || 0)){
+      add({ id: 'res-rec', cat: 'platform', title: 'Below the recommended size', severity: 'info', confidence: 'high', basis: 'measured', metric: 'res',
+        explain: longAvail + ' px works, but ' + P.recLongSide + '+ px is recommended for the best zoom.', evidence: { value: longAvail + ' px', threshold: '≥ ' + P.recLongSide + ' px recommended', note: reqNote() } });
+    }
+    if(s > T.res.slight){
+      add({ id: 'upscale', cat: 'platform', title: s > T.res.soft ? 'Needs ' + s.toFixed(1) + '× enlargement — will look soft' : 'Needs slight enlargement (' + s.toFixed(2) + '×)',
+        severity: s > T.res.soft ? 'warning' : 'info', confidence: 'high', basis: 'measured', metric: 'res',
+        explain: 'To fill ' + o.w + '×' + o.h + ' px the usable ' + availW + '×' + availH + ' px must be enlarged. Enlarging cannot recover detail, so fine edges and text will be softer than a native-resolution image.',
+        evidence: { value: s.toFixed(2) + '× upscale', threshold: '>' + T.res.slight + '× slight, >' + T.res.soft + '× clearly soft (heuristic)' },
+        fix: { id: 'resize', label: 'Resize to ' + o.w + '×' + o.h, automatable: true, approx: true, detail: 'High-quality resampling; not AI upscaling.' } });
+    } else if(!hardMin) {
+      add({ id: 'upscale', cat: 'platform', title: 'Resolution is sufficient for ' + o.w + '×' + o.h, severity: 'passed', confidence: 'high', basis: 'measured', metric: 'res',
+        explain: 'No enlargement is needed — the image has at least as many pixels as the output.', evidence: { value: s.toFixed(2) + '× (≤1 = no upscaling)', threshold: '≤' + T.res.slight + '×' } });
+    }
+    if(P.maxLongSide && Math.max(W, H) > P.maxLongSide){
+      add({ id: 'res-max', cat: 'platform', title: 'Larger than the platform maximum', severity: 'warning', confidence: 'high', basis: 'measured', metric: 'res',
+        explain: 'The long side is ' + Math.max(W, H) + ' px; the stated maximum is ' + P.maxLongSide + ' px.', evidence: { value: Math.max(W, H) + ' px', threshold: '≤ ' + P.maxLongSide, note: reqNote() }, fix: { id: 'resize', label: 'Resize down', automatable: true } });
+    }
+  }
+  if(pix && pix.alpha.present && pix.alpha.transparentFrac + pix.alpha.semiFrac > 0.002 && P.w){
+    var okAlpha = P.fmt && P.fmt.alphaFormats && P.fmt.alphaFormats.length;
+    add({ id: 'alpha', cat: 'platform', title: okAlpha ? 'Image has transparency' : 'Transparency will be lost on this platform', severity: okAlpha ? 'info' : 'warning', confidence: 'high', basis: 'measured', metric: 'alpha',
+      explain: okAlpha ? pct(pix.alpha.transparentFrac + pix.alpha.semiFrac, 1) + ' of the image is transparent or semi-transparent. Export as PNG' + (P.fmt.alphaFormats.indexOf('webp') >= 0 ? ' or WebP' : '') + ' to keep it.'
+        : pct(pix.alpha.transparentFrac + pix.alpha.semiFrac, 1) + ' of the image is transparent, but ' + P.name + ' is a flat format. Transparent areas must be filled with a colour; APIC never does this silently — you choose the colour at export.',
+      evidence: { value: pct(pix.alpha.transparentFrac, 1) + ' transparent, ' + pct(pix.alpha.semiFrac, 1) + ' semi-transparent', threshold: 'formats keeping alpha: ' + ((P.fmt && P.fmt.alphaFormats.join(', ')) || 'none') },
+      fix: okAlpha ? null : { id: 'flatten', label: 'Choose a background colour at export', automatable: true } });
+  }
+
+  /* ================= TECHNICAL ================= */
+  if(pix){
+    var sh = pix.sharp;
+    if(sh.usable){
+      var b = sh.blurP10, scaleNote = 'measured at ' + pix.width + '×' + pix.height + ' px (the size the image will be delivered at)';
+      if(b >= T.blur.soft) add({ id: 'blur', cat: 'technical', title: 'Image looks soft — even its sharpest areas lack fine detail', severity: 'warning', confidence: 'moderate', basis: 'measured', metric: 'blur',
+        explain: 'Even the sharpest tenth of the structured areas keeps little fine detail after a re-blur test, which is typical of out-of-focus or motion-blurred images. If softness is intentional you can ignore this. Sharpening can only make edges look crisper; it cannot restore detail that was never captured.',
+        evidence: { value: b.toFixed(2), threshold: 'soft ≥ ' + T.blur.soft + ' (borderline ≥ ' + T.blur.borderline + ')', note: scaleNote }, fix: { id: 'sharpen', label: 'Mild sharpening', automatable: true, approx: true, detail: 'Approximate: improves apparent edge contrast, does not add detail.' } });
+      else if(b >= T.blur.borderline) add({ id: 'blur', cat: 'technical', title: 'Sharpness is borderline', severity: 'info', confidence: 'low', basis: 'measured', metric: 'blur',
+        explain: 'The measurement sits between clearly sharp and clearly soft, where the metric cannot separate a slightly soft photo from a naturally soft subject.', evidence: { value: b.toFixed(2), threshold: 'sharp < ' + T.blur.borderline + ' ≤ borderline < ' + T.blur.soft, note: scaleNote } });
+      else add({ id: 'blur', cat: 'technical', title: 'No blur detected at delivery size', severity: 'passed', confidence: 'moderate', basis: 'measured', metric: 'blur',
+        explain: 'The sharpest areas keep fine detail. (This does not say the whole image is in focus, only that it is not uniformly soft.)', evidence: { value: b.toFixed(2), threshold: '< ' + T.blur.borderline, note: scaleNote } });
+    } else {
+      add({ id: 'blur', cat: 'technical', title: 'Sharpness could not be judged', severity: 'info', confidence: 'low', basis: 'measured', metric: 'blur',
+        explain: 'There is too little fine structure to judge focus — the image is either a flat graphic or so blurred that no edges remain.', evidence: { value: sh.structBlocks + ' structured blocks of ' + sh.blocks, threshold: 'needs ≥ ' + Math.max(6, Math.round(sh.blocks * 0.03)) } });
+    }
+    if(pix.noise.usable){
+      var sg = pix.noise.sigma;
+      if(sg >= T.noise.warn) add({ id: 'noise', cat: 'technical', title: 'Visible noise / grain', severity: 'warning', confidence: 'moderate', basis: 'measured', metric: 'noise',
+        explain: 'Estimated noise of about ' + sg.toFixed(1) + ' levels (of 255) in smooth areas. Grain survives compression badly and can bloat file size. APIC does not offer automatic denoising because it would smear real texture; a dedicated denoise tool or a cleaner source is the better fix.',
+        evidence: { value: 'σ ≈ ' + sg.toFixed(1), threshold: 'warn ≥ ' + T.noise.warn + ', info ≥ ' + T.noise.info, note: 'measured at delivery size' } });
+      else if(sg >= T.noise.info) add({ id: 'noise', cat: 'technical', title: 'Mild noise present', severity: 'info', confidence: 'moderate', basis: 'measured', metric: 'noise',
+        explain: 'A small amount of grain (σ ≈ ' + sg.toFixed(1) + ') was measured. This is common and usually fine.', evidence: { value: 'σ ≈ ' + sg.toFixed(1), threshold: 'info ≥ ' + T.noise.info } });
+      else add({ id: 'noise', cat: 'technical', title: 'Noise is low', severity: 'passed', confidence: 'moderate', basis: 'measured', metric: 'noise',
+        explain: 'No notable noise was measured in smooth areas.', evidence: { value: 'σ ≈ ' + sg.toFixed(1), threshold: '< ' + T.noise.info } });
+    }
+    if(ctx.blk && ctx.blk.usable){
+      if(ctx.blk.score >= T.block.evidence) add({ id: 'block', cat: 'technical', title: 'Heavy JPEG compression pattern detected', severity: 'warning', confidence: 'moderate', basis: 'measured', metric: 'block',
+        explain: 'An 8×8 block grid is visible in the pixel data (strength ' + ctx.blk.score.toFixed(2) + '×). In tests this strength corresponds to JPEG quality of roughly 40 or lower. Re-saving will not remove it, and compressing again will make it worse — start from a better source if you can.',
+        evidence: { value: ctx.blk.score.toFixed(2) + '× baseline', threshold: '≥ ' + T.block.evidence, note: 'measured on native pixels' } });
+      else add({ id: 'block', cat: 'technical', title: 'No JPEG block pattern found', severity: 'passed', confidence: 'low', basis: 'measured', metric: 'block',
+        explain: 'No block grid was detected. This does not rule out mild compression, and it is only meaningful if the image has not been resized since it was saved.', evidence: { value: ctx.blk.score.toFixed(2) + '× baseline', threshold: '< ' + T.block.evidence } });
+    }
+    // Tone — descriptive only (see METRICS.tone for why)
+    var L = pix.luma, tone = [];
+    if(L.p50 < T.tone.darkMedian && L.p95 < T.tone.darkP95) tone.push({ id: 'tone-dark', t: 'Image is predominantly dark', e: 'Median brightness is ' + Math.round(L.p50 / 2.55) + '% and even the bright end stays below ' + Math.round(L.p95 / 2.55) + '%. This is normal for night or low-key images, so no problem is claimed. An optional exposure lift is available.', fix: { id: 'exposure', label: 'Lift exposure (optional)', automatable: true, approx: true } });
+    else if(L.p50 > T.tone.brightMedian && L.p05 > T.tone.brightP05) tone.push({ id: 'tone-bright', t: 'Image is predominantly bright', e: 'Median brightness is ' + Math.round(L.p50 / 2.55) + '% and even the dark end is above ' + Math.round(L.p05 / 2.55) + '%. This is normal for high-key or white-background images, so no problem is claimed. An optional exposure reduction is available.', fix: { id: 'exposure', label: 'Reduce exposure (optional)', automatable: true, approx: true } });
+    tone.forEach(function(t){ add({ id: t.id, cat: 'technical', title: t.t, severity: 'info', confidence: 'moderate', basis: 'measured', metric: 'tone', explain: t.e, evidence: { value: 'P5 ' + L.p05 + ' · median ' + L.p50 + ' · P95 ' + L.p95 + ' (0–255)', threshold: 'description only' }, fix: t.fix }); });
+    if(P.purpose !== 'ecom' && L.clipHiFrac >= T.tone.clipInfo) add({ id: 'clip-hi', cat: 'technical', title: pct(L.clipHiFrac, 1) + ' of pixels are pure white', severity: 'info', confidence: 'moderate', basis: 'measured', metric: 'tone',
+      explain: 'These pixels hold no detail. If they are a white background or a bright graphic that is expected; in a photo it can mean blown-out highlights (' + pct(L.clipHiPlateau) + ' sit in large flat areas). Intent cannot be determined from pixels, so this is information only.',
+      evidence: { value: pct(L.clipHiFrac, 1) + ' at luma ≥252', threshold: '≥ ' + pct(T.tone.clipInfo) + ' to mention' }, fix: L.p50 > 150 ? { id: 'exposure', label: 'Reduce exposure (optional)', automatable: true, approx: true } : null });
+    if(L.clipLoFrac >= T.tone.clipInfo && L.clipLoFrac > 0) add({ id: 'clip-lo', cat: 'technical', title: pct(L.clipLoFrac, 1) + ' of pixels are pure black', severity: 'info', confidence: 'moderate', basis: 'measured', metric: 'tone',
+      explain: 'These pixels hold no shadow detail. Black backgrounds, letterboxing and silhouettes are common and intentional; in underexposed photos it means lost shadows. Information only.',
+      evidence: { value: pct(L.clipLoFrac, 1) + ' at luma ≤3', threshold: '≥ ' + pct(T.tone.clipInfo) + ' to mention' }, fix: L.p50 < 90 ? { id: 'exposure', label: 'Lift exposure (optional)', automatable: true, approx: true } : null });
+    var spread = L.p95 - L.p05;
+    if(spread < T.tone.lowSpread && !tone.length) add({ id: 'contrast-low', cat: 'technical', title: 'Narrow tonal range (low contrast)', severity: 'info', confidence: 'moderate', basis: 'measured', metric: 'tone',
+      explain: 'The darkest and brightest areas are only ' + spread + ' levels apart (typical photos span 100+). That can be a deliberate foggy or flat look, so it is not called a defect; a gentle contrast stretch is offered as an option.',
+      evidence: { value: 'P95 − P5 = ' + spread + ' of 255', threshold: '< ' + T.tone.lowSpread + ' to mention' }, fix: { id: 'contrast', label: 'Stretch contrast (optional)', automatable: true, approx: true } });
+  }
+
+  /* ================= E-COMMERCE ================= */
+  if(pix && P.checks && P.checks.whiteBackground){
+    var bg = pix.bg;
+    if(bg.white255Frac >= 0.98) add({ id: 'white-bg', cat: 'platform', title: 'Background is pure white', severity: 'passed', confidence: 'high', basis: 'measured', metric: 'whiteBg', explain: 'Border pixels are RGB 255,255,255.', evidence: { value: pct(bg.white255Frac, 1) + ' exact white', threshold: '≥ 98%', note: reqNote() } });
+    else if(bg.nearWhiteFrac >= 0.9) add({ id: 'white-bg', cat: 'platform', title: 'Background looks white but is not pure white', severity: 'warning', confidence: 'high', basis: 'measured', metric: 'whiteBg',
+      explain: 'Only ' + pct(bg.white255Frac, 1) + ' of border pixels are exactly 255 (' + pct(bg.nearWhiteFrac, 1) + ' are ≥250). Marketplaces check for exact white. APIC can flood-fill the near-white background from the border to pure white without touching white inside the product.',
+      evidence: { value: pct(bg.white255Frac, 1) + ' exact · ' + pct(bg.nearWhiteFrac, 1) + ' near', threshold: 'exact ≥ 98%', note: reqNote() }, fix: { id: 'whiten', label: 'Make background pure white', automatable: true, approx: true, detail: 'Border-connected near-white only.' } });
+    else add({ id: 'white-bg', cat: 'platform', title: 'Background is not white', severity: 'critical', confidence: 'high', basis: 'measured', metric: 'whiteBg',
+      explain: 'Only ' + pct(bg.nearWhiteFrac, 0) + ' of the border is near-white; ' + P.name + ' requires a pure-white background. Use APIC’s Remove BG tool, then place the cut-out on white — this cannot be done reliably in one automatic step.',
+      evidence: { value: pct(bg.nearWhiteFrac, 0) + ' near-white border', threshold: '≥ 90%', note: reqNote() }, fix: { id: 'removebg', label: 'Use the Remove BG tool', automatable: false } });
+    if(bg.hasContent){
+      var fill = bg.fillMax, need = P.checks.fill || 0.85;
+      if(fill >= need) add({ id: 'fill', cat: 'platform', title: 'Product fills the frame', severity: 'passed', confidence: 'moderate', basis: 'measured', metric: 'fill', explain: 'Non-white content spans ' + pct(fill, 0) + ' of the frame.', evidence: { value: pct(fill, 0), threshold: '≥ ' + pct(need), note: reqNote() } });
+      else add({ id: 'fill', cat: 'platform', title: 'Product fills only ' + pct(fill, 0) + ' of the frame', severity: 'warning', confidence: 'moderate', basis: 'measured', metric: 'fill',
+        explain: P.name + ' asks for at least ' + pct(need) + '. Shadows count as content, so the real product may be slightly smaller than measured. APIC can re-frame the content with white padding.',
+        evidence: { value: pct(fill, 0), threshold: '≥ ' + pct(need), note: reqNote() }, fix: { id: 'crop', label: 'Re-frame product to ' + pct(0.88), automatable: true, approx: true },
+        regions: [{ x: bg.bbox.x, y: bg.bbox.y, w: bg.bbox.w, h: bg.bbox.h, label: 'content box' }] });
+    }
+  }
+
+  /* ================= TEXT ================= */
+  var oc = ctx.ocr, lines = (oc && oc.status === 'ok') ? oc.lines : [], reliable = lines.filter(function(l){ return l.conf >= T.text.reliableConf; });
+  if(oc && oc.status === 'ok'){
+    if(!lines.length) add({ id: 'text-none', cat: 'text', title: 'No text detected', severity: 'info', confidence: 'low', basis: 'model', metric: 'ocr',
+      explain: 'The OCR engine found no text it trusted. That does not prove the image has none — stylised, rotated, very small or non-English text is often missed — so no text checks were run.', evidence: { value: '0 reliable lines', threshold: '—' } });
+    else {
+      var area = reliable.reduce(function(s, l){ return s + l.box.w * l.box.h; }, 0);
+      add({ id: 'text-found', cat: 'text', title: reliable.length + ' text line' + (reliable.length === 1 ? '' : 's') + ' detected', severity: 'info', confidence: 'moderate', basis: 'model', metric: 'density',
+        explain: 'Text covers about ' + pct(area, 1) + ' of the frame. This is a description, not a judgement; ' + (lines.length - reliable.length ? (lines.length - reliable.length) + ' lower-confidence line(s) were not used for any warning.' : 'all were reliable enough for checks.'),
+        evidence: { value: reliable.map(function(l){ return '“' + (l.text.length > 28 ? l.text.slice(0, 26) + '…' : l.text) + '” ' + Math.round(l.conf) + '%'; }).join(' · ') || '—', threshold: 'reliable ≥ ' + T.text.reliableConf + '% OCR confidence (not a readability score)' },
+        regions: reliable.map(function(l, i){ return { x: l.box.x, y: l.box.y, w: l.box.w, h: l.box.h, label: 'text ' + (i + 1) }; }) });
+    }
+    reliable.forEach(function(l, idx){
+      var nm = '“' + (l.text.length > 24 ? l.text.slice(0, 22) + '…' : l.text) + '”', reg = [{ x: l.box.x, y: l.box.y, w: l.box.w, h: l.box.h, label: nm }];
+      // clipped at image edge
+      var m = T.text.edgeMargin, bx = l.box;
+      if(bx.x <= m || bx.y <= m || bx.x + bx.w >= 1 - m || bx.y + bx.h >= 1 - m)
+        add({ id: 'text-edge-' + idx, cat: 'text', title: nm + ' touches the image edge', severity: 'warning', confidence: 'moderate', basis: 'model', metric: 'safe',
+          explain: 'This text starts or ends right at the border, which usually means it is cut off or has no breathing room. Check the original; if it is clipped it cannot be repaired automatically.', evidence: { value: 'distance to edge ' + (Math.min(bx.x, bx.y, 1 - bx.x - bx.w, 1 - bx.y - bx.h) * 100).toFixed(1) + '%', threshold: '< ' + (m * 100).toFixed(1) + '%' }, regions: reg });
+      // crop cut
+      if(plan.needed){
+        var inF = E.insideFrac(bx, plan);
+        if(inF < 0.98) add({ id: 'text-crop-' + idx, cat: 'text', title: nm + ' will be cut by the crop', severity: ((1 - inF) >= T.text.cutCritical && bx.h >= 0.03) ? 'critical' : 'warning', confidence: 'moderate', basis: 'model', metric: 'safe',
+          explain: (1 - inF >= 0.5 ? 'More than half of this text' : 'Part of this text') + ' falls outside the ' + P.name + ' frame with the ' + plan.mode + ' crop. ' + (plan.mode === 'center' ? 'A smart crop may keep it.' : 'No crop position keeps everything; consider re-composing.'),
+          evidence: { value: pct(1 - inF) + ' outside the frame', threshold: '< 2% outside' }, regions: reg, fix: plan.mode === 'center' ? { id: 'crop', label: 'Use smart crop', automatable: true, approx: true } : null });
+      }
+      // safe zone / circle
+      var rel = plan.needed ? E.toCropSpace(bx, plan) : bx;
+      if(P.safe && E.insideFrac(rel, { x: 0, y: 0, w: 1, h: 1 }) > 0){
+        var sf = E.insideFrac(rel, P.safe.rect), outF = 1 - sf;
+        if(outF >= T.text.unsafeWarn) add({ id: 'text-safe-' + idx, cat: 'text', title: nm + ' is outside the safe zone', severity: 'warning', confidence: 'moderate', basis: 'model', metric: 'safe',
+          explain: pct(outF) + ' of this text lies where ' + P.group + ' may cover or crop it (' + P.safe.label + '). It cannot be moved automatically because the text is part of the image; re-position it in your design tool or crop differently.',
+          evidence: { value: pct(outF) + ' outside', threshold: '< ' + pct(T.text.unsafeWarn), note: reqNote() }, regions: reg });
+      }
+      if(P.mask === 'circle' && plan){
+        var cx = rel.x + rel.w / 2, cy = rel.y + rel.h / 2, far = Math.max(Math.abs(rel.x - 0.5), Math.abs(rel.x + rel.w - 0.5)), farY = Math.max(Math.abs(rel.y - 0.5), Math.abs(rel.y + rel.h - 0.5));
+        if(Math.sqrt(far * far + farY * farY) > 0.5) add({ id: 'text-circle-' + idx, cat: 'text', title: nm + ' reaches outside the circular crop', severity: 'warning', confidence: 'moderate', basis: 'model', metric: 'safe',
+          explain: 'This profile picture is shown as a circle, so the corners of the square are hidden.', evidence: { value: 'corner distance ' + (Math.sqrt(far * far + farY * farY) * 200).toFixed(0) + '% of radius', threshold: '≤ 100%' }, regions: reg });
+      }
+      // contrast
+      var st = l.stats;
+      if(st && st.usable && st.eta >= T.text.minEta && !st.ambiguous){
+        var r = st.ratio;
+        if(r < T.text.contrastWarn) add({ id: 'text-contrast-' + idx, cat: 'text', title: nm + ' has weak contrast', severity: 'warning', confidence: 'moderate', basis: 'heuristic', metric: 'textContrast',
+          explain: 'The text and its background differ by only ' + r.toFixed(1) + ':1. A soft darkening (or lightening) panel behind the text can raise this; APIC can add one and shows the effect before applying.',
+          evidence: { value: r.toFixed(2) + ':1', threshold: '< ' + T.text.contrastWarn + ':1 weak, ≥ ' + T.text.contrastInfo + ':1 comfortable', note: 'separability η=' + st.eta.toFixed(2) }, regions: reg,
+          fix: { id: 'scrim', label: 'Add contrast panel behind text', automatable: true, approx: true, ref: idx } });
+        else if(r < T.text.contrastInfo) add({ id: 'text-contrast-' + idx, cat: 'text', title: nm + ': contrast is acceptable for large text only', severity: 'info', confidence: 'moderate', basis: 'heuristic', metric: 'textContrast',
+          explain: 'Contrast of ' + r.toFixed(1) + ':1 is fine for big headlines but marginal for small text.', evidence: { value: r.toFixed(2) + ':1', threshold: '≥ ' + T.text.contrastInfo + ':1 for small text' }, regions: reg, fix: { id: 'scrim', label: 'Add contrast panel behind text', automatable: true, approx: true, ref: idx } });
+        else add({ id: 'text-contrast-' + idx, cat: 'text', title: nm + ': good contrast', severity: 'passed', confidence: 'moderate', basis: 'heuristic', metric: 'textContrast', explain: 'Strong separation between text and background.', evidence: { value: r.toFixed(2) + ':1', threshold: '≥ ' + T.text.contrastInfo + ':1' }, regions: reg });
+      } else if(st){
+        add({ id: 'text-contrast-' + idx, cat: 'text', title: nm + ': contrast could not be judged', severity: 'info', confidence: 'low', basis: 'heuristic', metric: 'textContrast',
+          explain: 'The background behind this text is busy or the strokes could not be separated cleanly, so a reliable contrast value is not available.', evidence: { value: !st.usable ? st.reason : (st.eta < T.text.minEta ? 'separability η=' + st.eta.toFixed(2) + ' (busy or gradient background)' : 'strokes would cover ' + pct(st.minorFrac) + ' of the box — too much to tell text from background'), threshold: 'η ≥ ' + T.text.minEta + ' and strokes < 42% of the box' }, regions: reg });
+      }
+      // size / survival after downscale
+      if(l.display){
+        var dsp = l.display;
+        if(dsp.heightPx < T.text.minLinePxAtPhone || dsp.survived === false){
+          add({ id: 'text-small-' + idx, cat: 'text', title: nm + (dsp.survived === false ? ' may be hard to read on a phone' : ' is small on a phone screen'), severity: 'warning', confidence: dsp.survived === false && dsp.heightPx < T.text.minLinePxAtPhone ? 'moderate' : 'low', basis: 'heuristic', metric: 'downscale',
+            explain: 'At a phone width of ' + T.text.phoneWidth + ' px this line is about ' + dsp.heightPx.toFixed(0) + ' px tall' + (dsp.survived === false ? ' and the OCR engine could no longer read it after shrinking' : '') + '. Larger or bolder text is the fix; APIC cannot enlarge text that is part of the picture.',
+            evidence: { value: dsp.heightPx.toFixed(1) + ' px tall at ' + T.text.phoneWidth + ' px wide' + (dsp.survived === null ? '' : (dsp.survived ? ' · still readable by OCR' : ' · not re-read by OCR')), threshold: '≥ ' + T.text.minLinePxAtPhone + ' px (heuristic)' }, regions: reg });
+        } else add({ id: 'text-small-' + idx, cat: 'text', title: nm + ' stays legible when shrunk', severity: 'passed', confidence: 'moderate', basis: 'heuristic', metric: 'downscale',
+          explain: 'At ' + T.text.phoneWidth + ' px wide the line is ' + dsp.heightPx.toFixed(0) + ' px tall' + (dsp.survived ? ' and OCR still reads it' : '') + '. (This is a proxy for human readability.)', evidence: { value: dsp.heightPx.toFixed(1) + ' px' + (dsp.survived ? ' · re-read by OCR' : ''), threshold: '≥ ' + T.text.minLinePxAtPhone + ' px' }, regions: reg });
+      }
+    });
+  }
+
+  /* ================= COMPOSITION ================= */
+  var faces = (ctx.faces && ctx.faces.status === 'ok') ? ctx.faces.boxes.filter(function(f){ return f.score >= T.face.minScore; }) : [];
+  var objs = (ctx.objects && ctx.objects.status === 'ok') ? ctx.objects.boxes.filter(function(f){ return f.score >= T.obj.minScore; }) : [];
+  faces.forEach(function(f, i){
+    var reg = [{ x: f.x, y: f.y, w: f.w, h: f.h, label: 'face ' + (i + 1) }], e = T.face.edge;
+    if(f.x <= e || f.y <= e || f.x + f.w >= 1 - e || f.y + f.h >= 1 - e)
+      add({ id: 'face-edge-' + i, cat: 'composition', title: 'A face touches the edge of the image', severity: 'warning', confidence: 'moderate', basis: 'model', metric: 'face',
+        explain: 'A detected face reaches the border, so part of the head may already be cut off in the source. Tight crops can be intentional, so please check.', evidence: { value: 'face score ' + f.score.toFixed(2), threshold: 'within ' + (e * 100).toFixed(1) + '% of an edge' }, regions: reg });
+    if(plan.needed){
+      var inF = E.insideFrac(f, plan);
+      if(inF < 0.98) add({ id: 'face-crop-' + i, cat: 'composition', title: 'A face will be cut by the crop', severity: 'warning', confidence: 'moderate', basis: 'model', metric: 'face',
+        explain: pct(1 - inF) + ' of a detected face falls outside the ' + P.name + ' frame with the ' + plan.mode + ' crop.' + (plan.mode === 'center' ? ' A smart crop may keep it.' : ''),
+        evidence: { value: pct(1 - inF) + ' outside', threshold: '< 2%' }, regions: reg, fix: plan.mode === 'center' ? { id: 'crop', label: 'Use smart crop', automatable: true, approx: true } : null });
+    }
+    if(P.mask === 'circle'){
+      var rel = plan.needed ? E.toCropSpace(f, plan) : f, ccx = rel.x + rel.w / 2 - 0.5, ccy = rel.y + rel.h / 2 - 0.5, off = Math.sqrt(ccx * ccx + ccy * ccy) / 0.5;
+      var corner = Math.sqrt(Math.pow(Math.max(Math.abs(rel.x - 0.5), Math.abs(rel.x + rel.w - 0.5)), 2) + Math.pow(Math.max(Math.abs(rel.y - 0.5), Math.abs(rel.y + rel.h - 0.5)), 2));
+      if(corner > 0.5) add({ id: 'face-circle-' + i, cat: 'composition', title: 'Face does not fit inside the circular crop', severity: 'warning', confidence: 'moderate', basis: 'model', metric: 'face',
+        explain: 'This profile picture is shown as a circle; part of the detected face lies in the hidden corners.', evidence: { value: 'face reaches ' + (corner * 200).toFixed(0) + '% of radius', threshold: '≤ 100%' }, regions: reg });
+      else if(off > 0.35) add({ id: 'face-center-' + i, cat: 'composition', title: 'Face is off-centre for a profile picture', severity: 'info', confidence: 'moderate', basis: 'model', metric: 'face',
+        explain: 'The face centre sits ' + (off * 100).toFixed(0) + '% of the radius away from the middle. Centred faces usually read best in circles, but this is a style choice.', evidence: { value: (off * 100).toFixed(0) + '% of radius', threshold: 'description' }, regions: reg });
+    }
+    // text over face
+    reliable.forEach(function(l, li){ if(E.interArea(l.box, f) / Math.max(1e-9, E.boxArea(f)) > 0.15)
+      add({ id: 'text-face-' + i + '-' + li, cat: 'composition', title: 'Text overlaps a face', severity: 'info', confidence: 'moderate', basis: 'model', metric: 'face',
+        explain: 'The text “' + (l.text.length > 24 ? l.text.slice(0, 22) + '…' : l.text) + '” covers part of a detected face.', evidence: { value: pct(E.interArea(l.box, f) / E.boxArea(f)) + ' of the face covered', threshold: '> 15%' }, regions: reg.concat([{ x: l.box.x, y: l.box.y, w: l.box.w, h: l.box.h, label: 'text' }]) }); });
+  });
+  if(P.purpose === 'ecom' && objs.length){
+    objs.forEach(function(b, i){ var e = 0.004;
+      if(b.x <= e || b.y <= e || b.x + b.w >= 1 - e || b.y + b.h >= 1 - e) add({ id: 'obj-edge-' + i, cat: 'composition', title: 'Detected ' + b.label + ' touches the edge', severity: 'warning', confidence: 'moderate', basis: 'model', metric: 'obj',
+        explain: 'For product images the whole item should normally be inside the frame.', evidence: { value: b.label + ' score ' + b.score.toFixed(2), threshold: 'within 0.4% of an edge' }, regions: [{ x: b.x, y: b.y, w: b.w, h: b.h, label: b.label }] }); });
+  }
+  if(pix && pix.mass.usable){
+    add({ id: 'mass', cat: 'composition', title: 'Where the detail sits', severity: 'info', confidence: 'moderate', basis: 'measured', metric: 'color',
+      explain: 'Fine detail is centred at about ' + pct(pix.mass.cx) + ' across and ' + pct(pix.mass.cy) + ' down. There is no “correct” balance, so this is a measurement only.', evidence: { value: 'x ' + pct(pix.mass.cx) + ', y ' + pct(pix.mass.cy), threshold: 'description only' } });
+  }
+  return out;
+};
+
+/* ---------- roll-up: category statuses, honest overall label (no numeric score) ---------- */
+PF.summarize = function(findings, modules, ctx){
+  var order = { critical: 3, warning: 2, info: 1, passed: 0 }, cats = ['technical', 'composition', 'text', 'platform'], res = { categories: {}, counts: { critical: 0, warning: 0, info: 0, passed: 0, undetermined: 0 } };
+  cats.forEach(function(c){ res.categories[c] = { status: 'none', n: 0, undetermined: 0 }; });
+  findings.forEach(function(f){
+    var c = res.categories[f.cat]; if(!c) return; c.n++;
+    if(f.undetermined){ c.undetermined++; res.counts.undetermined++; return; }
+    res.counts[f.severity]++;
+    if(c.status === 'none' || order[f.severity] > order[c.status]) c.status = f.severity;
+  });
+  var failed = modules.filter(function(m){ return m.status === 'failed' || m.status === 'unavailable' || m.status === 'cancelled'; });
+  var modNeeds = { text: 'ocr', composition: 'faces' };
+  Object.keys(modNeeds).forEach(function(c){
+    var mm = modules.filter(function(m){ return m.id === modNeeds[c] || (c === 'composition' && m.id === 'objects'); });
+    if(res.categories[c].status === 'none' && mm.length && mm.every(function(m){ return m.status !== 'ok'; })) res.categories[c].status = 'notassessed';
+  });
+  res.incomplete = failed.length > 0; res.failedModules = failed;
+  res.label = res.counts.critical ? 'Not ready — blocking issues found' : (res.counts.warning ? 'Needs attention' : 'No blocking issues found by the checks that ran');
+  res.labelKind = res.counts.critical ? 'critical' : (res.counts.warning ? 'warning' : 'ok');
+  return res;
+};
+
+/* =====================================================================
+   APIC VISUAL INTELLIGENCE — UI + EDITOR INTEGRATION
+   Same pattern as Layers / Social: adds one tab, one panel, never touches
+   the photo until the user presses “Apply to editor” (undoable through the
+   existing history via window.__apicBake).
+   ===================================================================== */
+(function(){
+  var cv = document.getElementById('canvas'), dropEl = document.getElementById('drop'), bench = document.querySelector('.bench-tools'),
+      foot = document.querySelector('.bench-footer'), toolTitle = document.getElementById('toolTitle'), exportBtn = document.getElementById('exportBtn'),
+      fileInfo = document.getElementById('fileInfo'), fileInput = document.getElementById('fileInput');
+  if(!cv || !dropEl || !bench || !foot || !toolTitle) return;
+  var t0 = bench.querySelector('.tool-btn'); if(!t0) return;
+
+  var E = PF.engineFactory();                       // main-thread instance (small jobs + worker fallback)
+  var MB = 1048576, PHONE_W = PF.TH.text.phoneWidth;
+  var URLS = {
+    tess: { script: 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js', sri: 'sha384-GJqSu7vueQ9qN0E9yLPb3Wtpd7OrgK8KmYzC8T1IysG1bcvxvIO4qtYR/D3A991F', worker: 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/worker.min.js',
+            core: 'https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1', lang: 'https://cdn.jsdelivr.net/npm/@tesseract.js-data/eng@1.0.0/4.0.0_best_int', mb: 3.2 },
+    vision: 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs',
+    wasm: 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm',
+    face: { url: 'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite', mb: 0.23 },
+    obj:  { url: 'https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/float16/latest/efficientdet_lite0.tflite', mb: 4.6 }
+  };
+
+  /* ---------- tiny helpers (kept local so nothing global is redefined) ---------- */
+  function $(id){ return document.getElementById(id); }
+  function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function mk(w, h){ var c = document.createElement('canvas'); c.width = Math.max(1, Math.round(w)); c.height = Math.max(1, Math.round(h)); return c; }
+  function free(c){ try{ if(c){ c.width = 1; c.height = 1; } }catch(e){} }
+  function yieldUI(){ return new Promise(function(r){ setTimeout(r, 0); }); }
+  function fmtBytes(n){ return n >= MB ? (n / MB).toFixed(n >= 10 * MB ? 0 : 1).replace(/\.0$/, '') + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB'; }
+  function layersOn(){ try{ return !!(window.__apicLayers && window.__apicLayers.count() > 0); }catch(e){ return false; } }
+  function pct(v, d){ return (v * 100).toFixed(d == null ? 0 : d) + '%'; }
+  function hasAlphaPixels(c){ try{ var s = mk(64, 64), g = s.getContext('2d', { willReadFrequently: true }); g.drawImage(c, 0, 0, 64, 64); var d = g.getImageData(0, 0, 64, 64).data; free(s); for(var i = 3; i < d.length; i += 4) if(d[i] < 250) return true; }catch(e){} return false; }
+  var CANCEL = { cancelled: true };
+  function stepScale(src, tw, th){                      // area-friendly downscale by repeated halving (no aliasing, no giant intermediates)
+    tw = Math.max(1, Math.round(tw)); th = Math.max(1, Math.round(th));
+    var cur = src, cw = src.width, ch = src.height, prev = null;
+    while(cw / 2 >= tw && ch / 2 >= th){
+      var nw = Math.max(tw, Math.floor(cw / 2)), nh = Math.max(th, Math.floor(ch / 2)), c = mk(nw, nh), g = c.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(cur, 0, 0, nw, nh);
+      if(prev) free(prev); prev = c; cur = c; cw = nw; ch = nh;
+    }
+    var out = mk(tw, th), og = out.getContext('2d'); og.imageSmoothingQuality = 'high'; og.drawImage(cur, 0, 0, tw, th); if(prev) free(prev); return out;
+  }
+  function blobOf(c, type, q){ return new Promise(function(res, rej){ c.toBlob(function(b){ b ? res(b) : rej(new Error('encode failed')); }, type, q); }); }
+
+  /* ---------------------------------------------------------------
+     STATE
+  --------------------------------------------------------------- */
+  var S = { open: false, step: 1, profileId: 'general', cw: 1080, ch: 1080, optOcr: true, optDet: true,
+            run: null, report: null, stale: false, sel: null, outputs: [], busy: false, status: '', prevTimer: 0, prevToken: 0, showDet: true, focus: null };
+  var VIS = null, WORKER = null, WORKER_FAIL = false, selfEdit = false;
+
+  function curProfile(){ return S.profileId === 'custom' ? PF.customProfile(S.cw, S.ch) : (PF.getProfile(S.profileId) || PF.getProfile('general')); }
+
+  /* ---------------------------------------------------------------
+     PANEL (built once)
+  --------------------------------------------------------------- */
+  var tab = document.createElement('button'); tab.className = 'tool-btn'; tab.id = 'preflightTab'; tab.type = 'button'; tab.disabled = t0.disabled;
+  tab.innerHTML = 'Visual Intelligence <span class="pf-new">New</span>'; bench.appendChild(tab);
+  var panel = document.createElement('div'); panel.className = 'bench-panel'; panel.id = 'panel-preflight';
+  panel.innerHTML =
+    '<p class="hint" style="margin-top:0;"><b>Don’t just edit. Make every image ready.</b> Visual Intelligence checks your image against a platform, explains every finding with its evidence, and offers corrections you can preview and undo. Analysis runs on your device — your image is never uploaded.</p>' +
+    '<ol class="pf-steps" id="pfSteps" aria-label="Steps"></ol>' +
+    '<section class="pf-sec" id="pfS1" aria-labelledby="pfH1"></section><section class="pf-sec" id="pfS2" aria-labelledby="pfH2"></section><section class="pf-sec" id="pfS3" aria-labelledby="pfH3"></section>' +
+    '<section class="pf-sec" id="pfS4" aria-labelledby="pfH4"></section><section class="pf-sec" id="pfS5" aria-labelledby="pfH5"></section>' +
+    '<div class="pf-status" id="pfStatus" role="status" aria-live="polite"></div>';
+  foot.parentNode.insertBefore(panel, foot);
+  var secs = [null, $('pfS1'), $('pfS2'), $('pfS3'), $('pfS4'), $('pfS5')], stepsEl = $('pfSteps'), statusEl = $('pfStatus');
+
+  function say(msg, spin){ S.status = msg; statusEl.innerHTML = (spin ? '<span class="spinner"></span> ' : '') + msg; }   // msg is trusted/escaped by callers
+  var STEP_NAMES = ['', '1 · Setup', '2 · Analysis', '3 · Report', '4 · Corrections', '5 · Export'];
+  function renderSteps(){
+    var has = !!S.report, h = '';
+    for(var i = 1; i <= 5; i++){
+      var dis = (i === 2 && !S.run) || (i >= 3 && !has);
+      h += '<li><button type="button" data-step="' + i + '"' + (S.step === i ? ' aria-current="step"' : '') + (dis ? ' disabled' : '') + '>' + STEP_NAMES[i] + '</button></li>';
+    }
+    stepsEl.innerHTML = h;
+  }
+  stepsEl.addEventListener('click', function(e){ var b = e.target.closest('button[data-step]'); if(b && !b.disabled) go(+b.getAttribute('data-step')); });
+  function go(n){
+    S.step = n; for(var i = 1; i <= 5; i++) secs[i].classList.toggle('on', i === n);
+    renderSteps();
+    if(n === 1) renderSetup(); else if(n === 2) renderRun(); else if(n === 3) renderReport(); else if(n === 4) renderFixes(); else if(n === 5) renderExport();
+    var hd = secs[n].querySelector('h3'); if(hd){ hd.setAttribute('tabindex', '-1'); try{ hd.focus({ preventScroll: true }); }catch(e){} }
+  }
+
+  /* =================================================================
+     SCREEN 1 — SETUP
+     ================================================================= */
+  function profileOptions(){
+    var groups = {}, order = []; PF.PROFILES.forEach(function(p){ if(!groups[p.group]){ groups[p.group] = []; order.push(p.group); } groups[p.group].push(p); });
+    var h = ''; order.forEach(function(g){ h += '<optgroup label="' + esc(g) + '">' + groups[g].map(function(p){ return '<option value="' + p.id + '"' + (p.id === S.profileId ? ' selected' : '') + '>' + esc(p.name) + (p.w ? ' — ' + p.w + '×' + p.h : '') + '</option>'; }).join('') + '</optgroup>'; });
+    return h + '<optgroup label="Custom"><option value="custom"' + (S.profileId === 'custom' ? ' selected' : '') + '>Custom dimensions…</option></optgroup>';
+  }
+  function srcLine(p){
+    var s = p.src || {}, lab = { secondary: 'Requirements: several independent guides agree · checked ' + s.date, unverified: 'Requirements: common practice / recommendation, not a verified platform rule', user: 'Requirements: the size you entered' }[s.status] || '';
+    return '<p class="pf-note">' + esc(lab) + (p.note ? '<br>' + esc(p.note) : '') + (s.conflicts ? '<br><b>Not checked:</b> ' + esc(s.conflicts) : '') + '</p>';
+  }
+  function renderSetup(){
+    var el = secs[1], p = curProfile();
+    el.innerHTML =
+      '<h3 id="pfH1">Choose what this image is for</h3>' +
+      '<div class="pf-card pf-src"><canvas id="pfThumb" width="96" height="96" aria-label="Current image"></canvas><div><div id="pfSrcInfo" class="filesize"></div>' +
+      '<div class="pf-actions" style="margin-top:8px;"><button type="button" class="quick-btn" id="pfNewImg">Use a different image</button></div></div></div>' +
+      '<div class="pf-card"><label for="pfProf" class="filesize" style="display:block;margin-bottom:6px;">Intended purpose</label><select id="pfProf" style="width:100%;">' + profileOptions() + '</select>' +
+      '<div class="row" id="pfCustom" style="display:' + (S.profileId === 'custom' ? 'flex' : 'none') + ';margin-top:10px;gap:8px;align-items:center;"><label for="pfCW" class="filesize">Size</label><input type="number" id="pfCW" min="16" max="8192" value="' + S.cw + '" aria-label="Width in pixels"><span class="filesize">×</span><input type="number" id="pfCH" min="16" max="8192" value="' + S.ch + '" aria-label="Height in pixels"></div>' +
+      '<div id="pfSrcNote">' + srcLine(p) + '</div></div>' +
+      '<div class="pf-card pf-opts"><div class="filesize" style="margin-bottom:4px;">Analyses to run</div>' +
+      '<label><input type="checkbox" checked disabled> <span><b>Pixel analysis</b> — sharpness, noise, tone, colour, compression, transparency. Always runs, instant, no download.</span></label>' +
+      '<label><input type="checkbox" id="pfOptOcr"' + (S.optOcr ? ' checked' : '') + '> <span><b>Text detection (OCR)</b> — finds text, checks contrast, safe zones and legibility when shrunk. One-time download ≈ ' + URLS.tess.mb + ' MB, then cached.</span></label>' +
+      '<label><input type="checkbox" id="pfOptDet"' + (S.optDet ? ' checked' : '') + '> <span><b>Faces &amp; objects</b> — detects faces and common objects for crop and composition checks. One-time download ≈ ' + (URLS.face.mb + URLS.obj.mb).toFixed(1) + ' MB, then cached.</span></label>' +
+      '<p class="pf-note"><b>Downloads are models, not your image.</b> Your image never leaves this device — no uploads, no cloud AI, no account needed for analysis. If a download fails, the other checks still run and the report says what was skipped.</p></div>' +
+      '<div class="pf-actions"><button type="button" class="btn btn-gold btn-sm" id="pfStart">Start analysis</button></div>';
+    drawThumb(); 
+    $('pfProf').addEventListener('change', function(){ S.profileId = this.value; $('pfCustom').style.display = this.value === 'custom' ? 'flex' : 'none'; $('pfSrcNote').innerHTML = srcLine(curProfile()); });
+    ['pfCW', 'pfCH'].forEach(function(id){ $(id).addEventListener('input', function(){ S.cw = Math.max(16, Math.min(8192, +$('pfCW').value || 16)); S.ch = Math.max(16, Math.min(8192, +$('pfCH').value || 16)); }); });
+    $('pfOptOcr').addEventListener('change', function(){ S.optOcr = this.checked; }); $('pfOptDet').addEventListener('change', function(){ S.optDet = this.checked; });
+    $('pfStart').addEventListener('click', startAnalysis);
+    $('pfNewImg').addEventListener('click', function(){ if(fileInput) fileInput.click(); });
+  }
+  function drawThumb(){
+    var t = $('pfThumb'); if(!t) return; var g = t.getContext('2d'); g.clearRect(0, 0, 96, 96);
+    if(!cv.width || !cv.height || cv.width < 2) return; var s = Math.min(96 / cv.width, 96 / cv.height), w = cv.width * s, h = cv.height * s; g.imageSmoothingQuality = 'high'; g.drawImage(cv, (96 - w) / 2, (96 - h) / 2, w, h);
+    var i = $('pfSrcInfo'); if(i) i.textContent = cv.width + '×' + cv.height + ' px · the image currently in the editor (' + (hasAlphaPixels(cv) ? 'has transparency' : 'opaque') + ')';
+  }
+
+  /* =================================================================
+     WORKER (deterministic engine off the main thread, main-thread fallback)
+     ================================================================= */
+  function workerSrc(){
+    return 'var E=(' + PF.engineFactory.toString() + ')();self.onmessage=function(e){var m=e.data;try{var img={width:m.w,height:m.h,data:new Uint8ClampedArray(m.buf)};var r=m.type==="block"?E.blockiness(img):E.analyze(img);self.postMessage({id:m.id,ok:true,r:r});}catch(err){self.postMessage({id:m.id,ok:false,e:String(err&&err.message||err)});}};';
+  }
+  var jobId = 0, pending = {};
+  function getWorker(){
+    if(WORKER || WORKER_FAIL) return WORKER;
+    try{
+      var url = URL.createObjectURL(new Blob([workerSrc()], { type: 'text/javascript' })); WORKER = new Worker(url); WORKER.__url = url;
+      WORKER.onmessage = function(e){ var m = e.data, p = pending[m.id]; if(!p) return; delete pending[m.id]; m.ok ? p.res(m.r) : p.rej(new Error(m.e)); };
+      WORKER.onerror = function(ev){ WORKER_FAIL = true; killWorker(true); };
+    }catch(err){ WORKER = null; WORKER_FAIL = true; }
+    return WORKER;
+  }
+  function killWorker(failAll){
+    if(WORKER){ try{ WORKER.terminate(); URL.revokeObjectURL(WORKER.__url); }catch(e){} WORKER = null; }
+    Object.keys(pending).forEach(function(k){ var p = pending[k]; delete pending[k]; p.rej(failAll ? new Error('worker failed') : CANCEL); });
+  }
+  function runJob(type, imgData){                      // returns {r, where}
+    var w = getWorker();
+    if(w){
+      return new Promise(function(res, rej){
+        var id = ++jobId; pending[id] = { res: function(r){ res({ r: r, where: 'worker' }); }, rej: rej };
+        var copy = new Uint8ClampedArray(imgData.data); w.postMessage({ id: id, type: type, w: imgData.width, h: imgData.height, buf: copy.buffer }, [copy.buffer]);
+      }).catch(function(err){ if(err === CANCEL) throw err; return runLocal(type, imgData); });
+    }
+    return runLocal(type, imgData);
+  }
+  function runLocal(type, imgData){ return yieldUI().then(function(){ return { r: type === 'block' ? E.blockiness(imgData) : E.analyze(imgData), where: 'main thread (fallback)' }; }); }
+
+  /* =================================================================
+     OCR (Tesseract.js, loaded on demand)
+     ================================================================= */
+  function loadTesseract(){
+    if(window.Tesseract) return Promise.resolve(window.Tesseract);
+    return new Promise(function(res, rej){
+      var s = document.createElement('script'); s.src = URLS.tess.script; s.crossOrigin = 'anonymous'; if(URLS.tess.sri && URLS.tess.sri.indexOf('sha') === 0) s.integrity = URLS.tess.sri;
+      s.onload = function(){ window.Tesseract ? res(window.Tesseract) : rej(new Error('OCR library did not initialise')); };
+      s.onerror = function(){ rej(new Error('OCR library could not be downloaded (offline, blocked, or integrity check failed)')); };
+      document.head.appendChild(s);
+    });
+  }
+  function maskCanvas(c, kind, thr){
+    var m = mk(c.width, c.height), g = m.getContext('2d', { willReadFrequently: true }); g.drawImage(c, 0, 0);
+    var im = g.getImageData(0, 0, m.width, m.height), d = im.data;
+    for(var i = 0; i < d.length; i += 4){ var y = 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2], on = kind === 'bright' ? y >= thr : y <= thr, v = on ? 0 : 255; d[i] = d[i + 1] = d[i + 2] = v; d[i + 3] = 255; }
+    g.putImageData(im, 0, 0); return m;
+  }
+  // Runs raw + bright-mask + dark-mask passes and returns merged, filtered lines (fractions of the canvas)
+  async function ocrLines(worker, c, tok, onPass){
+    var passes = [['raw'], ['bright', 225], ['dark', 40]], all = [];
+    for(var i = 0; i < passes.length; i++){
+      if(tok && tok.cancelled) throw CANCEL; if(onPass) onPass(i, passes.length);
+      var src = passes[i][0] === 'raw' ? c : maskCanvas(c, passes[i][0], passes[i][1]);
+      var r = await worker.recognize(src); if(src !== c) free(src);
+      (r.data.words || []).forEach(function(x){ all.push({ text: x.text, conf: x.confidence, x0: x.bbox.x0, y0: x.bbox.y0, x1: x.bbox.x1, y1: x.bbox.y1 }); });
+    }
+    var kept = E.mergeWords(E.filterWords(all, c.width, c.height, { minConf: PF.TH.text.minLineConf }));
+    return E.groupLines(kept, c.width, c.height).filter(E.keepLine);
+  }
+  async function makeOcrWorker(tok, onProg){
+    var T = await loadTesseract(); if(tok.cancelled) throw CANCEL;
+    var w = await T.createWorker('eng', 1, { workerPath: URLS.tess.worker, corePath: URLS.tess.core, langPath: URLS.tess.lang, gzip: true,
+      logger: function(m){ if(onProg) onProg(m); } });
+    tok.ocr = w; if(tok.cancelled){ try{ await w.terminate(); }catch(e){} throw CANCEL; }
+    await w.setParameters({ tessedit_pageseg_mode: '11' });                    // sparse text: best for graphics with scattered text
+    return w;
+  }
+
+  /* =================================================================
+     FACE / OBJECT DETECTION (MediaPipe Tasks, loaded on demand, released after use)
+     ================================================================= */
+  function loadVision(){
+    if(!VIS) VIS = (async function(){ var m = await import(URLS.vision); var files = await m.FilesetResolver.forVisionTasks(URLS.wasm); return { m: m, files: files }; })().catch(function(e){ VIS = null; throw e; });
+    return VIS;
+  }
+  async function runDetector(kind, canvas, onProg, tok){
+    var cfg = kind === 'face' ? URLS.face : URLS.obj, v = await loadVision(); if(tok.cancelled) throw CANCEL;
+    if(typeof window.__apicFetchModel !== 'function') throw new Error('model downloader unavailable');
+    var buf = await window.__apicFetchModel(cfg.url, cfg.mb * 1e6, onProg); if(tok.cancelled) throw CANCEL;
+    var det = null;
+    try{
+      var base = { modelAssetBuffer: new Uint8Array(buf), delegate: 'CPU' };
+      det = kind === 'face' ? await v.m.FaceDetector.createFromOptions(v.files, { baseOptions: base, runningMode: 'IMAGE', minDetectionConfidence: PF.TH.face.minScore })
+                            : await v.m.ObjectDetector.createFromOptions(v.files, { baseOptions: base, runningMode: 'IMAGE', scoreThreshold: PF.TH.obj.minScore, maxResults: 12 });
+      if(tok.cancelled) throw CANCEL;
+      await yieldUI(); var r = det.detect(canvas), W = canvas.width, H = canvas.height;
+      return (r.detections || []).map(function(d){ var b = d.boundingBox, c = d.categories && d.categories[0];
+        var x = Math.max(0, b.originX / W), y = Math.max(0, b.originY / H), x1 = Math.min(1, (b.originX + b.width) / W), y1 = Math.min(1, (b.originY + b.height) / H);
+        return { x: x, y: y, w: x1 - x, h: y1 - y, score: c ? c.score : 0, label: c ? c.categoryName : 'face' }; });
+    } finally { try{ if(det) det.close(); }catch(e){} buf = null; }
+  }
+
+  /* =================================================================
+     ANALYSIS ORCHESTRATION — every module reports its real status
+     ================================================================= */
+  function startAnalysis(){
+    if(S.busy) return;
+    if(layersOn()){ say('Flatten your layers first (Layers tab → Flatten into photo) so the analysis sees the whole picture.'); return; }
+    if(!cv.width || cv.width < 16 || cv.height < 16){ say('The image is too small to analyse.'); return; }
+    var tok = { cancelled: false, ocr: null }, P = curProfile();
+    var mods = [{ id: 'pixels', name: 'Pixel analysis', status: 'pending', detail: '', req: true }];
+    if(S.optOcr) mods.push({ id: 'ocr', name: 'Text detection (OCR)', status: 'pending', detail: '' }); else mods.push({ id: 'ocr', name: 'Text detection (OCR)', status: 'skipped', detail: 'Turned off by you.' });
+    if(S.optDet){ mods.push({ id: 'faces', name: 'Face detection', status: 'pending', detail: '' }); mods.push({ id: 'objects', name: 'Object detection', status: 'pending', detail: '' }); }
+    else { mods.push({ id: 'faces', name: 'Face detection', status: 'skipped', detail: 'Turned off by you.' }); mods.push({ id: 'objects', name: 'Object detection', status: 'skipped', detail: 'Turned off by you.' }); }
+    S.run = { tok: tok, mods: mods, done: false, profile: P, started: Date.now() }; S.report = null; S.sel = null; S.outputs = []; S.stale = false;
+    setBusy(true); go(2); say('Analysing on your device…', true);
+    execute(S.run).catch(function(err){
+      if(err === CANCEL){ S.run.mods.forEach(function(m){ if(m.status === 'pending' || m.status === 'running'){ m.status = 'cancelled'; m.detail = 'Cancelled by you.'; } }); S.run.done = true; say('Analysis cancelled. Nothing was changed.'); }
+      else { console.error(err); say('✕ Analysis could not finish: ' + esc(err && err.message || err)); S.run.done = true; }
+      cleanupRun(S.run); setBusy(false); if(S.step === 2) renderRun();
+    });
+  }
+  function setBusy(b){ S.busy = b; panel.classList.toggle('pf-busy', b); tab.title = b ? 'Analysis running' : ''; }
+  function M(run, id){ for(var i = 0; i < run.mods.length; i++) if(run.mods[i].id === id) return run.mods[i]; }
+  function upd(run, id, status, detail, extra){ var m = M(run, id); m.status = status; if(detail != null) m.detail = detail; if(extra) for(var k in extra) m[k] = extra[k]; if(S.step === 2 && S.run === run) paintRun(); }
+  function cleanupRun(run){ try{ if(run.tok.ocr){ run.tok.ocr.terminate(); run.tok.ocr = null; } }catch(e){} killWorker(false); }
+
+  async function execute(run){
+    var tok = run.tok, P = run.profile, W = cv.width, H = cv.height, pix = null, blk = null, ocr = { status: 'skipped', lines: [] }, faces = { status: 'skipped', boxes: [] }, objects = { status: 'skipped', boxes: [] };
+    var o = PF.outputSize(P, W, H), longOut = P.w ? Math.max(o.w, o.h) : Math.max(W, H), tl = Math.min(Math.max(W, H), longOut, 2048), k = tl / Math.max(W, H);
+    var lowMem = navigator.deviceMemory && navigator.deviceMemory <= 1;
+    var fp0 = fingerprintNow();
+
+    /* --- 1. pixel analysis (required) --- */
+    upd(run, 'pixels', 'running', 'Measuring sharpness, noise, tone, colour and compression…');
+    var t1 = Date.now(), ac = k < 1 ? stepScale(cv, W * k, H * k) : (function(){ var c = mk(W, H); c.getContext('2d').drawImage(cv, 0, 0); return c; })();
+    var aimg = ac.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, ac.width, ac.height); free(ac); if(tok.cancelled) throw CANCEL;
+    try{
+      var pr = await runJob('analyze', aimg); pix = pr.r; if(tok.cancelled) throw CANCEL;
+      var bw = Math.min(1024, W), bh = Math.min(1024, H), bx = Math.floor((W - bw) / 2 / 8) * 8, by = Math.floor((H - bh) / 2 / 8) * 8;
+      var bimg = cv.getContext('2d', { willReadFrequently: true }).getImageData(bx, by, bw, bh);
+      try{ var br = await runJob('block', bimg); blk = br.r; }catch(e2){ if(e2 === CANCEL) throw e2; blk = null; }
+      upd(run, 'pixels', 'ok', 'Analysed at ' + aimg.width + '×' + aimg.height + ' px (the size the image will be delivered at) · ' + pr.where + ' · ' + (Date.now() - t1) + ' ms', { ms: Date.now() - t1 });
+    }catch(err){ if(err === CANCEL) throw err; upd(run, 'pixels', 'failed', String(err && err.message || err)); throw new Error('The required pixel analysis failed: ' + (err && err.message || err)); }
+
+    /* --- 2. OCR --- */
+    var ocrCanvas = null, ocrImg = null;
+    if(S.optOcr){
+      var t2 = Date.now(), w = null;
+      try{
+        upd(run, 'ocr', 'running', 'Loading the text engine (first use downloads ≈ ' + URLS.tess.mb + ' MB, then it is cached)…');
+        var ol = Math.min(Math.max(W, H), 1800), ok2 = ol / Math.max(W, H); ocrCanvas = ok2 < 1 ? stepScale(cv, W * ok2, H * ok2) : (function(){ var c = mk(W, H); c.getContext('2d').drawImage(cv, 0, 0); return c; })();
+        w = await makeOcrWorker(tok, function(m){ if(m.status && /load|init/i.test(m.status) && m.progress != null) upd(run, 'ocr', 'running', 'Preparing text engine — ' + m.status + ' ' + Math.round(m.progress * 100) + '%', { prog: m.progress }); });
+        var lines = await ocrLines(w, ocrCanvas, tok, function(i, n){ upd(run, 'ocr', 'running', 'Reading text — pass ' + (i + 1) + ' of ' + n + (i ? ' (light/dark text on busy backgrounds)' : ''), { prog: i / n }); });
+        ocrImg = ocrCanvas.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, ocrCanvas.width, ocrCanvas.height);
+        lines.forEach(function(l){ l.stats = E.textStats(ocrImg, l.box); l.display = { heightPx: l.box.h * (PHONE_W * H / W), survived: null }; });
+        // legibility proxy: shrink to a phone width and see whether OCR can still read each reliable line
+        if(lines.some(function(l){ return l.conf >= PF.TH.text.reliableConf; }) && W > PHONE_W * 1.3){
+          upd(run, 'ocr', 'running', 'Re-reading the text at phone size…', { prog: 0.9 });
+          var sm = stepScale(cv, PHONE_W, Math.round(PHONE_W * H / W)), sl = [];
+          try{ sl = await ocrLines(w, sm, tok); }catch(e3){ if(e3 === CANCEL) throw e3; sl = null; } free(sm);
+          lines.forEach(function(l){ if(sl === null) return; l.display.survived = sl.some(function(q){ return E.editSim(q.text, l.text) >= 0.8 && Math.abs((q.box.x + q.box.w / 2) - (l.box.x + l.box.w / 2)) < 0.12 && Math.abs((q.box.y + q.box.h / 2) - (l.box.y + l.box.h / 2)) < 0.12; }); });
+        } else lines.forEach(function(l){ l.display.survived = null; });
+        ocr = { status: 'ok', lines: lines };
+        upd(run, 'ocr', 'ok', lines.length ? lines.length + ' text line(s) found' + ' · ' + (Date.now() - t2) + ' ms' : 'No text found (this does not prove there is none) · ' + (Date.now() - t2) + ' ms', { ms: Date.now() - t2, prog: 1 });
+      }catch(err){
+        if(err === CANCEL) throw err; console.warn('OCR failed', err);
+        var em = (window.__apicModelErrMsg && window.__apicModelErrMsg(err)) || String(err && err.message || err);
+        ocr = { status: 'unavailable', lines: [], error: em }; upd(run, 'ocr', 'unavailable', em + ' Text checks were skipped.');
+      } finally { try{ if(w){ await w.terminate(); tok.ocr = null; } }catch(e){} free(ocrCanvas); ocrImg = null; }
+    }
+    if(tok.cancelled) throw CANCEL;
+
+    /* --- 3. faces & objects --- */
+    if(S.optDet){
+      if(lowMem){ ['faces', 'objects'].forEach(function(id){ upd(run, id, 'skipped', 'Skipped: this device reports very little memory.'); }); }
+      else {
+        var dl = Math.min(Math.max(W, H), 1024), dk = dl / Math.max(W, H), dc = dk < 1 ? stepScale(cv, W * dk, H * dk) : (function(){ var c = mk(W, H); c.getContext('2d').drawImage(cv, 0, 0); return c; })();
+        var kinds = [['face', 'faces', 'Face detection'], ['obj', 'objects', 'Object detection']];
+        for(var i = 0; i < kinds.length; i++){
+          var kd = kinds[i], t3 = Date.now();
+          try{
+            upd(run, kd[1], 'running', 'Loading ' + kd[2].toLowerCase() + ' model (first use downloads, then cached)…');
+            var boxes = await runDetector(kd[0], dc, function(p){ upd(run, kd[1], 'running', 'Downloading model ' + p + '%', { prog: p / 100 }); }, tok);
+            if(kd[0] === 'face') faces = { status: 'ok', boxes: boxes }; else objects = { status: 'ok', boxes: boxes };
+            upd(run, kd[1], 'ok', boxes.length + ' found · ' + (Date.now() - t3) + ' ms (CPU)' + (boxes.length ? '' : ' — none found does not prove none exist'), { ms: Date.now() - t3, prog: 1 });
+          }catch(err){
+            if(err === CANCEL){ free(dc); throw err; } console.warn(kd[2] + ' failed', err);
+            var em2 = (window.__apicModelErrMsg && window.__apicModelErrMsg(err)) || String(err && err.message || err);
+            if(kd[0] === 'face') faces = { status: 'unavailable', boxes: [] }; else objects = { status: 'unavailable', boxes: [] };
+            upd(run, kd[1], 'unavailable', em2 + ' Checks that need it were skipped.');
+          }
+        }
+        free(dc);
+      }
+    }
+    if(tok.cancelled) throw CANCEL;
+
+    /* --- 4. combine --- */
+    var ctx = { profile: P, srcW: W, srcH: H, pix: pix, blk: blk, ocr: ocr, faces: faces, objects: objects };
+    ctx.cropPlan = PF.planCrop(ctx, E, 'smart');
+    var findings = PF.buildFindings(ctx, E), summary = PF.summarize(findings, run.mods, ctx);
+    S.report = { ctx: ctx, findings: findings, summary: summary, mods: run.mods.map(function(m){ return { id: m.id, name: m.name, status: m.status, detail: m.detail }; }), fp: fp0, when: new Date(), profile: P };
+    S.stale = fingerprintNow() !== fp0; run.done = true; cleanupRun(run); setBusy(false);
+    initSelection(); say(summary.incomplete ? '⚠ Analysis finished with unavailable modules — see the banner in the report.' : '✓ Analysis complete.'); go(3);
+  }
+
+  function fingerprintNow(){ try{ var s = mk(32, 32), g = s.getContext('2d', { willReadFrequently: true }); g.drawImage(cv, 0, 0, 32, 32); var f = E.fingerprint(g.getImageData(0, 0, 32, 32)) + '@' + cv.width + 'x' + cv.height; free(s); return f; }catch(e){ return 'x'; } }
+
+  /* =================================================================
+     SCREEN 2 — ANALYSIS PROGRESS (real module states only)
+     ================================================================= */
+  var ICON = { pending: '○', running: '◔', ok: '✓', failed: '✕', unavailable: '!', skipped: '–', cancelled: '–' };
+  function paintRun(){
+    var run = S.run; if(!run) return; var h = '';
+    run.mods.forEach(function(m){
+      h += '<div class="pf-mod"><span class="ic st-' + m.status + '" aria-hidden="true">' + (m.status === 'running' ? '<span class="spinner"></span>' : ICON[m.status]) + '</span><div style="flex:1;"><div class="nm">' + esc(m.name) + ' <span class="chip ' + (m.status === 'ok' ? 'passed' : (m.status === 'failed' || m.status === 'unavailable' ? 'critical' : 'none')) + '">' + m.status + '</span></div>' +
+        '<div class="dt">' + esc(m.detail || (m.status === 'pending' ? 'Waiting…' : '')) + '</div>' + (m.status === 'running' && m.prog != null ? '<div class="pf-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + Math.round(m.prog * 100) + '"><i style="width:' + Math.round(m.prog * 100) + '%"></i></div>' : '') + '</div></div>';
+    });
+    var box = $('pfMods'); if(box) box.innerHTML = h;
+    var cb = $('pfCancel'); if(cb) cb.style.display = run.done ? 'none' : 'inline-flex';
+    var nx = $('pfToReport'); if(nx) nx.style.display = S.report ? 'inline-flex' : 'none';
+  }
+  function renderRun(){
+    secs[2].innerHTML = '<h3 id="pfH2">Analysis</h3><div class="pf-card" id="pfMods"></div><p class="pf-note">Progress shows each module’s real state — there is no fake percentage. Heavy work runs in the background so the editor stays responsive.</p>' +
+      '<div class="pf-actions"><button type="button" class="btn btn-ghost btn-sm" id="pfCancel">Cancel</button><button type="button" class="btn btn-gold btn-sm" id="pfToReport" style="display:none;">View report</button><button type="button" class="quick-btn" id="pfBack">Back to setup</button></div>';
+    $('pfCancel').addEventListener('click', function(){ if(S.run && !S.run.done){ S.run.tok.cancelled = true; killWorker(false); try{ if(S.run.tok.ocr) S.run.tok.ocr.terminate(); }catch(e){} say('Cancelling…', true); } });
+    $('pfToReport').addEventListener('click', function(){ go(3); }); $('pfBack').addEventListener('click', function(){ if(S.run && !S.run.done) return; go(1); });
+    paintRun();
+  }
+
+  /* =================================================================
+     SCREEN 3 — REPORT
+     ================================================================= */
+  var CAT_NAME = { technical: 'Technical quality', composition: 'Composition', text: 'Text readability', platform: 'Platform compatibility' };
+  var STATUS_LABEL = { none: 'Nothing to report', passed: 'Passed', info: 'Information', warning: 'Warning', critical: 'Critical', notassessed: 'Not assessed' };
+  var BASIS = { measured: 'Measured', model: 'Model estimate', heuristic: 'Heuristic' };
+  var CONF = { high: 'High confidence', moderate: 'Moderate confidence', low: 'Low confidence' };
+  function findingHtml(f, i){
+    var cls = f.undetermined ? 'undet' : f.severity, m = f.metricInfo, ev = f.evidence || {}, P = S.report.profile;
+    var h = '<details class="pf-f ' + cls + '" data-fi="' + i + '"><summary><span class="chip ' + (f.undetermined ? 'undet' : f.severity) + '">' + (f.undetermined ? 'undetermined' : f.severity) + '</span><span class="tt">' + esc(f.title) + '</span>' +
+      '<span class="chip conf">' + BASIS[f.basis] + ' · ' + CONF[f.confidence] + '</span></summary><div class="bd">';
+    h += f.undetermined ? '<p><b>Unable to determine reliably.</b> ' + esc(f.explain) + '</p>' : '<p>' + esc(f.explain) + '</p>';
+    h += '<dl><dt>Measured</dt><dd>' + esc(ev.value || '—') + '</dd><dt>Threshold</dt><dd>' + esc(ev.threshold || '—') + '</dd>' + (ev.note ? '<dt>Note</dt><dd>' + esc(ev.note) + '</dd>' : '') +
+      '<dt>Suggested</dt><dd>' + (f.fix ? esc(f.fix.label) + (f.fix.automatable ? ' — can be automated' + (f.fix.approx ? ' (approximation)' : '') : ' — manual, cannot be automated') : 'Nothing to fix') + '</dd></dl>';
+    if(m) h += '<details class="why"><summary>Why this finding? How it is calculated, and its limits</summary><p><b>' + esc(m.name) + '</b> (' + BASIS[m.basis] + ')<br><b>Calculation:</b> ' + esc(m.calc) + '<br><b>Limitations:</b> ' + esc(m.limits) + '<br><b>Interpretation:</b> ' + esc(m.interp) + '</p></details>';
+    if(f.fix && f.fix.automatable) h += '<div class="pf-actions"><button type="button" class="quick-btn" data-fix="' + esc(f.fix.id) + '">Review in Corrections →</button></div>';
+    return h + '</div></details>';
+  }
+  function renderReport(){
+    var R = S.report, el = secs[3]; if(!R){ el.innerHTML = '<h3 id="pfH3">Report</h3><p class="hint">Run an analysis first.</p>'; return; }
+    var sm = R.summary, P = R.profile, h = '<h3 id="pfH3">Intelligence report</h3>';
+    if(S.stale) h += '<div class="pf-banner" role="alert"><b>This report is for an earlier version of the image.</b> The editor image has changed since the analysis. Findings and detection boxes may no longer match. <button type="button" class="pf-link" id="pfReanalyse">Analyse again</button></div>';
+    if(sm.incomplete) h += '<div class="pf-banner" role="alert"><b>Analysis incomplete.</b> ' + sm.failedModules.map(function(m){ return esc(m.name) + ' — ' + esc(m.status) + (m.detail ? ' (' + esc(m.detail) + ')' : ''); }).join('; ') + '. Checks that need these modules were not run, and nothing is reported as passed for them.</div>';
+    h += '<div class="pf-verdict ' + sm.labelKind + '"><b>' + esc(sm.label) + '</b>' + sm.counts.critical + ' critical · ' + sm.counts.warning + ' warnings · ' + sm.counts.info + ' notes · ' + sm.counts.passed + ' passed' + (sm.counts.undetermined ? ' · ' + sm.counts.undetermined + ' could not be determined reliably' : '') +
+      '<br><span style="color:var(--text-muted);font-size:12px;">Target: ' + esc(P.name) + (P.w ? ' (' + P.w + '×' + P.h + ')' : '') + '. This is a summary of the checks that ran, not a quality score — APIC never claims an image is perfect.</span></div>';
+    h += '<div class="pf-cats">' + ['technical', 'composition', 'text', 'platform'].map(function(c){ var x = sm.categories[c]; return '<div class="pf-cat"><b>' + CAT_NAME[c] + '</b><span class="chip ' + x.status + '">' + STATUS_LABEL[x.status] + '</span>' + (x.undetermined ? '<div style="margin-top:4px;color:var(--text-muted);">' + x.undetermined + ' undetermined</div>' : '') + '</div>'; }).join('') + '</div>';
+    h += '<div class="pf-prev"><canvas id="pfPrev" aria-label="Image with detected regions"></canvas></div><label class="so-chk" style="display:inline-flex;gap:6px;align-items:center;font-size:12px;margin:0 0 12px;"><input type="checkbox" id="pfShowDet"' + (S.showDet ? ' checked' : '') + ' style="accent-color:var(--green);"> Show detected text/faces, safe zone and crop</label>';
+    var order = { critical: 0, warning: 1, info: 2, passed: 3 };
+    ['technical', 'composition', 'text', 'platform'].forEach(function(c){
+      var items = []; R.findings.forEach(function(f, i){ if(f.cat === c && !f.undetermined) items.push([f, i]); }); items.sort(function(a, b){ return order[a[0].severity] - order[b[0].severity]; });
+      var st = sm.categories[c].status; h += '<div class="pf-grp">' + CAT_NAME[c] + '</div>';
+      if(!items.length) h += '<p class="pf-note">' + (st === 'notassessed' ? 'Not assessed — the module needed for these checks was unavailable or turned off.' : 'No checks produced a result here.') + '</p>';
+      items.forEach(function(it){ h += findingHtml(it[0], it[1]); });
+    });
+    var und = []; R.findings.forEach(function(f, i){ if(f.undetermined) und.push([f, i]); });
+    if(und.length){ h += '<div class="pf-grp">Unable to determine reliably</div><p class="pf-note">These checks did not reach a trustworthy conclusion, so no verdict is given. The measurements are shown for your own judgement.</p>'; und.forEach(function(it){ h += findingHtml(it[0], it[1]); }); }
+    // descriptive measurements
+    var px = R.ctx.pix;
+    h += '<div class="pf-grp">Measurements (descriptive, not judged)</div><div class="pf-card tight"><dl style="margin:0;display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:12px;">' +
+      '<dt style="color:var(--text-muted)">Size</dt><dd style="margin:0">' + R.ctx.srcW + '×' + R.ctx.srcH + ' (' + (R.ctx.srcW / R.ctx.srcH).toFixed(3) + ':1)</dd>' +
+      '<dt style="color:var(--text-muted)">Dominant colours</dt><dd style="margin:0"><span class="pf-sw">' + px.color.dominant.map(function(c){ return '<i style="background:' + c.hex + '" title="' + c.hex + ' · ' + pct(c.frac) + '"></i>'; }).join('') + '</span></dd>' +
+      '<dt style="color:var(--text-muted)">Mean saturation</dt><dd style="margin:0">' + pct(px.color.meanSat) + '</dd>' +
+      '<dt style="color:var(--text-muted)">Colour balance</dt><dd style="margin:0">average chroma offset a*=' + px.color.castA.toFixed(1) + ', b*=' + px.color.castB.toFixed(1) + ' — cannot be told apart from scene colour, so no cast is claimed</dd>' +
+      '<dt style="color:var(--text-muted)">Low-detail area</dt><dd style="margin:0">' + (px.flat.usable ? pct(px.flat.blockFrac) + ' of blocks are nearly flat' : '—') + '</dd></dl></div>';
+    // method & limits
+    h += '<details class="pf-f info" style="margin-top:12px;"><summary><span class="tt">Method, modules and limits</span></summary><div class="bd"><dl>' +
+      R.mods.map(function(m){ return '<dt>' + esc(m.name) + '</dt><dd>' + esc(m.status) + (m.detail ? ' — ' + esc(m.detail) : '') + '</dd>'; }).join('') +
+      '<dt>Models</dt><dd>OCR: Tesseract.js 5.1.1 (Apache-2.0), English LSTM data “4.0.0_best_int”. Faces: MediaPipe BlazeFace short-range. Objects: MediaPipe EfficientDet-Lite0 (COCO). Everything else is deterministic image maths.</dd>' +
+      '<dt>Requirements</dt><dd>' + esc(P.src ? (P.src.status + ' · checked ' + P.src.date) : '—') + (P.src && P.src.sources.length ? ' · ' + esc(P.src.sources.join(', ')) : '') + '</dd>' +
+      '<dt>Privacy</dt><dd>The image stayed on this device. Only code and model files were downloaded.</dd></dl></div></details>';
+    h += '<div class="pf-actions"><button type="button" class="btn btn-gold btn-sm" id="pfToFix">Review corrections →</button><button type="button" class="quick-btn" id="pfAgain">Analyse again</button></div>';
+    el.innerHTML = h; drawPrev(null);
+    $('pfToFix').addEventListener('click', function(){ go(4); }); $('pfAgain').addEventListener('click', function(){ go(1); });
+    var ra = $('pfReanalyse'); if(ra) ra.addEventListener('click', function(){ go(1); });
+    $('pfShowDet').addEventListener('change', function(){ S.showDet = this.checked; drawPrev(S.focus); });
+    el.addEventListener('toggle', function(e){ var d = e.target; if(d && d.classList && d.classList.contains('pf-f') && d.hasAttribute('data-fi')){ S.focus = d.open ? +d.getAttribute('data-fi') : null; drawPrev(S.focus); } }, true);
+    el.addEventListener('click', function(e){ var b = e.target.closest('button[data-fix]'); if(b){ S.focusFix = b.getAttribute('data-fix'); go(4); } });
+  }
+  function drawPrev(focusIdx){
+    var c = $('pfPrev'), R = S.report; if(!c || !R) return;
+    var W = R.ctx.srcW, H = R.ctx.srcH, k = Math.min(1, 560 / W, 360 / H), w = Math.round(W * k), h = Math.round(H * k);
+    c.width = w; c.height = h; var g = c.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(cv, 0, 0, w, h);
+    if(S.stale || !S.showDet && focusIdx == null) return;
+    function rect(b, col, lw, dash, label){ g.save(); g.strokeStyle = col; g.lineWidth = lw; g.setLineDash(dash || []); g.strokeRect(b.x * w, b.y * h, b.w * w, b.h * h); if(label){ g.font = '600 11px sans-serif'; g.fillStyle = col; g.fillText(label, b.x * w + 3, Math.max(11, b.y * h - 3)); } g.restore(); }
+    var ctx = R.ctx, plan = ctx.cropPlan;
+    if(S.showDet){
+      if(plan && plan.needed){ g.save(); g.fillStyle = 'rgba(0,0,0,0.45)'; g.fillRect(0, 0, w, h); g.clearRect(0, 0, 0, 0); g.restore(); g.drawImage(cv, plan.x * W, plan.y * H, plan.w * W, plan.h * H, plan.x * w, plan.y * h, plan.w * w, plan.h * h); rect(plan, '#fff23e', 2, [6, 4], plan.mode + ' crop'); }
+      if(ctx.profile.safe){ var sr = ctx.profile.safe.rect, base = plan && plan.needed ? plan : { x: 0, y: 0, w: 1, h: 1 }; rect({ x: base.x + sr.x * base.w, y: base.y + sr.y * base.h, w: sr.w * base.w, h: sr.h * base.h }, '#39ff9d', 2, [4, 4], 'safe zone'); }
+      if(ctx.ocr.status === 'ok') ctx.ocr.lines.forEach(function(l){ if(l.conf >= PF.TH.text.reliableConf) rect(l.box, '#3ee0ff', 1.5); });
+      if(ctx.faces.status === 'ok') ctx.faces.boxes.forEach(function(f){ rect(f, '#ff37c9', 1.5); });
+      if(ctx.objects.status === 'ok') ctx.objects.boxes.forEach(function(f){ rect(f, '#c4b5fd', 1, [2, 2], f.label); });
+    }
+    if(focusIdx != null && R.findings[focusIdx] && R.findings[focusIdx].regions) R.findings[focusIdx].regions.forEach(function(r){ rect(r, '#ff4d7d', 3, [], r.label); });
+  }
+
+  /* =================================================================
+     CORRECTION ENGINE — non-destructive preview, explicit apply (undoable)
+     ================================================================= */
+  function initSelection(){
+    var R = S.report, ctx = R.ctx, P = R.profile, need = PF.needsCrop(P, ctx.srcW, ctx.srcH), px = ctx.pix, L = px.luma;
+    var fixIds = {}; R.findings.forEach(function(f){ if(f.fix && f.fix.automatable) fixIds[f.fix.id] = f.fix; });
+    var scrimRefs = []; R.findings.forEach(function(f){ if(f.fix && f.fix.id === 'scrim') scrimRefs.push(f.fix.ref); });
+    var dark = L.p50 < 110, off = {}, defaults = {
+      crop: { avail: need, on: need, mode: 'smart' },
+      resize: { avail: !!P.w, on: !!P.w },
+      exposure: { avail: !!fixIds.exposure, on: false, strength: 0.7, dir: dark ? 'lift' : 'reduce' },
+      contrast: { avail: !!fixIds.contrast, on: false, strength: 0.7 },
+      sharpen: { avail: !!fixIds.sharpen, on: false, strength: 0.5 },
+      scrim: { avail: scrimRefs.length > 0, on: false, strength: 1, refs: scrimRefs },
+      whiten: { avail: !!fixIds.whiten, on: false }
+    };
+    // Only automatic *geometry* needed to meet the platform is pre-selected; every tone/pixel change is opt-in
+    S.sel = defaults;
+  }
+  function planFor(P, mode, useDetections){
+    var R = S.report, ctx = R.ctx, c2 = { profile: P, srcW: ctx.srcW, srcH: ctx.srcH, pix: ctx.pix, ocr: useDetections ? ctx.ocr : { status: 'skipped', lines: [] }, faces: useDetections ? ctx.faces : { status: 'skipped', boxes: [] }, objects: useDetections ? ctx.objects : { status: 'skipped', boxes: [] } };
+    return PF.planCrop(c2, E, mode);
+  }
+  function exposureParams(){
+    var L = S.report.ctx.pix.luma, s = S.sel.exposure; var lo = 0, hi = 255;
+    var target = s.dir === 'lift' ? 0.42 : 0.52, g = E.gammaForMedian(L.p50, target, lo, hi);
+    if(s.dir === 'lift' && g < 1) g = 1; if(s.dir === 'reduce' && g > 1) g = 1; return { lo: lo, hi: hi, gamma: g };
+  }
+  function scrimAlpha(line, strength){
+    var st = line.stats; if(!st || !st.usable) return 0;
+    var Lt = st.textLum, Lb = st.bgLum, need = 4.5, a;
+    if(st.textIsLight){ a = Lb > 0.001 ? 1 - ((Lt + 0.05) / need - 0.05) / Lb : 0; }           // darken background (black scrim)
+    else { a = (need * (Lt + 0.05) - 0.05 - Lb) / Math.max(0.001, 1 - Lb); }                    // lighten background (white scrim)
+    return Math.max(0.12, Math.min(0.78, a)) * Math.max(0.2, strength);
+  }
+  // Render the selected corrections for profile P. src = editor canvas. maxLong limits size for previews.
+  function renderPipeline(src, P, sel, maxLong, opts){
+    opts = opts || {}; var R = S.report, ctx = R.ctx, W = src.width, H = src.height, useDet = !S.stale;
+    var need = PF.needsCrop(P, W, H), plan = { x: 0, y: 0, w: 1, h: 1, mode: 'none' };
+    if(sel.crop.on && need) plan = planFor(P, P.purpose === 'ecom' && sel.crop.mode !== 'center' ? 'smart' : sel.crop.mode, useDet);
+    var o = PF.outputSize(P, W, H), ow, oh, cwpx = plan.w * W, chpx = plan.h * H;
+    if(sel.resize.on && P.w){ if(!sel.crop.on && need){ ow = o.w; oh = Math.round(H * o.w / W); } else { ow = o.w; oh = o.h; } } else { ow = Math.round(cwpx); oh = Math.round(chpx); }
+    if(maxLong){ var f = Math.min(1, maxLong / Math.max(ow, oh)); ow = Math.max(1, Math.round(ow * f)); oh = Math.max(1, Math.round(oh * f)); }
+    if(ow * oh > 64e6) throw new Error('Output would be larger than 64 megapixels');
+    var out = mk(ow, oh), g = out.getContext('2d', { willReadFrequently: true }); g.imageSmoothingQuality = 'high';
+    var pad = plan.x < -1e-6 || plan.y < -1e-6 || plan.x + plan.w > 1 + 1e-6 || plan.y + plan.h > 1 + 1e-6;
+    if(pad){ g.fillStyle = '#ffffff'; g.fillRect(0, 0, ow, oh); }
+    var sx = plan.x * W, sy = plan.y * H, sw = plan.w * W, sh = plan.h * H, cx0 = Math.max(0, sx), cy0 = Math.max(0, sy), cx1 = Math.min(W, sx + sw), cy1 = Math.min(H, sy + sh);
+    var fx = ow / sw, fy = oh / sh, dx = (cx0 - sx) * fx, dy = (cy0 - sy) * fy, dw = (cx1 - cx0) * fx, dh = (cy1 - cy0) * fy;
+    if(fx < 0.5 && !pad){ var tmp = mk(cx1 - cx0, cy1 - cy0); tmp.getContext('2d').drawImage(src, cx0, cy0, cx1 - cx0, cy1 - cy0, 0, 0, tmp.width, tmp.height); var sc = stepScale(tmp, dw, dh); g.drawImage(sc, dx, dy, dw, dh); free(tmp); free(sc); }
+    else g.drawImage(src, cx0, cy0, cx1 - cx0, cy1 - cy0, dx, dy, dw, dh);
+    // pixel-level tone ops at output size (cheaper, and identical in effect for LUT-type edits)
+    var needPix = sel.exposure.on || sel.contrast.on || sel.whiten.on, im = null;
+    if(needPix){ im = g.getImageData(0, 0, ow, oh); var L = ctx.pix.luma;
+      if(sel.exposure.on){ var ep = exposureParams(); E.applyLUT(im, E.buildLUT(ep.lo, ep.hi, ep.gamma, sel.exposure.strength)); }
+      if(sel.contrast.on){ E.applyLUT(im, E.buildLUT(L.p005, L.p995, 1, sel.contrast.strength)); }
+      if(sel.whiten.on) E.whitenBackground(im, 238);
+      g.putImageData(im, 0, 0); }
+    if(sel.scrim.on && sel.scrim.refs.length && useDet){
+      sel.scrim.refs.forEach(function(ri){ var line = ctx.ocr.lines[ri]; if(!line) return; var a = scrimAlpha(line, sel.scrim.strength); if(a <= 0) return;
+        var b = E.toCropSpace(line.box, plan), padp = 0.35 * b.h, x = (b.x - padp * (oh / ow)) * ow, y = (b.y - padp) * oh, w = (b.w + 2 * padp * (oh / ow)) * ow, h = (b.h + 2 * padp) * oh;
+        g.save(); g.filter = 'blur(' + Math.max(1, Math.round(b.h * oh * 0.35)) + 'px)'; g.globalAlpha = a; g.fillStyle = line.stats.textIsLight ? '#000' : '#fff'; g.fillRect(x, y, w, h); g.restore(); });
+    }
+    if(sel.sharpen.on){ im = g.getImageData(0, 0, ow, oh); E.unsharp(im, 0.35 + 0.9 * sel.sharpen.strength, Math.max(1, ow / 1200 * 1.2)); g.putImageData(im, 0, 0); }
+    return { canvas: out, plan: plan, w: ow, h: oh };
+  }
+
+  var FIX_INFO = {
+    crop:     { name: 'Crop to the target shape', sub: function(P){ return 'Cuts the image to ' + P.name + '’s proportions. “Smart” chooses the position that keeps detected text and faces inside; “Centre” just crops the middle.'; }, approx: true },
+    resize:   { name: 'Resize to the exact output size', sub: function(P, o){ return 'High-quality resampling to ' + o.w + '×' + o.h + '. Enlarging cannot restore detail.'; } },
+    exposure: { name: 'Adjust exposure (optional)', sub: function(){ return 'Moves the midtones with a gamma curve; highlights and shadows stay put. Dark or bright images are often intentional, so this is never pre-selected.'; }, approx: true },
+    contrast: { name: 'Stretch contrast (optional)', sub: function(){ return 'Maps the 0.5th–99.5th percentile tones to full range. A flat look can be deliberate, so this is never pre-selected.'; }, approx: true },
+    sharpen:  { name: 'Mild sharpening (optional)', sub: function(){ return 'Unsharp mask on the final output. It makes edges look crisper but cannot recover detail that was never captured.'; }, approx: true },
+    scrim:    { name: 'Contrast panel behind weak text', sub: function(){ return 'Adds a soft darkening or lightening panel behind text lines with weak contrast, sized to reach about 4.5:1. The strength slider scales the computed amount.'; }, approx: true },
+    whiten:   { name: 'Make background pure white', sub: function(){ return 'Flood-fills near-white pixels connected to the border with exact RGB 255. White inside the product is left alone.'; }, approx: true }
+  };
+  function renderFixes(){
+    var R = S.report, el = secs[4]; if(!R){ el.innerHTML = '<h3 id="pfH4">Corrections</h3><p class="hint">Run an analysis first.</p>'; return; }
+    var P = R.profile, o = PF.outputSize(P, R.ctx.srcW, R.ctx.srcH), sel = S.sel, h = '<h3 id="pfH4">Correction workspace</h3>';
+    if(S.stale) h += '<div class="pf-banner" role="alert">The image changed after the analysis, so detection-based features (smart crop, text panels) are switched off. <button type="button" class="pf-link" id="pfReanalyse2">Analyse again</button></div>';
+    h += '<p class="pf-note" style="margin-top:0;">Nothing is changed until you press <b>Apply to editor</b>. Tick the corrections you want, compare, then apply — undo with ↺ (Ctrl+Z) at any time. Your original file is never touched.</p>';
+    h += '<div class="pf-cmp"><figure><figcaption>Before</figcaption><canvas id="pfBefore"></canvas></figure><figure><figcaption>After (preview)</figcaption><canvas id="pfAfter"></canvas></figure></div><div class="pf-status" id="pfPrevInfo"></div>';
+    Object.keys(FIX_INFO).forEach(function(id){
+      var s = sel[id]; if(!s || !s.avail) return; var fi = FIX_INFO[id];
+      h += '<div class="pf-fix"><label class="hd"><input type="checkbox" data-on="' + id + '"' + (s.on ? ' checked' : '') + '> <span>' + esc(fi.name) + (fi.approx ? '<span class="approx">approximation</span>' : '') + '</span></label><div class="sub">' + esc(fi.sub(P, o)) + '</div>';
+      if(id === 'crop') h += '<div class="ctl"><label>Method <select data-mode="crop"><option value="smart"' + (s.mode === 'smart' ? ' selected' : '') + '>Smart (keeps text/faces)</option><option value="center"' + (s.mode === 'center' ? ' selected' : '') + '>Centre</option></select></label></div>';
+      if(id === 'exposure') h += '<div class="ctl"><label>Direction <select data-dir="exposure"><option value="lift"' + (s.dir === 'lift' ? ' selected' : '') + '>Brighten</option><option value="reduce"' + (s.dir === 'reduce' ? ' selected' : '') + '>Darken</option></select></label></div>';
+      if(s.strength != null) h += '<div class="ctl"><label for="pfs-' + id + '">Strength</label><input type="range" id="pfs-' + id + '" data-str="' + id + '" min="10" max="100" value="' + Math.round(s.strength * 100) + '"><span>' + Math.round(s.strength * 100) + '%</span></div>';
+      h += '</div>';
+    });
+    var manual = R.findings.filter(function(f){ return f.fix && !f.fix.automatable; });
+    var posText = R.findings.filter(function(f){ return /^text-(safe|edge|circle|small)/.test(f.id) && !f.undetermined && f.severity !== 'passed'; });
+    if(manual.length || posText.length){ h += '<div class="pf-grp">Manual suggestions (cannot be automated)</div><ul class="pf-note" style="padding-left:18px;">'; manual.forEach(function(f){ h += '<li>' + esc(f.title) + ' — ' + esc(f.fix.label) + '</li>'; }); posText.forEach(function(f){ h += '<li>' + esc(f.title) + ' — text is part of the picture; move or enlarge it in your design tool.</li>'; }); h += '</ul>'; }
+    h += '<div class="pf-actions"><button type="button" class="btn btn-gold btn-sm" id="pfApply">Apply selected to editor</button><button type="button" class="btn btn-ghost btn-sm" id="pfUndo" title="Same as ↺ in the toolbar">Undo last apply</button><button type="button" class="quick-btn" id="pfToExp">Go to export →</button></div>';
+    el.innerHTML = h;
+    el.querySelectorAll('input[data-on]').forEach(function(i){ i.addEventListener('change', function(){ sel[i.getAttribute('data-on')].on = i.checked; schedulePrev(); }); });
+    el.querySelectorAll('input[data-str]').forEach(function(i){ i.addEventListener('input', function(){ var id = i.getAttribute('data-str'); sel[id].strength = +i.value / 100; i.nextElementSibling.textContent = i.value + '%'; if(!sel[id].on){ sel[id].on = true; el.querySelector('input[data-on="' + id + '"]').checked = true; } schedulePrev(); }); });
+    el.querySelectorAll('select[data-mode]').forEach(function(s2){ s2.addEventListener('change', function(){ sel.crop.mode = s2.value; schedulePrev(); }); });
+    el.querySelectorAll('select[data-dir]').forEach(function(s2){ s2.addEventListener('change', function(){ sel.exposure.dir = s2.value; schedulePrev(); }); });
+    $('pfApply').addEventListener('click', applyToEditor); $('pfUndo').addEventListener('click', function(){ var u = $('undoBtn'); if(u && !u.disabled){ u.click(); say('Undone — the editor is back to the previous state. Re-run the analysis to refresh the report.'); } else say('Nothing to undo.'); });
+    $('pfToExp').addEventListener('click', function(){ go(5); }); var r2 = $('pfReanalyse2'); if(r2) r2.addEventListener('click', function(){ go(1); });
+    S.focusFix = null; schedulePrev(0);
+  }
+  function schedulePrev(delay){ clearTimeout(S.prevTimer); S.prevTimer = setTimeout(drawCompare, delay == null ? 160 : delay); }
+  async function drawCompare(){
+    var R = S.report, b = $('pfBefore'), a = $('pfAfter'); if(!R || !b || !a || S.step !== 4) return; var token = ++S.prevToken, P = R.profile;
+    try{
+      var res = renderPipeline(cv, P, S.sel, 560); if(token !== S.prevToken){ free(res.canvas); return; }
+      var k = Math.min(1, 560 / Math.max(cv.width, cv.height)); b.width = Math.round(cv.width * k); b.height = Math.round(cv.height * k); var bg = b.getContext('2d'); bg.imageSmoothingQuality = 'high'; bg.drawImage(cv, 0, 0, b.width, b.height);
+      var pl = res.plan; if(pl && pl.mode !== 'none'){ bg.save(); bg.strokeStyle = '#fff23e'; bg.lineWidth = 2; bg.setLineDash([6, 4]); bg.strokeRect(pl.x * b.width, pl.y * b.height, pl.w * b.width, pl.h * b.height); bg.restore(); }
+      a.width = res.canvas.width; a.height = res.canvas.height; a.getContext('2d').drawImage(res.canvas, 0, 0); free(res.canvas);
+      var full = renderDims(P); var info = $('pfPrevInfo'); if(info) info.innerHTML = 'Result: <b>' + full.w + '×' + full.h + ' px</b>' + (pl && pl.mode !== 'none' ? ' · ' + esc(pl.mode) + ' crop' + (pl.mode === 'smart' ? '' : '') : '') + (S.sel.exposure.on || S.sel.contrast.on || S.sel.sharpen.on || S.sel.scrim.on || S.sel.whiten.on ? ' · tone/pixel edits shown at preview scale' : '');
+    }catch(err){ console.error(err); var inf = $('pfPrevInfo'); if(inf) inf.textContent = '✕ Preview failed: ' + (err && err.message || err); }
+  }
+  function renderDims(P){ var W = cv.width, H = cv.height, sel = S.sel, need = PF.needsCrop(P, W, H), plan = sel.crop.on && need ? planFor(P, sel.crop.mode, !S.stale) : { w: 1, h: 1 }, o = PF.outputSize(P, W, H);
+    if(sel.resize.on && P.w) return (!sel.crop.on && need) ? { w: o.w, h: Math.round(H * o.w / W) } : { w: o.w, h: o.h }; return { w: Math.round(plan.w * W), h: Math.round(plan.h * H) }; }
+
+  function applyToEditor(){
+    if(S.busy) return; var R = S.report; if(!R) return;
+    if(layersOn()){ say('Flatten your layers first (Layers tab → Flatten into photo), then apply.'); return; }
+    if(typeof window.__apicBake !== 'function'){ say('✕ Apply isn’t available right now.'); return; }
+    var P = R.profile, sel = S.sel; if(!Object.keys(sel).some(function(k){ return sel[k].on; })){ say('Nothing is selected to apply.'); return; }
+    setBusy(true); say('Applying…', true);
+    var out = null, backup = null, bw = cv.width, bh = cv.height, g = cv.getContext('2d');
+    try{ out = renderPipeline(cv, P, sel, 0).canvas; backup = mk(bw, bh); backup.getContext('2d').drawImage(cv, 0, 0); }
+    catch(err){ console.error(err); free(out); free(backup); setBusy(false); say('✕ Could not create the result' + (err && err.message ? ' (' + esc(err.message) + ')' : '') + '. Your image was not changed.'); return; }
+    var done = false, failed = false, guard = 0;
+    function restore(){ try{ cv.width = bw; cv.height = bh; cv.getContext('2d').drawImage(backup, 0, 0); }catch(e){} free(backup); setBusy(false); say('✕ Couldn’t apply. Your image was not changed.'); }
+    selfEdit = true; cv.width = out.width; cv.height = out.height; g.clearRect(0, 0, cv.width, cv.height); g.drawImage(out, 0, 0); free(out);
+    guard = setTimeout(function(){ if(!done){ failed = true; restore(); selfEdit = false; } }, 30000);
+    try{
+      window.__apicBake(function(){
+        if(failed) return; done = true; clearTimeout(guard); free(backup);
+        try{ dropEl.classList.toggle('has-alpha', hasAlphaPixels(cv)); }catch(e){}
+        try{ if(fileInfo) fileInfo.textContent = fileInfo.textContent.replace(/\d+×\d+/, cv.width + '×' + cv.height); }catch(e){}
+        setTimeout(function(){ selfEdit = false; }, 80);
+        S.stale = true; initSelectionAfterApply(); setBusy(false);
+        say('✓ Applied — the editor image is now ' + cv.width + '×' + cv.height + '. Undo with ↺ (or Ctrl+Z). The report is now out of date; analyse again to check the result.');
+        if(S.step === 4) renderFixes(); else renderSteps();
+      });
+    }catch(err){ clearTimeout(guard); failed = true; restore(); selfEdit = false; }
+  }
+  function initSelectionAfterApply(){ Object.keys(S.sel).forEach(function(k){ S.sel[k].on = false; }); }
+
+  /* =================================================================
+     SCREEN 5 — EXPORT (real encode, real sizes)
+     ================================================================= */
+  function defaultOutputs(){
+    var R = S.report, P = R.profile, outs = [];
+    outs.push({ pid: P.id === 'custom' ? 'custom' : P.id, fmt: 'auto', on: true, bg: '#ffffff' });
+    return outs;
+  }
+  function profileById(pid){ return pid === 'custom' ? PF.customProfile(S.cw, S.ch) : PF.getProfile(pid); }
+  function chooseFormat(P, fmt, hasAlpha){
+    if(fmt && fmt !== 'auto') return fmt;
+    var f = P.fmt || { prefer: 'jpeg', alphaFormats: ['png'] };
+    if(hasAlpha && f.alphaFormats && f.alphaFormats.length) return f.alphaFormats.indexOf('png') >= 0 ? 'png' : f.alphaFormats[0];
+    return f.prefer || 'jpeg';
+  }
+  async function encodeOutput(o){
+    var R = S.report, P = profileById(o.pid), selX = Object.assign({}, S.sel, { crop: { avail: true, on: true, mode: S.sel.crop.mode }, resize: { avail: true, on: !!P.w } }),   // every output is fitted to ITS OWN platform size; only tone/pixel edits follow your ticks
+        res = renderPipeline(cv, P, selX, 0, {}), c = res.canvas, notes = [];
+    var alpha = hasAlphaPixels(c), fmt = chooseFormat(P, o.fmt, alpha), flat = false;
+    if(alpha && (fmt === 'jpeg')){ var f2 = mk(c.width, c.height), fg = f2.getContext('2d'); fg.fillStyle = o.bg; fg.fillRect(0, 0, f2.width, f2.height); fg.drawImage(c, 0, 0); free(c); c = f2; flat = true; notes.push('transparency filled with ' + o.bg); }
+    if(P.fmt && P.fmt.allowed && P.fmt.allowed.indexOf(fmt) < 0 && P.id !== 'custom' && P.id !== 'general') notes.push('⚠ ' + fmt.toUpperCase() + ' is not in this platform’s documented formats');
+    var type = { jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' }[fmt], blob, q = 0.92, lim = P.maxBytes;
+    if(fmt === 'png') blob = await blobOf(c, type);
+    else {
+      blob = await blobOf(c, type, q);
+      if(lim && blob.size > lim){ var lo = 0.3, hi = q; for(var i = 0; i < 7 && blob.size > lim; i++){ q = (lo + hi) / 2; blob = await blobOf(c, type, q); if(blob.size > lim) hi = q; else break; } }
+      notes.push('quality ' + Math.round(q * 100));
+    }
+    if(lim){ if(blob.size > lim) notes.push('⚠ still ' + fmtBytes(blob.size - lim) + ' over the ' + (lim / 1e6) + ' MB limit — try a smaller size'); else notes.push('within the ' + (lim / 1e6) + ' MB limit'); }
+    else if(P.src && P.src.conflicts && /file size|File-size|file-size/i.test(P.src.conflicts)) notes.push('size limit not checked (sources disagree)');
+    var ext = fmt === 'jpeg' ? 'jpg' : fmt, w = c.width, h = c.height; free(c);
+    return { blob: blob, w: w, h: h, fmt: fmt, ext: ext, notes: notes, name: 'apic-ready-' + P.id + '-' + w + 'x' + h + '.' + ext };
+  }
+  function renderExport(){
+    var R = S.report, el = secs[5]; if(!R){ el.innerHTML = '<h3 id="pfH5">Export</h3><p class="hint">Run an analysis first.</p>'; return; }
+    if(!S.outputs.length) S.outputs = defaultOutputs();
+    var h = '<h3 id="pfH5">Export</h3>';
+    if(S.stale) h += '<div class="pf-banner" role="alert">The image changed after analysis, so smart crop uses the centre. <button type="button" class="pf-link" id="pfReanalyse3">Analyse again</button></div>';
+    h += '<p class="pf-note" style="margin-top:0;">Every output is cropped and resized to its own platform size; tone and pixel corrections you ticked in step 4 are included. File sizes below are real encodes of the final pixels, not guesses. Each output is made from your current editor image, so repeated exports never stack compression.</p><div class="pf-card" id="pfOuts"></div>';
+    h += '<div class="pf-card tight"><label class="filesize" for="pfAdd">Add another size from the same image</label><div class="pf-actions" style="margin-top:6px;"><select id="pfAdd" style="flex:1;min-width:180px;"><option value="">Choose…</option>' + PF.PROFILES.filter(function(p){ return p.w; }).map(function(p){ return '<option value="' + p.id + '">' + esc(p.group + ' — ' + p.name + ' ' + p.w + '×' + p.h) + '</option>'; }).join('') + '</select></div></div>';
+    h += '<div class="pf-actions"><button type="button" class="btn btn-gold btn-sm" id="pfDl">Download</button><button type="button" class="quick-btn" id="pfCalc">Recalculate sizes</button></div><p class="pf-note">Downloads use APIC’s normal sign-in check, same as <b>Export image</b>. Multiple sizes download as one ZIP. The footer <b>Export image</b> button does the same while this screen is open.</p>';
+    el.innerHTML = h; paintOutputs();
+    $('pfAdd').addEventListener('change', function(){ if(this.value){ S.outputs.push({ pid: this.value, fmt: 'auto', on: true, bg: '#ffffff' }); this.value = ''; paintOutputs(); } });
+    $('pfDl').addEventListener('click', downloadAll); $('pfCalc').addEventListener('click', function(){ paintOutputs(true); });
+    var r3 = $('pfReanalyse3'); if(r3) r3.addEventListener('click', function(){ go(1); });
+  }
+  async function paintOutputs(force){
+    var box = $('pfOuts'); if(!box) return; var token = ++S.prevToken, h = '';
+    S.outputs.forEach(function(o, i){
+      var P = profileById(o.pid), alpha = hasAlphaPixels(cv);
+      h += '<div class="pf-out" data-i="' + i + '"><input type="checkbox" data-oi="' + i + '"' + (o.on ? ' checked' : '') + ' aria-label="Include ' + esc(P.name) + '" style="accent-color:var(--green);width:17px;height:17px;"><div><b>' + esc(P.group === 'General' ? 'Original size' : P.name) + '</b></div>' +
+        '<div><select data-ofmt="' + i + '" aria-label="Format"><option value="auto"' + (o.fmt === 'auto' ? ' selected' : '') + '>Auto</option><option value="jpeg"' + (o.fmt === 'jpeg' ? ' selected' : '') + '>JPEG</option><option value="png"' + (o.fmt === 'png' ? ' selected' : '') + '>PNG</option><option value="webp"' + (o.fmt === 'webp' ? ' selected' : '') + '>WebP</option></select>' + (i ? ' <button type="button" class="pf-link" data-orm="' + i + '">remove</button>' : '') + '</div>' +
+        '<div class="meta" id="pfm' + i + '">' + (o.res ? '' : '<span class="spinner"></span> Encoding…') + '</div>' +
+        (alpha ? '<div class="meta" style="grid-column:1 / 4;">Transparency fill (used only for JPEG): <input type="color" data-obg="' + i + '" value="' + o.bg + '" aria-label="Background colour for flattening" style="vertical-align:middle;"></div>' : '') + '</div>';
+    });
+    box.innerHTML = h;
+    box.querySelectorAll('input[data-oi]').forEach(function(x){ x.addEventListener('change', function(){ S.outputs[+x.getAttribute('data-oi')].on = x.checked; }); });
+    box.querySelectorAll('select[data-ofmt]').forEach(function(x){ x.addEventListener('change', function(){ var o = S.outputs[+x.getAttribute('data-ofmt')]; o.fmt = x.value; o.res = null; paintOutputs(); }); });
+    box.querySelectorAll('input[data-obg]').forEach(function(x){ x.addEventListener('change', function(){ var o = S.outputs[+x.getAttribute('data-obg')]; o.bg = x.value; o.res = null; paintOutputs(); }); });
+    box.querySelectorAll('button[data-orm]').forEach(function(x){ x.addEventListener('click', function(){ S.outputs.splice(+x.getAttribute('data-orm'), 1); paintOutputs(); }); });
+    for(var i = 0; i < S.outputs.length; i++){
+      var o = S.outputs[i], m = $('pfm' + i); if(token !== S.prevToken || !m) return;
+      if(force || !o.res){ try{ await yieldUI(); o.res = await encodeOutput(o); }catch(err){ console.error(err); o.res = { err: err && err.message || String(err) }; } }
+      if(token !== S.prevToken) return; m = $('pfm' + i); if(!m) return;
+      m.innerHTML = o.res.err ? '✕ ' + esc(o.res.err) : '<b>' + o.res.w + '×' + o.res.h + '</b> · ' + o.res.fmt.toUpperCase() + ' · <b>' + fmtBytes(o.res.blob.size) + '</b><br>' + esc(o.res.notes.join(' · '));
+    }
+  }
+  async function authed(){
+    if(typeof window.__apicBatchAuth !== 'function' || typeof window.__apicBatchSave !== 'function'){ say('✕ Downloads aren’t available right now. Reload the page and try again.'); return false; }
+    var st; try{ st = await window.__apicBatchAuth(); }catch(e){ st = 'network'; }
+    if(st === 'signedout'){ statusEl.innerHTML = 'Sign in to download — your settings are kept, press Download again afterwards. '; var b = document.createElement('button'); b.type = 'button'; b.className = 'btn btn-gold btn-sm'; b.textContent = 'Sign in'; b.addEventListener('click', function(){ try{ window.__apicBatchSignIn(); }catch(e){} }); statusEl.appendChild(b); return false; }
+    if(st !== 'ok'){ say('✕ Could not verify sign-in right now (a blocker or your connection). Try again.'); return false; }
+    return true;
+  }
+  var CRC = (function(){ var t = new Uint32Array(256); for(var n = 0; n < 256; n++){ var c = n; for(var k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+  function crc32(u8){ var c = 0xFFFFFFFF; for(var i = 0; i < u8.length; i++) c = CRC[(c ^ u8[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+  async function zipStore(files){                       // files: [{name, blob}] — stored (no compression), images are already compressed
+    var parts = [], central = [], off = 0, enc = new TextEncoder();
+    for(var i = 0; i < files.length; i++){
+      var u8 = new Uint8Array(await files[i].blob.arrayBuffer()), nm = enc.encode(files[i].name), crc = crc32(u8), lh = new DataView(new ArrayBuffer(30));
+      lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0x0800, true); lh.setUint32(14, crc, true); lh.setUint32(18, u8.length, true); lh.setUint32(22, u8.length, true); lh.setUint16(26, nm.length, true);
+      parts.push(lh.buffer, nm, u8);
+      var ch = new DataView(new ArrayBuffer(46)); ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true); ch.setUint16(8, 0x0800, true); ch.setUint32(16, crc, true); ch.setUint32(20, u8.length, true); ch.setUint32(24, u8.length, true); ch.setUint16(28, nm.length, true); ch.setUint32(42, off, true);
+      central.push(ch.buffer, nm); off += 30 + nm.length + u8.length;
+    }
+    var csize = 0; central.forEach(function(b){ csize += b.byteLength; });
+    var end = new DataView(new ArrayBuffer(22)); end.setUint32(0, 0x06054b50, true); end.setUint16(8, files.length, true); end.setUint16(10, files.length, true); end.setUint32(12, csize, true); end.setUint32(16, off, true);
+    return new Blob(parts.concat(central, [end.buffer]), { type: 'application/zip' });
+  }
+  async function downloadAll(){
+    if(S.busy) return; var chosen = S.outputs.filter(function(o){ return o.on; }); if(!chosen.length){ say('Tick at least one output.'); return; }
+    S.busy = true; var ok = await authed(); S.busy = false; if(!ok) return;
+    setBusy(true); say('Preparing…', true);
+    try{
+      var files = [], used = {};
+      for(var i = 0; i < chosen.length; i++){ var o = chosen[i]; if(!o.res || o.res.err){ await yieldUI(); o.res = await encodeOutput(o); } var nm = o.res.name; if(used[nm]){ nm = nm.replace(/(\.\w+)$/, '-' + (++used[nm]) + '$1'); } else used[nm] = 1; files.push({ name: nm, blob: o.res.blob }); }
+      if(files.length === 1){ window.__apicBatchSave(files[0].blob, files[0].name); say('✓ Downloaded ' + esc(files[0].name) + ' · ' + fmtBytes(files[0].blob.size)); }
+      else { var z = await zipStore(files); window.__apicBatchSave(z, 'apic-ready-images.zip'); say('✓ Downloaded apic-ready-images.zip · ' + files.length + ' images · ' + fmtBytes(z.size)); }
+    }catch(err){ console.error(err); say('✕ Could not create the download' + (err && err.message ? ' (' + esc(err.message) + ')' : '') + '.'); }
+    setBusy(false);
+  }
+  window.addEventListener('click', function(e){                      // approved footer Export click (after the sign-in gate) downloads these outputs while step 5 is open
+    if(e.target !== exportBtn || !S.open || S.step !== 5 || !S.report) return;
+    e.stopImmediatePropagation(); e.preventDefault(); if(!S.busy) downloadAll();
+  }, true);
+
+  /* =================================================================
+     OPEN / CLOSE / STAY IN STEP WITH THE EDITOR
+     ================================================================= */
+  function setOpen(v){
+    S.open = v; panel.classList.toggle('show', v); tab.classList.toggle('active', v);
+    if(v){ Array.prototype.forEach.call(document.querySelectorAll('.bench-panel'), function(x){ if(x !== panel) x.classList.remove('show'); }); toolTitle.textContent = 'visual-intelligence.exe'; go(S.step === 2 && S.run && S.run.done ? 3 : (S.step || 1)); }
+    else { clearTimeout(S.prevTimer); S.prevToken++; }
+  }
+  tab.addEventListener('click', function(){ if(tab.disabled || S.open) return; t0.click(); t0.classList.remove('active'); setOpen(true); });
+  Array.prototype.forEach.call(bench.querySelectorAll('.tool-btn'), function(b){ if(b !== tab) b.addEventListener('click', function(){ if(S.open) setOpen(false); }); });
+  new MutationObserver(function(){ tab.disabled = t0.disabled; if(t0.disabled && S.open) setOpen(false); }).observe(t0, { attributes: true, attributeFilter: ['disabled'] });
+  function onSource(){
+    if(selfEdit) return;
+    if(S.run && !S.run.done){ S.run.tok.cancelled = true; killWorker(false); }
+    if(S.report && fingerprintNow() !== S.report.fp){ S.stale = true; }
+    if(S.open){ if(S.step === 1) drawThumb(); else renderSteps(); }
+  }
+  new MutationObserver(onSource).observe(cv, { attributes: true, attributeFilter: ['width', 'height'] });
+  if(fileInfo) new MutationObserver(function(){ if(selfEdit) return; S.report = null; S.run = null; S.sel = null; S.outputs = []; S.stale = false; if(S.open) go(1); }).observe(fileInfo, { childList: true, characterData: true, subtree: true });
+  (function hook(n){ var d = window.__apicDock; if(!d || typeof d.sync !== 'function'){ if(n < 60) setTimeout(function(){ hook(n + 1); }, 300); return; } var o = d.sync; d.sync = function(){ var r = o.apply(this, arguments); try{ onSource(); }catch(e){} return r; }; })(0);
+  var rmBtn = $('removeImgBtn'); if(rmBtn) rmBtn.addEventListener('click', function(){ killWorker(false); if(S.run) S.run.tok.cancelled = true; S.report = null; S.run = null; S.sel = null; S.outputs = []; S.stale = false; if(S.open) setOpen(false); }, true);
+  document.addEventListener('visibilitychange', function(){ if(document.hidden && S.run && !S.run.done){ /* keep running: work is chunked and cancellable */ } });
+
+  window.__apicPreflight = { report: function(){ var R = S.report; return R ? JSON.parse(JSON.stringify({ plan: R.ctx.cropPlan, lines: R.ctx.ocr.lines.map(function(l){ return { t: l.text, c: Math.round(l.conf), b: l.box, st: l.stats, d: l.display }; }), faces: R.ctx.faces, objects: R.ctx.objects, summary: R.summary, mods: R.mods, findings: R.findings.map(function(f){ return { id: f.id, sev: f.severity, conf: f.confidence, und: !!f.undetermined, title: f.title, ev: f.evidence }; }) })) : null; }, version: 1, profiles: PF.PROFILES.length, open: function(){ tab.click(); }, state: function(){ return { step: S.step, hasReport: !!S.report, stale: S.stale }; } };
+  renderSteps();
+})();
+
+})();
+</script>
 </body>
 </html>
