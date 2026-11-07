@@ -1063,7 +1063,7 @@
     content:""; position:absolute; inset:-1px; border-radius:inherit; padding:1px; pointer-events:none;
     background:var(--grad-brand); opacity:.55;
     -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite:xor;
-    mask:linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+    mask:linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); mask-composite:exclude;
   }
   #apicDock::after{
     content:""; position:absolute; inset:-12px; z-index:-1; border-radius:26px; pointer-events:none;
@@ -1096,6 +1096,7 @@
   html.apic-fast #apicDock::after{display:none;}
   /* controls glide right to make room for the docked preview */
   .studio .bench-tools, .studio .bench-panel, .studio .bench-footer{transition:margin-left .8s var(--ease-out), margin-right .8s var(--ease-out);}
+  .studio-wrap.apic-docked-side{max-width:none; width:100%;}
   .studio.apic-docked-side .bench-tools, .studio.apic-docked-side .bench-panel, .studio.apic-docked-side .bench-footer{margin-left:var(--apic-dock-shift, 0px); margin-right:var(--apic-dock-shift-r, 0px);}
   @media (prefers-reduced-motion:reduce){
     #apicDock, #apicDock.gliding, #apicDock.dragging{transition:opacity .2s ease;}
@@ -1103,6 +1104,7 @@
     #apicDock .ad-img{transition:none;}
     .studio .bench-tools, .studio .bench-panel, .studio .bench-footer{transition:none;}
   }
+</style>
 <style id="apic-anchor-ad-css">
   /* ---------- Anchor ad: lives in the sticky header, so it is always on screen ---------- */
   .top-inner{padding:8px 22px; gap:14px;}
@@ -5239,7 +5241,10 @@
       if(!dragging){                              // while dragging, the controls wait; they glide into place on release
         studio.style.setProperty('--apic-dock-shift', n.shift + 'px');
         studio.style.setProperty('--apic-dock-shift-r', n.shiftR + 'px');
-        if(on) studio.classList.toggle('apic-docked-side', n.side);
+        if(on){
+          studio.classList.toggle('apic-docked-side', n.side);
+          studio.parentElement.classList.toggle('apic-docked-side', n.side);
+        }
       }
     }
     function glide(){
@@ -5293,6 +5298,7 @@
       draw();
       el.classList.remove('leaving', 'fade');
       studio.classList.toggle('apic-docked-side', g.side);
+      studio.parentElement.classList.toggle('apic-docked-side', g.side);
       if(!wasOn){
         el.style.transform = reduced() ? 'none' : flip(s);
         el.style.opacity = '0';
@@ -5321,6 +5327,7 @@
       // flying home: forget the custom spot (g still describes where the card is right now, so the flight starts from there)
       userPos = null; clearTimeout(glideT); el.classList.remove('moved', 'gliding');
       studio.classList.remove('apic-docked-side');
+      studio.parentElement.classList.remove('apic-docked-side');
       if(!el.classList.contains('on')) return;
       if(instant || !g){ finishHide(); return; }
       var fly = !reduced() && (frac === undefined || frac >= 0.3);
