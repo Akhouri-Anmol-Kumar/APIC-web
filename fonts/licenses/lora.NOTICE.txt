@@ -1,0 +1,10 @@
+Lora
+Copyright: Copyright 2011 The Lora Project Authors (https://github.com/cyrealtype/Lora-Cyrillic), with Reserved Font Name "Lora".
+Version: Version 3.008
+Source: https://github.com/cyrealtype/Lora-Cyrillic
+Obtained from: system fonts directory, font version 3.008 (variable wght 400-700)
+Licence: OFL-1.1 (https://scripts.sil.org/OFL)
+Font-embedded licence statement: This Font Software is licensed under the SIL Open Font License, Version 1.1. This license is available with a FAQ at: https://scripts.sil.org/OFL
+
+The subset font files in this directory are Modified Versions under OFL §1-3 (subset + WOFF conversion).
+Their internal family names have been changed to "Lora (APIC subset)". Full licence text: OFL-1.1.txt

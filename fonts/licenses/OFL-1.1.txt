@@ -1,0 +1,4 @@
+SIL OPEN FONT LICENSE Version 1.1
+(verbatim text as shipped in the Debian fonts-inter copyright file; the same licence applies to every family listed in manifest.json)
+
+
