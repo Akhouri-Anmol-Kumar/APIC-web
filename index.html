@@ -10626,5 +10626,173 @@ var DSUI = (function () {
 })(DSUI);
 
 </script>
+<style id="apic-i18n-css">
+#apicLangBtn{position:fixed;right:76px;bottom:calc(18px + env(safe-area-inset-bottom,0px));z-index:150;display:flex;gap:6px;align-items:center;min-height:44px;padding:0 14px;border-radius:30px;background:var(--bg-2);color:var(--text);border:1px solid var(--line);cursor:pointer;font:600 13px/1 system-ui,sans-serif;box-shadow:var(--shadow,0 4px 16px #0004)}
+#apicLangBtn:hover{border-color:var(--green)}
+#apicLangBtn:focus-visible,#apicLangMenu button:focus-visible,#apicLangBar button:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+#apicLangMenu{position:fixed;right:76px;bottom:calc(72px + env(safe-area-inset-bottom,0px));z-index:199;display:flex;flex-direction:column;min-width:190px;background:var(--bg-2);color:var(--text);border:1px solid var(--line);border-radius:12px;overflow:hidden;box-shadow:0 10px 40px #0008}
+#apicLangMenu button{display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:44px;padding:0 16px;background:none;border:0;border-bottom:1px solid var(--line);color:inherit;cursor:pointer;text-align:left;font:15px/1.2 system-ui,sans-serif}
+#apicLangMenu button:last-child{border-bottom:0}#apicLangMenu button:hover,#apicLangMenu button.on{background:var(--bg-3)}#apicLangMenu small{color:var(--text-muted);font-size:12px}
+#apicLangBar{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;z-index:199;width:calc(100% - 28px);max-width:520px;background:var(--bg-2);color:var(--text);border:1px solid var(--green);border-radius:14px;padding:14px 16px;box-shadow:0 10px 40px #0008;font-family:system-ui,sans-serif}
+#apicLangBar .q{font-size:17px;font-weight:600;line-height:1.4}#apicLangBar .e{font-size:13px;color:var(--text-muted);margin-top:2px}
+#apicLangBar .r{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+#apicLangBar button{min-height:44px;padding:0 16px;border-radius:10px;border:1px solid var(--line);background:var(--bg-3);color:inherit;cursor:pointer;font:600 14px/1.2 system-ui,sans-serif;flex:1 1 150px}
+#apicLangBar button.y{background:var(--green);color:#04130a;border-color:var(--green)}
+@media (prefers-reduced-motion:no-preference){#apicLangBar{animation:apicLangIn .25s ease-out}@keyframes apicLangIn{from{opacity:0;transform:translate(-50%,12px)}}}
+/* Indic scripts: wide tracking breaks conjuncts and reads badly, so it is switched off while a translation is active */
+html:not([lang="en"]) body *{letter-spacing:normal!important}
+</style>
+<script type="application/json" id="apic-i18n-data">{"order":["hi","ta","bn","or","te"],"rows":[["Design Studio","डिज़ाइन स्टूडियो","டிசைன் ஸ்டுடியோ","ডিজাইন স্টুডিও","ଡିଜାଇନ୍ ଷ୍ଟୁଡିଓ","డిజైన్ స్టూడియో"],["Features","सुविधाएँ","அம்சங்கள்","বৈশিষ্ট্য","ବୈଶିଷ୍ଟ୍ୟ","ఫీచర్లు"],["Community","समुदाय","சமூகம்","কমিউনিটি","ସମ୍ପ୍ରଦାୟ","కమ్యూనిటీ"],["Desktop App","डेस्कटॉप ऐप","டெஸ்க்டாப் ஆப்","ডেস্কটপ অ্যাপ","ଡେସ୍କଟପ୍ ଆପ୍","డెస్క్‌టాప్ యాప్"],["Sign in","साइन इन करें","உள்நுழைக","সাইন ইন করুন","ସାଇନ୍ ଇନ୍ କରନ୍ତୁ","సైన్ ఇన్ చేయండి"],["Free forever · ads keep APIC running","हमेशा मुफ़्त · विज्ञापन APIC को चालू रखते हैं","எப்போதும் இலவசம் · விளம்பரங்கள் APIC-ஐ இயங்க வைக்கின்றன","সবসময় বিনামূল্যে · বিজ্ঞাপন APIC চালু রাখে","ସବୁଦିନ ପାଇଁ ମାଗଣା · ବିଜ୍ଞାପନ APIC କୁ ଚଳାଇ ରଖେ","ఎప్పటికీ ఉచితం · ప్రకటనలు APIC ని నడుపుతాయి"],["Studio-grade editing, zero upload","स्टूडियो-स्तर की एडिटिंग, कोई अपलोड नहीं","ஸ்டுடியோ தர எடிட்டிங், பதிவேற்றம் இல்லை","স্টুডিও মানের এডিটিং, কোনো আপলোড নেই","ଷ୍ଟୁଡିଓ ମାନର ଏଡିଟିଂ, ଅପଲୋଡ୍ ନାହିଁ","స్టూడియో స్థాయి ఎడిటింగ్, అప్‌లోడ్ లేదు"],["Open Design Studio","डिज़ाइन स्टूडियो खोलें","டிசைன் ஸ்டுடியோவைத் திறக்கவும்","ডিজাইন স্টুডিও খুলুন","ଡିଜାଇନ୍ ଷ୍ଟୁଡିଓ ଖୋଲନ୍ତୁ","డిజైన్ స్టూడియో తెరవండి"],["Templates · fonts · checks","टेम्पलेट · फ़ॉन्ट · जाँच","டெம்ப்ளேட்கள் · எழுத்துருக்கள் · சோதனைகள்","টেমপ্লেট · ফন্ট · যাচাই","ଟେମ୍ପଲେଟ୍ · ଫଣ୍ଟ · ଯାଞ୍ଚ","టెంప్లేట్లు · ఫాంట్‌లు · తనిఖీలు"],["Drop an image here","यहाँ फ़ोटो डालें","படத்தை இங்கே இழுத்து விடுங்கள்","এখানে ছবি ফেলুন","ଏଠାରେ ଛବି ପକାନ୍ତୁ","ఇక్కడ చిత్రాన్ని వదలండి"],["or tap to browse — nothing leaves your device","या ब्राउज़ करने के लिए टैप करें — कुछ भी आपके डिवाइस से बाहर नहीं जाता","அல்லது தேட தட்டவும் — எதுவும் உங்கள் சாதனத்தை விட்டு வெளியேறாது","অথবা ব্রাউজ করতে ট্যাপ করুন — কিছুই আপনার ডিভাইস ছেড়ে যায় না","କିମ୍ବା ବ୍ରାଉଜ୍ କରିବାକୁ ଟାପ୍ କରନ୍ତୁ — କିଛି ବି ଆପଣଙ୍କ ଡିଭାଇସ୍ ଛାଡ଼େ ନାହିଁ","లేదా బ్రౌజ్ చేయడానికి నొక్కండి — ఏదీ మీ పరికరం నుండి బయటకు వెళ్లదు"],["Edit","एडिट","திருத்து","এডিট","ଏଡିଟ୍","ఎడిట్"],["Advanced","एडवांस्ड","மேம்பட்டது","অ্যাডভান্সড","ଉନ୍ନତ","అడ్వాన్స్‌డ్"],["Remove Object","वस्तु हटाएँ","பொருளை நீக்கு","বস্তু সরান","ବସ୍ତୁ ହଟାନ୍ତୁ","వస్తువును తొలగించు"],["Resize","आकार बदलें","அளவை மாற்று","আকার বদলান","ଆକାର ବଦଳାନ୍ତୁ","పరిమాణం మార్చు"],["Convert","कन्वर्ट","மாற்று","কনভার্ট","କନଭର୍ଟ୍","కన్వర్ట్"],["Compress","कम्प्रेस","சுருக்கு","কমপ্রেস","କମ୍ପ୍ରେସ୍","కంప్రెస్"],["Remove BG","बैकग्राउंड हटाएँ","பின்னணியை நீக்கு","ব্যাকগ্রাউন্ড সরান","ବ୍ୟାକଗ୍ରାଉଣ୍ଡ ହଟାନ୍ତୁ","బ్యాక్‌గ్రౌండ్ తొలగించు"],["AI Tools","AI टूल्स","AI கருவிகள்","AI টুলস","AI ଟୁଲ୍ସ","AI టూల్స్"],["Layers","लेयर","அடுக்குகள்","লেয়ার","ଲେୟର୍","లేయర్లు"],["Social","सोशल","சமூக ஊடகம்","সোশ্যাল","ସୋସିଆଲ୍","సోషల్"],["New","नया","புதிது","নতুন","ନୂଆ","కొత్త"],["Visual Intelligence","विज़ुअल इंटेलिजेंस","விஷுவல் இன்டெலிஜென்ஸ்","ভিজ্যুয়াল ইন্টেলিজেন্স","ଭିଜୁଆଲ୍ ଇଣ୍ଟେଲିଜେନ୍ସ","విజువల్ ఇంటెలిజెన్స్"],["↻ Rotate 90°","↻ 90° घुमाएँ","↻ 90° சுழற்று","↻ 90° ঘোরান","↻ 90° ଘୁରାନ୍ତୁ","↻ 90° తిప్పు"],["⇋ Flip H","⇋ आड़ा पलटें","⇋ கிடைமட்டமாக புரட்டு","⇋ অনুভূমিক ফ্লিপ","⇋ ଆଡ଼କୁ ଓଲଟାନ୍ତୁ","⇋ అడ్డంగా తిప్పు"],["⇵ Flip V","⇵ खड़ा पलटें","⇵ செங்குத்தாக புரட்டு","⇵ উল্লম্ব ফ্লিপ","⇵ ଲମ୍ବକୁ ଓଲଟାନ୍ତୁ","⇵ నిలువుగా తిప్పు"],["Filter","फ़िल्टर","வடிகட்டி","ফিল্টার","ଫିଲ୍ଟର୍","ఫిల్టర్"],["None","कोई नहीं","எதுவுமில்லை","কিছু নয়","କିଛି ନାହିଁ","ఏదీ కాదు"],["Grayscale","ग्रेस्केल","கிரேஸ்கேல்","গ্রেস্কেল","ଗ୍ରେସ୍କେଲ୍","గ్రేస్కేల్"],["Sepia","सेपिया","செபியா","সেপিয়া","ସେପିଆ","సెపియా"],["Invert","उलटें","தலைகீழாக்கு","ইনভার্ট","ଇନଭର୍ଟ୍","ఇన్వర్ట్"],["Brightness","चमक","பிரகாசம்","উজ্জ্বলতা","ଉଜ୍ଜ୍ୱଳତା","ప్రకాశం"],["Contrast","कंट्रास्ट","மாறுபாடு","কন্ট্রাস্ট","କଣ୍ଟ୍ରାଷ୍ଟ","కాంట్రాస్ట్"],["Saturation","सैचुरेशन","சாச்சுரேஷன்","স্যাচুরেশন","ସାଚୁରେସନ୍","సంతృప్తత"],["Blur","धुंधला","மங்கலாக்கு","ঝাপসা","ଝାପସା","బ్లర్"],["Reset all","सब रीसेट करें","அனைத்தையும் மீட்டமை","সব রিসেট করুন","ସବୁ ରିସେଟ୍ କରନ୍ତୁ","అన్నీ రీసెట్ చేయండి"],["Light","रोशनी","ஒளி","আলো","ଆଲୋକ","కాంతి"],["Exposure","एक्सपोज़र","எக்ஸ்போசர்","এক্সপোজার","ଏକ୍ସପୋଜର୍","ఎక్స్‌పోజర్"],["Highlights","हाइलाइट्स","ஹைலைட்ஸ்","হাইলাইটস","ହାଇଲାଇଟ୍ସ","హైలైట్స్"],["Shadows","शैडोज़","நிழல்கள்","শ্যাডোজ","ଶ୍ୟାଡୋସ୍","షాడోస్"],["Crop","क्रॉप","வெட்டு","ক্রপ","କ୍ରପ୍","క్రాప్"],["Apply crop","क्रॉप लागू करें","வெட்டைப் பயன்படுத்து","ক্রপ প্রয়োগ করুন","କ୍ରପ୍ ପ୍ରୟୋଗ କରନ୍ତୁ","క్రాప్ వర్తింపజేయండి"],["Clear selection","चयन हटाएँ","தேர்வை அழி","নির্বাচন মুছুন","ଚୟନ ହଟାନ୍ତୁ","ఎంపికను తొలగించండి"],["Red","लाल","சிவப்பு","লাল","ଲାଲ","ఎరుపు"],["Orange","नारंगी","ஆரஞ்சு","কমলা","କମଳା","నారింజ"],["Yellow","पीला","மஞ்சள்","হলুদ","ହଳଦିଆ","పసుపు"],["Green","हरा","பச்சை","সবুজ","ସବୁଜ","ఆకుపచ్చ"],["Blue","नीला","நீலம்","নীল","ନୀଳ","నీలం"],["Purple","बैंगनी","ஊதா","বেগুনি","ବାଇଗଣୀ","ఊదా"],["Sharpen","शार्प करें","கூர்மையாக்கு","শার্প করুন","ଶାର୍ପ୍ କରନ୍ତୁ","షార్ప్ చేయండి"],["Vignette","विनेट","விக்னெட்","ভিনেট","ଭିନେଟ୍","విగ్నెట్"],["Grain","ग्रेन","கிரெயின்","গ্রেইন","ଗ୍ରେନ୍","గ్రెయిన్"],["Brush size","ब्रश का आकार","பிரஷ் அளவு","ব্রাশের আকার","ବ୍ରଶ୍ ଆକାର","బ్రష్ పరిమాణం"],["Quality","गुणवत्ता","தரம்","মান","ଗୁଣବତ୍ତା","నాణ్యత"],["Clear mask","मास्क हटाएँ","மாஸ்க்கை அழி","মাস্ক মুছুন","ମାସ୍କ ହଟାନ୍ତୁ","మాస్క్ తొలగించండి"],["Width","चौड़ाई","அகலம்","প্রস্থ","ଚଉଡ଼ା","వెడల్పు"],["Height","ऊँचाई","உயரம்","উচ্চতা","ଉଚ୍ଚତା","ఎత్తు"],["Unit","इकाई","அலகு","একক","ଏକକ","యూనిట్"],["Pixels","पिक्सेल","பிக்சல்கள்","পিক্সেল","ପିକ୍ସେଲ୍","పిక్సెల్స్"],["Lock ratio","अनुपात लॉक करें","விகிதத்தை பூட்டு","অনুপাত লক করুন","ଅନୁପାତ ଲକ୍ କରନ୍ତୁ","నిష్పత్తిని లాక్ చేయండి"],["Apply resize","आकार लागू करें","அளவைப் பயன்படுத்து","আকার প্রয়োগ করুন","ଆକାର ପ୍ରୟୋଗ କରନ୍ତୁ","పరిమాణాన్ని వర్తింపజేయండి"],["Format","फ़ॉर्मैट","வடிவம்","ফরম্যাট","ଫର୍ମାଟ୍","ఫార్మాట్"],["Remove background","बैकग्राउंड हटाएँ","பின்னணியை நீக்கு","ব্যাকগ্রাউন্ড সরান","ବ୍ୟାକଗ୍ରାଉଣ୍ଡ ହଟାନ୍ତୁ","బ్యాక్‌గ్రౌండ్ తొలగించండి"],["Smart crop","स्मार्ट क्रॉप","ஸ்மார்ட் கிராப்","স্মার্ট ক্রপ","ସ୍ମାର୍ଟ କ୍ରପ୍","స్మార్ట్ క్రాప్"],["Opacity","पारदर्शिता","ஒளிபுகாமை","স্বচ্ছতা","ସ୍ୱଚ୍ଛତା","పారదర్శకత"],["Blend","ब्लेंड","கலப்பு","ব্লেন্ড","ବ୍ଲେଣ୍ଡ","బ్లెండ్"],["Normal","सामान्य","இயல்பான","সাধারণ","ସାଧାରଣ","సాధారణ"],["Text","टेक्स्ट","உரை","টেক্সট","ଟେକ୍ସଟ୍","టెక్స్ట్"],["Font","फ़ॉन्ट","எழுத்துரு","ফন্ট","ଫଣ୍ଟ","ఫాంట్"],["Bold","मोटा","தடித்த","বোল্ড","ବୋଲ୍ଡ","బోల్డ్"],["Size","आकार","அளவு","আকার","ଆକାର","పరిమాణం"],["Delete","हटाएँ","நீக்கு","মুছুন","ଲିଭାନ୍ତୁ","తొలగించు"],["Merge down","नीचे मर्ज करें","கீழே இணை","নিচে মার্জ করুন","ତଳକୁ ମର୍ଜ କରନ୍ତୁ","కిందికి విలీనం చేయండి"],["＋ Image","＋ फ़ोटो","＋ படம்","＋ ছবি","＋ ଛବି","＋ చిత్రం"],["＋ Text","＋ टेक्स्ट","＋ உரை","＋ টেক্সট","＋ ଟେକ୍ସଟ୍","＋ టెక్స్ట్"],["Profile pictures","प्रोफ़ाइल फ़ोटो","சுயவிவரப் படங்கள்","প্রোফাইল ছবি","ପ୍ରୋଫାଇଲ୍ ଫଟୋ","ప్రొఫైల్ ఫోటోలు"],["Banners & covers","बैनर और कवर","பேனர்கள் & கவர்கள்","ব্যানার ও কভার","ବ୍ୟାନର ଓ କଭର୍","బ్యానర్లు & కవర్లు"],["Posts & thumbnails","पोस्ट और थंबनेल","பதிவுகள் & சிறுபடங்கள்","পোস্ট ও থাম্বনেইল","ପୋଷ୍ଟ ଓ ଥମ୍ବନେଲ୍","పోస్ట్‌లు & థంబ్‌నెయిల్స్"],["Stories & vertical","स्टोरी और वर्टिकल","ஸ்டோரிகள் & செங்குத்து","স্টোরি ও ভার্টিকাল","ଷ୍ଟୋରୀ ଓ ଭର୍ଟିକାଲ୍","స్టోరీలు & వర్టికల్"],["Other","अन्य","மற்றவை","অন্যান্য","ଅନ୍ୟାନ୍ୟ","ఇతర"],["Custom size…","अपना आकार…","தனிப்பயன் அளவு…","নিজের আকার…","ନିଜ ଆକାର…","కస్టమ్ పరిమాణం…"],["Change size","आकार बदलें","அளவை மாற்று","আকার পরিবর্তন","ଆକାର ବଦଳାନ୍ତୁ","పరిమాణం మార్చండి"],["Fill (crop to fit)","भरें (क्रॉप करके)","நிரப்பு (வெட்டி பொருத்து)","ভরুন (ক্রপ করে)","ଭରନ୍ତୁ (କ୍ରପ୍ କରି)","నింపండి (క్రాప్ చేసి)"],["Fit whole photo","पूरी फ़ोटो फ़िट करें","முழு படத்தையும் பொருத்து","পুরো ছবি ফিট করুন","ପୂରା ଛବି ଫିଟ୍ କରନ୍ତୁ","మొత్తం ఫోటోను ఫిట్ చేయండి"],["Zoom","ज़ूम","ஜூம்","জুম","ଜୁମ୍","జూమ్"],["Background","बैकग्राउंड","பின்னணி","ব্যাকগ্রাউন্ড","ବ୍ୟାକଗ୍ରାଉଣ୍ଡ","బ్యాక్‌గ్రౌండ్"],["Colour","रंग","நிறம்","রঙ","ରଙ୍ଗ","రంగు"],["Clear","साफ़ करें","அழி","মুছুন","ସଫା କରନ୍ତୁ","క్లియర్"],["Download this size","यह आकार डाउनलोड करें","இந்த அளவைப் பதிவிறக்கு","এই আকার ডাউনলোড করুন","ଏହି ଆକାର ଡାଉନଲୋଡ୍ କରନ୍ତୁ","ఈ పరిమాణాన్ని డౌన్‌లోడ్ చేయండి"],["Apply to editor","एडिटर में लागू करें","எடிட்டரில் பயன்படுத்து","এডিটরে প্রয়োগ করুন","ଏଡିଟରରେ ପ୍ରୟୋଗ କରନ୍ତୁ","ఎడిటర్‌కు వర్తింపజేయండి"],["Download all sizes (ZIP)","सभी आकार डाउनलोड करें (ZIP)","அனைத்து அளவுகளையும் பதிவிறக்கு (ZIP)","সব আকার ডাউনলোড করুন (ZIP)","ସବୁ ଆକାର ଡାଉନଲୋଡ୍ କରନ୍ତୁ (ZIP)","అన్ని పరిమాణాలను డౌన్‌లోడ్ చేయండి (ZIP)"],["Don’t just edit. Make every image ready.","सिर्फ़ एडिट मत करो। हर इमेज को तैयार करो।","வெறும் எடிட் செய்யாதீர்கள். ஒவ்வொரு படத்தையும் தயாராக்குங்கள்.","শুধু এডিট নয়। প্রতিটি ছবি তৈরি করুন।","କେବଳ ଏଡିଟ୍ ନୁହେଁ। ପ୍ରତ୍ୟେକ ଛବିକୁ ପ୍ରସ୍ତୁତ କରନ୍ତୁ।","ఎడిట్ చేయడమే కాదు. ప్రతి చిత్రాన్ని సిద్ధం చేయండి."],["No image loaded","कोई फ़ोटो लोड नहीं है","படம் ஏற்றப்படவில்லை","কোনো ছবি লোড হয়নি","କୌଣସି ଛବି ଲୋଡ୍ ହୋଇନାହିଁ","చిత్రం లోడ్ కాలేదు"],["🔒 sign in to export","🔒 एक्सपोर्ट के लिए साइन इन करें","🔒 ஏற்றுமதிக்கு உள்நுழைக","🔒 এক্সপোর্টের জন্য সাইন ইন করুন","🔒 ଏକ୍ସପୋର୍ଟ ପାଇଁ ସାଇନ୍ ଇନ୍ କରନ୍ତୁ","🔒 ఎక్స్‌పోర్ట్ కోసం సైన్ ఇన్ చేయండి"],["Remove image","फ़ोटो हटाएँ","படத்தை நீக்கு","ছবি সরান","ଛବି ହଟାନ୍ତୁ","చిత్రాన్ని తొలగించు"],["Download ZIP","ZIP डाउनलोड करें","ZIP பதிவிறக்கு","ZIP ডাউনলোড করুন","ZIP ଡାଉନଲୋଡ୍ କରନ୍ତୁ","ZIP డౌన్‌లోడ్ చేయండి"],["Process","प्रोसेस करें","செயலாக்கு","প্রসেস করুন","ପ୍ରୋସେସ୍ କରନ୍ତୁ","ప్రాసెస్ చేయండి"],["FAQ","अक्सर पूछे जाने वाले सवाल","அடிக்கடி கேட்கப்படும் கேள்விகள்","প্রায়শ জিজ্ঞাসিত প্রশ্ন","ବାରମ୍ବାର ପଚରାଯାଉଥିବା ପ୍ରଶ୍ନ","తరచుగా అడిగే ప్రశ్నలు"],["Questions, answered.","सवाल, जवाब के साथ।","கேள்விகள், பதில்களுடன்.","প্রশ্ন, উত্তরসহ।","ପ୍ରଶ୍ନ, ଉତ୍ତର ସହିତ।","ప్రశ్నలు, సమాధానాలతో."],["Is APIC really free?","क्या APIC सच में मुफ़्त है?","APIC உண்மையிலேயே இலவசமா?","APIC কি সত্যিই বিনামূল্যে?","APIC କ’ଣ ପ୍ରକୃତରେ ମାଗଣା?","APIC నిజంగా ఉచితమేనా?"],["Are my photos uploaded to a server?","क्या मेरी फ़ोटो किसी सर्वर पर अपलोड होती हैं?","என் படங்கள் சர்வருக்கு பதிவேற்றப்படுமா?","আমার ছবি কি সার্ভারে আপলোড হয়?","ମୋ ଫଟୋ କ’ଣ ସର୍ଭରକୁ ଅପଲୋଡ୍ ହୁଏ?","నా ఫోటోలు సర్వర్‌కు అప్‌లోడ్ అవుతాయా?"],["Prefer it on your desk?","कंप्यूटर पर चाहिए?","கணினியில் வேண்டுமா?","কম্পিউটারে চান?","କମ୍ପ୍ୟୁଟରରେ ଚାହାଁନ୍ତି?","కంప్యూటర్‌లో కావాలా?"],["Download APIC for PC →","PC के लिए APIC डाउनलोड करें →","PC-க்கான APIC பதிவிறக்கு →","PC-র জন্য APIC ডাউনলোড করুন →","PC ପାଇଁ APIC ଡାଉନଲୋଡ୍ କରନ୍ତୁ →","PC కోసం APIC డౌన్‌లోడ్ చేయండి →"],["Privacy Policy","गोपनीयता नीति","தனியுரிமைக் கொள்கை","গোপনীয়তা নীতি","ଗୋପନୀୟତା ନୀତି","గోప్యతా విధానం"],["Terms of Use","उपयोग की शर्तें","பயன்பாட்டு விதிமுறைகள்","ব্যবহারের শর্তাবলী","ବ୍ୟବହାର ସର୍ତ୍ତାବଳୀ","వినియోగ నిబంధనలు"],["Contact","संपर्क","தொடர்பு","যোগাযোগ","ଯୋଗାଯୋଗ","సంప్రదించండి"],["Close","बंद करें","மூடு","বন্ধ করুন","ବନ୍ଦ କରନ୍ତୁ","మూసివేయండి"],["Back to top","ऊपर जाएँ","மேலே செல்","উপরে যান","ଉପରକୁ ଯାଆନ୍ତୁ","పైకి వెళ్లండి"],["Got it","ठीक है","சரி","ঠিক আছে","ଠିକ୍ ଅଛି","సరే"],["Sign in to APIC","APIC में साइन इन करें","APIC-இல் உள்நுழைக","APIC-তে সাইন ইন করুন","APIC ରେ ସାଇନ୍ ଇନ୍ କରନ୍ତୁ","APIC లో సైన్ ఇన్ చేయండి"],["Export image","फ़ोटो एक्सपोर्ट करें","படத்தை ஏற்றுமதி செய்","ছবি এক্সপোর্ট করুন","ଛବି ଏକ୍ସପୋର୍ଟ କରନ୍ତୁ","చిత్రాన్ని ఎక్స్‌పోర్ట్ చేయండి"],["Design it. Check it. Ship it.","डिज़ाइन करो। जाँचो। भेजो।","வடிவமைக்கவும். சோதிக்கவும். அனுப்பவும்.","ডিজাইন করুন। যাচাই করুন। পাঠান।","ଡିଜାଇନ୍ କରନ୍ତୁ। ଯାଞ୍ଚ କରନ୍ତୁ। ପଠାନ୍ତୁ।","డిజైన్ చేయండి. తనిఖీ చేయండి. పంపండి."],["Save","सेव करें","சேமி","সেভ করুন","ସେଭ୍ କରନ୍ତୁ","సేవ్ చేయండి"],["Open","खोलें","திற","খুলুন","ଖୋଲନ୍ତୁ","తెరవండి"],["Export","एक्सपोर्ट","ஏற்றுமதி","এক্সপোর্ট","ଏକ୍ସପୋର୍ଟ","ఎక్స్‌పోర్ట్"],["Templates","टेम्पलेट","டெம்ப்ளேட்கள்","টেমপ্লেট","ଟେମ୍ପଲେଟ୍","టెంప్లేట్లు"],["Add","जोड़ें","சேர்","যোগ করুন","ଯୋଗ କରନ୍ତୁ","జోడించు"],["Page","पेज","பக்கம்","পেজ","ପେଜ୍","పేజీ"],["Check","जाँच","சோதனை","যাচাই","ଯାଞ୍ଚ","తనిఖీ"],["Start","शुरू करें","தொடங்கு","শুরু করুন","ଆରମ୍ଭ କରନ୍ତୁ","ప్రారంభించు"],["Blank 1080×1080","खाली 1080×1080","வெற்று 1080×1080","ফাঁকা 1080×1080","ଖାଲି 1080×1080","ఖాళీ 1080×1080"],["Open project file…","प्रोजेक्ट फ़ाइल खोलें…","திட்டக் கோப்பைத் திற…","প্রজেক্ট ফাইল খুলুন…","ପ୍ରୋଜେକ୍ଟ ଫାଇଲ୍ ଖୋଲନ୍ତୁ…","ప్రాజెక్ట్ ఫైల్ తెరవండి…"],["All","सभी","அனைத்தும்","সব","ସବୁ","అన్నీ"],["Instagram post","इंस्टाग्राम पोस्ट","இன்ஸ்டாகிராம் பதிவு","ইনস্টাগ্রাম পোস্ট","ଇନଷ୍ଟାଗ୍ରାମ୍ ପୋଷ୍ଟ","ఇన్‌స్టాగ్రామ్ పోస్ట్"],["Instagram story","इंस्टाग्राम स्टोरी","இன்ஸ்டாகிராம் ஸ்டோரி","ইনস্টাগ্রাম স্টোরি","ଇନଷ୍ଟାଗ୍ରାମ୍ ଷ୍ଟୋରୀ","ఇన్‌స్టాగ్రామ్ స్టోరీ"],["YouTube thumbnail","यूट्यूब थंबनेल","யூடியூப் சிறுபடம்","ইউটিউব থাম্বনেইল","ୟୁଟ୍ୟୁବ୍ ଥମ୍ବନେଲ୍","యూట్యూబ్ థంబ్‌నెయిల్"],["LinkedIn banner","लिंक्डइन बैनर","லிங்க்ட்இன் பேனர்","লিঙ্কডইন ব্যানার","ଲିଙ୍କଡଇନ୍ ବ୍ୟାନର","లింక్డ్‌ఇన్ బ్యానర్"],["LinkedIn post","लिंक्डइन पोस्ट","லிங்க்ட்இன் பதிவு","লিঙ্কডইন পোস্ট","ଲିଙ୍କଡଇନ୍ ପୋଷ୍ଟ","లింక్డ్‌ఇన్ పోస్ట్"],["Facebook cover","फ़ेसबुक कवर","பேஸ்புக் கவர்","ফেসবুক কভার","ଫେସବୁକ୍ କଭର୍","ఫేస్‌బుక్ కవర్"],["Poster / flyer","पोस्टर / फ़्लायर","போஸ்டர் / ஃபிளையர்","পোস্টার / ফ্লায়ার","ପୋଷ୍ଟର୍ / ଫ୍ଲାୟର୍","పోస్టర్ / ఫ్లైయర్"],["Product sale ad","प्रोडक्ट सेल विज्ञापन","பொருள் விற்பனை விளம்பரம்","পণ্য বিক্রয় বিজ্ঞাপন","ଉତ୍ପାଦ ବିକ୍ରୟ ବିଜ୍ଞାପନ","ఉత్పత్తి సేల్ ప్రకటన"],["Quote card","कोट कार्ड","கோட் கார்டு","কোট কার্ড","କୋଟ୍ କାର୍ଡ","కోట్ కార్డ్"],["Event invite","इवेंट निमंत्रण","நிகழ்வு அழைப்பு","ইভেন্টের আমন্ত্রণ","ଇଭେଣ୍ଟ ନିମନ୍ତ୍ରଣ","ఈవెంట్ ఆహ్వానం"],["Business announcement","बिज़नेस घोषणा","வணிக அறிவிப்பு","ব্যবসায়িক ঘোষণা","ବ୍ୟବସାୟିକ ଘୋଷଣା","వ్యాపార ప్రకటన"],["Resume header","रिज़्यूमे हेडर","ரெஸ்யூம் ஹெடர்","রিজিউমে হেডার","ରିଜ୍ୟୁମେ ହେଡର୍","రెజ్యూమె హెడర్"],["All shapes","सभी आकार","அனைத்து வடிவங்கள்","সব আকার","ସବୁ ଆକୃତି","అన్ని ఆకారాలు"],["Square","चौकोर","சதுரம்","বর্গ","ବର୍ଗ","చదరం"],["Portrait","पोर्ट्रेट","பொர்ட்ரெய்ட்","পোর্ট্রেট","ପୋର୍ଟ୍ରେଟ୍","పోర్ట్రెయిట్"],["Landscape","लैंडस्केप","லேண்ட்ஸ்கேப்","ল্যান্ডস্কেপ","ଲ୍ୟାଣ୍ଡସ୍କେପ୍","ల్యాండ్‌స్కేప్"],["Wide banner","चौड़ा बैनर","அகலமான பேனர்","চওড়া ব্যানার","ଚଉଡ଼ା ବ୍ୟାନର","వెడల్పైన బ్యానర్"],["Heading","शीर्षक","தலைப்பு","শিরোনাম","ଶୀର୍ଷକ","శీర్షిక"],["Subheading","उप-शीर्षक","துணைத்தலைப்பு","উপ-শিরোনাম","ଉପ-ଶୀର୍ଷକ","ఉప-శీర్షిక"],["Body text","मुख्य टेक्स्ट","பொது உரை","মূল লেখা","ମୂଳ ଲେଖା","ప్రధాన వచనం"],["Shapes","आकृतियाँ","வடிவங்கள்","আকৃতি","ଆକୃତି","ఆకారాలు"],["Rectangle","आयत","செவ்வகம்","আয়তক্ষেত্র","ଆୟତ","దీర్ఘచతురస్రం"],["Circle","वृत्त","வட்டம்","বৃত্ত","ବୃତ୍ତ","వృత్తం"],["Triangle","त्रिभुज","முக்கோணம்","ত্রিভুজ","ତ୍ରିଭୁଜ","త్రిభుజం"],["Line","रेखा","கோடு","রেখা","ରେଖା","గీత"],["Photos","फ़ोटो","படங்கள்","ছবি","ଫଟୋ","ఫోటోలు"],["Upload photo…","फ़ोटो अपलोड करें…","படத்தைப் பதிவேற்று…","ছবি আপলোড করুন…","ଫଟୋ ଅପଲୋଡ୍ କରନ୍ତୁ…","ఫోటోను అప్‌లోడ్ చేయండి…"],["Empty photo frame","खाली फ़ोटो फ़्रेम","வெற்று பட சட்டம்","ফাঁকা ছবির ফ্রেম","ଖାଲି ଫଟୋ ଫ୍ରେମ୍","ఖాళీ ఫోటో ఫ్రేమ్"],["Fonts","फ़ॉन्ट","எழுத்துருக்கள்","ফন্ট","ଫଣ୍ଟ","ఫాంట్‌లు"],["Add my own font…","अपना फ़ॉन्ट जोड़ें…","என் எழுத்துருவைச் சேர்…","নিজের ফন্ট যোগ করুন…","ନିଜ ଫଣ୍ଟ ଯୋଗ କରନ୍ତୁ…","నా ఫాంట్ జోడించండి…"],["Content","सामग्री","உள்ளடக்கம்","বিষয়বস্তু","ବିଷୟବସ୍ତୁ","కంటెంట్"],["Weight","मोटाई","தடிமன்","মোটাভাব","ମୋଟେଇ","మందం"],["Italic","तिरछा","சாய்வு","ইটালিক","ଇଟାଲିକ୍","ఇటాలిక్"],["Size and spacing","आकार और दूरी","அளவு & இடைவெளி","আকার ও ব্যবধান","ଆକାର ଓ ବ୍ୟବଧାନ","పరిమాణం & ఖాళీ"],["Line height","पंक्ति की ऊँचाई","வரி உயரம்","লাইনের উচ্চতা","ଧାଡ଼ିର ଉଚ୍ଚତା","లైన్ ఎత్తు"],["Letter spacing","अक्षरों के बीच दूरी","எழுத்து இடைவெளி","অক্ষরের ব্যবধান","ଅକ୍ଷର ବ୍ୟବଧାନ","అక్షరాల మధ్య ఖాళీ"],["Alignment","संरेखण","சீரமைப்பு","সারিবদ্ধকরণ","ଆଲାଇନମେଣ୍ଟ୍","అమరిక"],["Effects","इफ़ेक्ट","விளைவுகள்","ইফেক্ট","ଇଫେକ୍ଟ","ఎఫెక్ట్స్"],["Shadow","छाया","நிழல்","ছায়া","ଛାୟା","నీడ"],["Outline","रूपरेखा","வெளிக்கோடு","রূপরেখা","ବାହାର ରେଖା","అవుట్‌లైన్"],["Position and size","स्थान और आकार","நிலை & அளவு","অবস্থান ও আকার","ସ୍ଥାନ ଓ ଆକାର","స్థానం & పరిమాణం"],["Rotation","घुमाव","சுழற்சி","ঘূর্ণন","ଘୂର୍ଣ୍ଣନ","తిప్పడం"],["Align to canvas","कैनवास के हिसाब से संरेखित करें","கேன்வாஸுக்கு சீரமை","ক্যানভাসে সারিবদ্ধ করুন","କ୍ୟାନଭାସ୍ ସହ ସଜାନ୍ତୁ","క్యాన్వాస్‌కు సమలేఖనం చేయండి"],["Arrange","क्रम बदलें","வரிசைப்படுத்து","সাজান","ସଜାନ୍ତୁ","అమర్చండి"],["Duplicate","डुप्लिकेट","நகல்","ডুপ্লিকেট","ଡୁପ୍ଲିକେଟ୍","డూప్లికేట్"],["Forward","आगे लाएँ","முன்னே","সামনে আনুন","ଆଗକୁ ଆଣନ୍ତୁ","ముందుకు"],["Backward","पीछे भेजें","பின்னே","পিছনে পাঠান","ପଛକୁ ପଠାନ୍ତୁ","వెనుకకు"],["To front","सबसे आगे","முன்னால்","সবার সামনে","ସବୁଠୁ ଆଗକୁ","అన్నిటికంటే ముందుకు"],["To back","सबसे पीछे","பின்னால்","সবার পিছনে","ସବୁଠୁ ପଛକୁ","అన్నిటికంటే వెనుకకు"],["Lock","लॉक","பூட்டு","লক","ଲକ୍","లాక్"],["Hide","छिपाएँ","மறை","লুকান","ଲୁଚାନ୍ତୁ","దాచు"],["Primary","मुख्य","முதன்மை","প্রধান","ପ୍ରଧାନ","ప్రాథమిక"],["Accent","एक्सेंट","அழுத்த நிறம்","অ্যাকসেন্ট","ଆକ୍ସେଣ୍ଟ","యాక్సెంట్"],["Photo","फ़ोटो","படம்","ছবি","ଫଟୋ","ఫోటో"],["Canvas size","कैनवास का आकार","கேன்வாஸ் அளவு","ক্যানভাসের আকার","କ୍ୟାନଭାସ୍ ଆକାର","క్యాన్వాస్ పరిమాణం"],["Apply size","आकार लागू करें","அளவைப் பயன்படுத்து","আকার প্রয়োগ করুন","ଆକାର ପ୍ରୟୋଗ କରନ୍ତୁ","పరిమాణం వర్తింపజేయండి"],["Type","प्रकार","வகை","ধরন","ପ୍ରକାର","రకం"],["Solid colour","एक रंग","ஒரே நிறம்","একরঙা","ଏକ ରଙ୍ଗ","ఒకే రంగు"],["Gradient","ग्रेडिएंट","கிரேடியன்ட்","গ্র্যাডিয়েন্ট","ଗ୍ରାଡିଏଣ୍ଟ","గ్రేడియంట్"],["Colour palette","रंग पैलेट","வண்ணத் தட்டு","রঙের প্যালেট","ରଙ୍ଗ ପ୍ୟାଲେଟ୍","రంగుల పాలెట్"],["Editor","एडिटर","எடிட்டர்","এডিটর","ଏଡିଟର୍","ఎడిటర్"],["Resize for a platform","प्लैटफ़ॉर्म के लिए आकार बदलें","தளத்திற்கு அளவை மாற்று","প্ল্যাটফর্মের জন্য আকার বদলান","ପ୍ଲାଟଫର୍ମ ପାଇଁ ଆକାର ବଦଳାନ୍ତୁ","ప్లాట్‌ఫారమ్ కోసం పరిమాణం మార్చండి"],["Use","उपयोग करें","பயன்படுத்து","ব্যবহার করুন","ବ୍ୟବହାର କରନ୍ତୁ","ఉపయోగించు"],["Selected sizes","चुने हुए आकार","தேர்ந்தெடுத்த அளவுகள்","নির্বাচিত আকার","ବଛା ଆକାର","ఎంచుకున్న పరిమాణాలు"],["Preview with checks","जाँच के साथ प्रीव्यू","சோதனைகளுடன் முன்னோட்டம்","যাচাইসহ প্রিভিউ","ଯାଞ୍ଚ ସହ ପ୍ରିଭ୍ୟୁ","తనిఖీలతో ప్రివ్యూ"],["Export selected (ZIP)","चुने हुए एक्सपोर्ट करें (ZIP)","தேர்ந்தவற்றை ஏற்றுமதி செய் (ZIP)","নির্বাচিতগুলি এক্সপোর্ট করুন (ZIP)","ବଛାଗୁଡ଼ିକ ଏକ୍ସପୋର୍ଟ କରନ୍ତୁ (ZIP)","ఎంచుకున్నవి ఎక్స్‌పోర్ట్ చేయండి (ZIP)"],["Network","नेटवर्क","தளம்","নেটওয়ার্ক","ନେଟୱାର୍କ","నెట్‌వర్క్"],["Check your design","अपने डिज़ाइन की जाँच करें","உங்கள் வடிவமைப்பைச் சோதிக்கவும்","আপনার ডিজাইন যাচাই করুন","ଆପଣଙ୍କ ଡିଜାଇନ୍ ଯାଞ୍ଚ କରନ୍ତୁ","మీ డిజైన్‌ను తనిఖీ చేయండి"],["Target","लक्ष्य प्लैटफ़ॉर्म","இலக்கு","লক্ষ্য","ଲକ୍ଷ୍ୟ","లక్ష్యం"],["No target platform","कोई लक्ष्य प्लैटफ़ॉर्म नहीं","இலக்கு தளம் இல்லை","কোনো লক্ষ্য প্ল্যাটফর্ম নেই","କୌଣସି ଲକ୍ଷ୍ୟ ପ୍ଲାଟଫର୍ମ ନାହିଁ","లక్ష్య ప్లాట్‌ఫారమ్ లేదు"],["Run check","जाँच चलाएँ","சோதனையை இயக்கு","যাচাই চালান","ଯାଞ୍ଚ ଚଲାନ୍ତୁ","తనిఖీ చేయండి"],["Select it","इसे चुनें","இதைத் தேர்ந்தெடு","এটি নির্বাচন করুন","ଏହାକୁ ବାଛନ୍ତୁ","దీన్ని ఎంచుకోండి"],["Run Visual Preflight on this design","इस डिज़ाइन पर विज़ुअल प्रीफ़्लाइट चलाएँ","இந்த வடிவமைப்பில் விஷுவல் ப்ரீஃப்ளைட்டை இயக்கு","এই ডিজাইনে ভিজ্যুয়াল প্রিফ্লাইট চালান","ଏହି ଡିଜାଇନ୍‌ରେ ଭିଜୁଆଲ୍ ପ୍ରିଫ୍ଲାଇଟ୍ ଚଲାନ୍ତୁ","ఈ డిజైన్‌పై విజువల్ ప్రీఫ్లైట్ నడపండి"],["Send to photo editor","फ़ोटो एडिटर में भेजें","படத்தை எடிட்டருக்கு அனுப்பு","ফটো এডিটরে পাঠান","ଫଟୋ ଏଡିଟରକୁ ପଠାନ୍ତୁ","ఫోటో ఎడిటర్‌కు పంపండి"],["Target platform","लक्ष्य प्लैटफ़ॉर्म","இலக்கு தளம்","লক্ষ্য প্ল্যাটফর্ম","ଲକ୍ଷ୍ୟ ପ୍ଲାଟଫର୍ମ","లక్ష్య ప్లాట్‌ఫారమ్"],["Scale","स्केल","அளவீடு","স্কেল","ସ୍କେଲ୍","స్కేల్"],["Review","समीक्षा करें","மதிப்பாய்வு","পর্যালোচনা","ସମୀକ୍ଷା","సమీక్షించండి"],["Estimate file size","फ़ाइल का आकार अनुमानित करें","கோப்பு அளவை மதிப்பிடு","ফাইলের আকার অনুমান করুন","ଫାଇଲ୍ ଆକାର ଅନୁମାନ କରନ୍ତୁ","ఫైల్ పరిమాణాన్ని అంచనా వేయండి"],["Download","डाउनलोड करें","பதிவிறக்கு","ডাউনলোড করুন","ଡାଉନଲୋଡ୍ କରନ୍ତୁ","డౌన్‌లోడ్ చేయండి"],["Other sizes","दूसरे आकार","பிற அளவுகள்","অন্যান্য আকার","ଅନ୍ୟ ଆକାର","ఇతర పరిమాణాలు"],["Open Resize","आकार बदलना खोलें","அளவு மாற்றத்தைத் திற","আকার বদল খুলুন","ଆକାର ବଦଳ ଖୋଲନ୍ତୁ","పరిమాణ మార్పు తెరవండి"],["Fill","भराव","நிரப்பு","ভরাট","ଭର୍ତ୍ତି","నింపు"],["Corner radius","कोने की गोलाई","மூலை ஆரம்","কোণের বক্রতা","କୋଣର ବକ୍ରତା","మూల వక్రత"],["Add text","टेक्स्ट जोड़ें","உரை சேர்","টেক্সট যোগ করুন","ଟେକ୍ସଟ୍ ଯୋଗ କରନ୍ତୁ","టెక్స్ట్ జోడించండి"],["Browse templates","टेम्पलेट देखें","டெம்ப்ளேட்களைப் பார்","টেমপ্লেট দেখুন","ଟେମ୍ପଲେଟ୍ ଦେଖନ୍ତୁ","టెంప్లేట్లు చూడండి"],["Nothing selected","कुछ चुना नहीं गया","எதுவும் தேர்ந்தெடுக்கப்படவில்லை","কিছু নির্বাচিত নেই","କିଛି ବଛାଯାଇନାହିଁ","ఏదీ ఎంచుకోలేదు"],["Search templates","टेम्पलेट खोजें","டெம்ப்ளேட்களைத் தேடு","টেমপ্লেট খুঁজুন","ଟେମ୍ପଲେଟ୍ ଖୋଜନ୍ତୁ","టెంప్లేట్లు వెతకండి"],["Search sizes","आकार खोजें","அளவுகளைத் தேடு","আকার খুঁজুন","ଆକାର ଖୋଜନ୍ତୁ","పరిమాణాలు వెతకండి"],["Loading…","लोड हो रहा है…","ஏற்றுகிறது…","লোড হচ্ছে…","ଲୋଡ୍ ହେଉଛି…","లోడ్ అవుతోంది…"],["Midnight","मध्यरात्रि","நள்ளிரவு","মধ্যরাত","ମଧ୍ୟରାତ୍ରି","అర్ధరాత్రి"],["Paper","कागज़","காகிதம்","কাগজ","କାଗଜ","కాగితం"],["Forest","जंगल","காடு","বন","ଜଙ୍ଗଲ","అడవి"],["Sunset","सूर्यास्त","சூரிய அஸ்தமனம்","সূর্যাস্ত","ସୂର୍ଯ୍ୟାସ୍ତ","సూర్యాస్తమయం"],["Ocean","समुद्र","கடல்","সাগর","ସମୁଦ୍ର","సముద్రం"],["Berry","बेरी","பெர்ரி","বেরি","ବେରି","బెర్రీ"],["Mono","मोनो","மோனோ","মনো","ମୋନୋ","మోనో"],["Mint","पुदीना","புதினா","পুদিনা","ପୁଦିନା","పుదీనా"]],"langs":[{"code":"hi","native":"हिन्दी","name":"Hindi","q":"क्या आप APIC हिंदी में देखना चाहते हैं?","yes":"हाँ","no":"नहीं"},{"code":"ta","native":"தமிழ்","name":"Tamil","q":"APIC-ஐ தமிழில் பார்க்க வேண்டுமா?","yes":"ஆம்","no":"வேண்டாம்"},{"code":"bn","native":"বাংলা","name":"Bengali","q":"APIC বাংলায় দেখতে চান?","yes":"হ্যাঁ","no":"না"},{"code":"or","native":"ଓଡ଼ିଆ","name":"Odia","q":"APIC କୁ ଓଡ଼ିଆରେ ଦେଖିବାକୁ ଚାହାଁନ୍ତି?","yes":"ହଁ","no":"ନା"},{"code":"te","native":"తెలుగు","name":"Telugu","q":"APIC ని తెలుగులో చూడాలనుకుంటున్నారా?","yes":"అవును","no":"వద్దు"}]}</script>
+<script>
+/* APIC language support: hi, ta, bn, or, te (+ English default).
+   Exact-match phrase dictionary applied to existing DOM text, so no original markup/code is changed.
+   Privacy: reads navigator.languages only; the choice is kept in this browser's localStorage; no network. */
+(function () {
+  'use strict';
+  var KEY = 'apic_lang';
+  var D; try { D = JSON.parse(document.getElementById('apic-i18n-data').textContent); } catch (e) { return; }
+  var ORDER = D.order, LANGS = {}, maps = {}, cur = 'en';
+  D.langs.forEach(function (l) { LANGS[l.code] = l; });
+  ORDER.forEach(function (c, i) { var m = Object.create(null); D.rows.forEach(function (r) { m[r[0]] = r[i + 1]; }); maps[c] = m; });
+  var origT = new WeakMap(), origA = new WeakMap();
+  var ATTRS = ['placeholder', 'title', 'aria-label'];
+  function norm(s) { return s.replace(/\s+/g, ' ').trim(); }
+  function store(get) { try { return localStorage.getItem(KEY); } catch (e) { return null; } }
+  function save(v) { try { localStorage.setItem(KEY, v); } catch (e) { } }
+  function skipEl(el) {
+    if (!el) return true;
+    var t = el.tagName; if (t === 'SCRIPT' || t === 'STYLE' || t === 'NOSCRIPT' || t === 'TEXTAREA' || t === 'INPUT' || t === 'CANVAS' || t === 'CODE') return true;
+    if (el.isContentEditable) return true;
+    return !!(el.closest && el.closest('[data-no-i18n],#apicLangBar,#apicLangBtn,#apicLangMenu'));
+  }
+  function trNode(n) {
+    var m = maps[cur]; if (!m) return;
+    var v = n.nodeValue; if (!v) return;
+    var k = norm(v); if (!k) return;
+    var t = m[k]; if (t === undefined) return;
+    if (skipEl(n.parentElement)) return;
+    var lead = v.match(/^\s*/)[0], trail = v.match(/\s*$/)[0];
+    var nv = lead + t + trail; if (nv === v) return;
+    origT.set(n, { o: v, t: nv }); n.nodeValue = nv;
+  }
+  function trAttr(el) {
+    var m = maps[cur]; if (!m || skipEl(el)) return;
+    for (var i = 0; i < ATTRS.length; i++) {
+      var a = ATTRS[i], v = el.getAttribute && el.getAttribute(a); if (!v) continue;
+      var t = m[norm(v)]; if (t === undefined || t === v) continue;
+      var rec = origA.get(el); if (!rec) { rec = {}; origA.set(el, rec); }
+      rec[a] = { o: v, t: t }; el.setAttribute(a, t);
+    }
+  }
+  function walk(root, fn, afn) {
+    if (root.nodeType === 3) { fn(root); return; }
+    if (root.nodeType !== 1 && root.nodeType !== 9 && root.nodeType !== 11) return;
+    if (root.nodeType === 1) { if (skipEl(root) && root.tagName !== 'BODY') return; afn(root); }
+    var w = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, null), n;
+    while ((n = w.nextNode())) { if (n.nodeType === 3) fn(n); else afn(n); }
+  }
+  function revertAll() {
+    obs && obs.disconnect();
+    walk(document.body, function (n) { var r = origT.get(n); if (r && n.nodeValue === r.t) n.nodeValue = r.o; origT.delete(n); }, function (el) {
+      var rec = origA.get(el); if (!rec) return;
+      for (var a in rec) { if (el.getAttribute(a) === rec[a].t) el.setAttribute(a, rec[a].o); } origA.delete(el);
+    });
+  }
+  var obs = null, pending = new Set(), scheduled = false;
+  function flush() {
+    scheduled = false; if (cur === 'en') { pending.clear(); return; }
+    obs.disconnect();
+    pending.forEach(function (n) { if (!n.isConnected) return; if (n.nodeType === 3) trNode(n); else { walk(n, trNode, trAttr); } });
+    pending.clear(); observe();
+  }
+  function observe() { obs.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ATTRS }); }
+  function startObs() {
+    if (obs) return;
+    obs = new MutationObserver(function (list) {
+      if (cur === 'en') return;
+      list.forEach(function (m) {
+        if (m.type === 'childList') m.addedNodes.forEach(function (n) { pending.add(n); });
+        else if (m.type === 'characterData') pending.add(m.target);
+        else pending.add(m.target);
+      });
+      if (!scheduled) { scheduled = true; (window.requestAnimationFrame || setTimeout)(flush); }
+    });
+  }
+  function setLang(code, persist) {
+    if (code !== 'en' && !maps[code]) code = 'en';
+    startObs(); revertAll(); cur = code;
+    document.documentElement.lang = code === 'en' ? 'en' : code;
+    if (code !== 'en') walk(document.body, trNode, trAttr);
+    observe();
+    if (persist) save(code);
+    updateBtn(); closeMenu(); removeBar();
+    try { document.dispatchEvent(new CustomEvent('apic-lang', { detail: code })); } catch (e) { }
+  }
+  /* ------------------------------------------------ UI */
+  function el(tag, cls, txt) { var e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; }
+  var btn, menu, bar;
+  function updateBtn() {
+    if (!btn) return;
+    var l = LANGS[cur]; btn.textContent = ''; btn.appendChild(el('span', '', '🌐')); btn.appendChild(el('span', 'ln', cur === 'en' ? 'EN' : l.native));
+    btn.setAttribute('aria-label', 'Language: ' + (cur === 'en' ? 'English' : l.native + ' (' + l.name + ')'));
+  }
+  function closeMenu() { if (menu) { menu.remove(); menu = null; btn && btn.setAttribute('aria-expanded', 'false'); document.removeEventListener('pointerdown', outside, true); } }
+  function outside(e) { if (menu && !menu.contains(e.target) && e.target !== btn && !btn.contains(e.target)) closeMenu(); }
+  function openMenu() {
+    if (menu) { closeMenu(); return; }
+    menu = el('div', ''); menu.id = 'apicLangMenu'; menu.setAttribute('role', 'menu'); menu.setAttribute('aria-label', 'Language');
+    var all = [['en', 'English', 'English']].concat(ORDER.map(function (c) { return [c, LANGS[c].native, LANGS[c].name]; }));
+    all.forEach(function (x) {
+      var b = el('button', cur === x[0] ? 'on' : ''); b.type = 'button'; b.setAttribute('role', 'menuitemradio'); b.setAttribute('aria-checked', String(cur === x[0])); b.lang = x[0];
+      b.appendChild(el('span', 'n', x[1])); if (x[0] !== 'en') b.appendChild(el('small', '', x[2]));
+      b.addEventListener('click', function () { setLang(x[0], true); btn.focus(); }); menu.appendChild(b);
+    });
+    menu.addEventListener('keydown', function (e) {
+      var items = [].slice.call(menu.querySelectorAll('button')), i = items.indexOf(document.activeElement);
+      if (e.key === 'Escape') { e.preventDefault(); closeMenu(); btn.focus(); }
+      else if (e.key === 'ArrowDown') { e.preventDefault(); items[(i + 1) % items.length].focus(); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); items[(i - 1 + items.length) % items.length].focus(); }
+    });
+    document.body.appendChild(menu); btn.setAttribute('aria-expanded', 'true'); document.addEventListener('pointerdown', outside, true);
+    var cb = menu.querySelector('.on') || menu.firstChild; cb && cb.focus();
+  }
+  function mkBtn() {
+    if (document.getElementById('apicLangBtn')) return;
+    btn = el('button', ''); btn.id = 'apicLangBtn'; btn.type = 'button'; btn.setAttribute('aria-haspopup', 'menu'); btn.setAttribute('aria-expanded', 'false');
+    btn.addEventListener('click', openMenu); document.body.appendChild(btn); updateBtn();
+  }
+  function removeBar() { if (bar) { bar.remove(); bar = null; if (btn) btn.style.display = ''; } }
+  function showBar(code) {
+    var l = LANGS[code]; if (!l || bar) return;
+    bar = el('div', ''); bar.id = 'apicLangBar'; bar.setAttribute('role', 'region'); bar.setAttribute('aria-label', 'Language suggestion');
+    var q = el('div', 'q', l.q); q.lang = code; bar.appendChild(q);
+    bar.appendChild(el('div', 'e', 'Switch APIC to ' + l.name + '?'));
+    var row = el('div', 'r');
+    var y = el('button', 'y'); y.type = 'button'; y.lang = code; y.appendChild(document.createTextNode(l.yes + ' / Yes'));
+    var n = el('button', 'n'); n.type = 'button'; n.appendChild(el('span', '', l.no)); n.lastChild.lang = code; n.appendChild(document.createTextNode(' / No, keep English'));
+    y.addEventListener('click', function () { setLang(code, true); });
+    n.addEventListener('click', function () { save('en'); removeBar(); });
+    row.appendChild(y); row.appendChild(n); bar.appendChild(row);
+    var sn = document.getElementById('storageNotice'); if (sn && sn.offsetHeight && getComputedStyle(sn).display !== 'none') bar.style.bottom = (sn.offsetHeight + 30) + 'px';
+    bar.addEventListener('keydown', function (e) { if (e.key === 'Escape') removeBar(); });
+    document.body.appendChild(bar); if (btn) btn.style.display = 'none';
+  }
+  function detect() {
+    var list = (navigator.languages && navigator.languages.length) ? navigator.languages : [navigator.language || 'en'];
+    for (var i = 0; i < list.length; i++) {
+      var p = String(list[i]).toLowerCase().split('-')[0]; if (p === 'ory') p = 'or';
+      if (p === 'en') return null; if (maps[p]) return p;
+    } return null;
+  }
+  function init() {
+    mkBtn(); var s = store();
+    if (s && (s === 'en' || maps[s])) { if (s !== 'en') setLang(s, false); return; }
+    var d = detect(); if (d) showBar(d);
+  }
+  window.__apicI18n = { set: function (c) { setLang(c, true); }, get: function () { return cur; }, supported: ORDER.slice(), detect: detect };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { setTimeout(init, 0); }); else setTimeout(init, 0);
+})();
+
+</script>
 </body>
 </html>
